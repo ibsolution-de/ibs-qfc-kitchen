@@ -1,5 +1,4 @@
 packages:
   - '.'
-onlyBuiltDependencies:
-  - esbuild
-  - opencode-ai
+allowBuilds:
+  esbuild: true
