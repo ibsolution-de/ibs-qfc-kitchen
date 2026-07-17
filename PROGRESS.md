@@ -21,3 +21,8 @@ Next up: Step 1.1 — Planner data-loss fix.
 Gates: lint ✅ build ✅ test ✅ (17 tests: money + planner merge semantics)
 Notes: mergeDayEntries/computeTargetDates extracted to utils/planner.ts (pure, tested). Merge semantics replace same-type only; other type preserved + translated conflict warnings + amber-flagged overlapping chips. Absence days non-interactive except read-only day view. Retry 1: restored absence deletion via modal read-only view (handleDeleteAbsenceFromModal). Follow-up: utils/planner.ts createId() still uses Math.random substr — swept in Step 1.7.
 Next up: Step 1.2 — Overload semantics honor availability.
+
+## 2026-07-18 Step 1.2 — Overload semantics honor availability — 2292c57
+Gates: lint ✅ build ✅ test ✅ (23 tests)
+Notes: dailyCapacityFraction/isOverloaded/allocationToHours in utils/planner.ts used for all overload decisions (cell, month stats, pill now agree). Slider clamped to 8h; types.ts allocation doc updated. Left as-is: hasCriticalConflict counts critical projects (different semantic); day over-booking beyond 8h still possible via multiple projects (capacity bar warns) — P3 UX candidate.
+Next up: Step 1.3 — Kill fake affordances.
