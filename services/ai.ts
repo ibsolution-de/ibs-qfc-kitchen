@@ -3,6 +3,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { QuarterData, Sentiment } from "../types";
 
+export const AI_MODEL_FORECAST = 'gemini-3-pro-preview';
+
 export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey: string, language: string): Promise<string> => {
   if (!apiKey && !process.env.API_KEY) {
     throw new Error("Missing API Key");
@@ -36,7 +38,7 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: AI_MODEL_FORECAST,
       contents: prompt,
       config: {
         thinkingConfig: { thinkingBudget: 32768 } // Using max thinking budget for complex analysis

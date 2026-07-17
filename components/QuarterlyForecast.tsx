@@ -4,13 +4,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { QuarterData, Project, Assignment, Employee, Absence } from '../types';
 import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Badge } from './ui/Badge';
-import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, Presentation, FilePlus, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown, Dices } from 'lucide-react';
+import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, FileText, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown, Dices } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
-import { generateForecastAnalysis } from '../services/ai';
+import { generateForecastAnalysis, AI_MODEL_FORECAST } from '../services/ai';
 import { Modal } from './ui/Modal';
 import { AsciiSpinner } from './ui/AsciiSpinner';
+import { forecastToJSON, downloadTextFile } from '../utils/export';
 import { format, eachDayOfInterval, endOfMonth, isWeekend } from 'date-fns';
 
 interface QuarterlyForecastProps {
@@ -323,8 +324,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       });
   };
 
-  const handleExportPPT = () => {
-    alert(t('forecast.generatingPPT'));
+  const handleExportForecastJSON = () => {
+    const json = forecastToJSON(data);
+    const filename = `forecast-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    downloadTextFile(filename, json, 'application/json');
   };
   
   const handleAIAnalysis = async () => {
@@ -420,10 +423,6 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       setIsSimModalOpen(true);
   };
 
-  const handleRequestSAP = (project: Project, e: React.MouseEvent) => {
-    e.stopPropagation();
-    alert(`${t('forecast.requestingSAP')} "${project.name}"`);
-  };
 
   const handleUpdateProject = (
     quarterId: string,
@@ -487,9 +486,9 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                     <Sparkles className="w-4 h-4" />
                     {t('forecast.aiAnalysis')}
                 </Button>
-                <Button onClick={handleExportPPT} className="gap-2 shadow-sm">
-                    <Presentation className="w-4 h-4" />
-                    {t('forecast.exportPPT')}
+                <Button onClick={handleExportForecastJSON} className="gap-2 shadow-sm">
+                    <FileText className="w-4 h-4" />
+                    {t('forecast.exportJSON')}
                 </Button>
             </div>
         </div>
@@ -623,15 +622,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                             {p.budget && p.budget !== '0' ? p.budget : 'T&M'}
                                         </div>
                                     </div>
-                                    {!readOnly && (
-                                    <button 
-                                        onClick={(e) => handleRequestSAP(p, e)}
-                                        className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-charcoal-200 rounded-md text-charcoal-500 transition-all"
-                                        title={t('forecast.requestSAP')}
-                                    >
-                                        <FilePlus className="w-3.5 h-3.5" />
-                                    </button>
-                                    )}
+
                                 </div>
                             </div>
                         )) : <div className="text-xs text-charcoal-400 italic pl-2">{t('forecast.noActive')}</div>}
@@ -935,7 +926,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                             {t('forecast.generatingAnalysis')}
                             <span className="animate-pulse">_</span>
                         </p>
-                        <p className="text-xs text-gray-500 font-mono mt-1">Processing via Gemini 3 Pro</p>
+                        <p className="text-xs text-gray-500 font-mono mt-1">{t('forecast.processingVia').replace('{{model}}', AI_MODEL_FORECAST)}</p>
                     </div>
                     
                     {/* Scanning Line Animation */}
@@ -961,21 +952,9 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                 <div className="bg-charcoal-900 rounded-xl shadow-2xl border border-charcoal-700 overflow-hidden text-gray-200 relative min-h-[400px]">
                     {/* HUD Header */}
                     <div className="bg-charcoal-950/80 px-4 py-3 flex items-center justify-between border-b border-charcoal-700 shadow-sm z-20 relative backdrop-blur-sm">
-                        <div className="flex items-center gap-4">
-                            <div className="flex flex-col">
-                                <span className="text-[9px] text-blue-500 font-mono leading-none tracking-widest">ANALYSIS_ID</span>
-                                <span className="text-xs text-blue-400 font-mono font-bold tracking-wider">AF-{Math.floor(Math.random()*10000)}</span>
-                            </div>
-                            <div className="h-6 w-px bg-charcoal-700"></div>
-                            <div className="flex flex-col">
-                                <span className="text-[9px] text-blue-500 font-mono leading-none tracking-widest">LATENCY</span>
-                                <span className="text-xs text-green-500 font-mono">12ms</span>
-                            </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 border border-blue-900/50 rounded px-2 py-1 bg-blue-900/20">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
-                            <span className="text-[10px] text-blue-400 font-bold tracking-widest uppercase">Secure Connection</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-blue-500 font-mono leading-none tracking-widest uppercase">{t('forecast.aiModel')}</span>
+                            <span className="text-xs text-blue-400 font-mono font-bold tracking-wider">{AI_MODEL_FORECAST}</span>
                         </div>
                     </div>
                     

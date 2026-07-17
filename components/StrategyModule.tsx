@@ -4,8 +4,10 @@ import { Project, Assignment, StrategicGoal, NorthStarMetric, StrategyPerspectiv
 import { MOCK_GOALS, MOCK_NORTH_STARS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
+import { Modal } from './ui/Modal';
 import { Compass, Target, Map as MapIcon, Bot, Mic, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus, ChevronRight } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import { AI_MODEL_FORECAST } from '../services/ai';
 import { useSettings } from '../contexts/SettingsContext';
 
 interface StrategyModuleProps {
@@ -15,8 +17,17 @@ interface StrategyModuleProps {
 }
 
 // Sub-components
-const StrategyMap: React.FC<{ goals: StrategicGoal[], projects: Project[] }> = ({ goals, projects }) => {
+interface StrategyMapProps {
+    goals: StrategicGoal[];
+    projects: Project[];
+    onAddGoal: (goal: StrategicGoal) => void;
+}
+
+const StrategyMap: React.FC<StrategyMapProps> = ({ goals, projects, onAddGoal }) => {
     const { t } = useLanguage();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [title, setTitle] = useState('');
+    const [perspective, setPerspective] = useState<StrategyPerspective>('financial');
     const perspectives: StrategyPerspective[] = ['financial', 'customer', 'internal', 'learning'];
 
     const getGoalHealth = (goal: StrategicGoal) => {
@@ -26,7 +37,22 @@ const StrategyMap: React.FC<{ goals: StrategicGoal[], projects: Project[] }> = (
         return 'good';
     };
 
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title.trim()) return;
+        onAddGoal({
+            id: crypto.randomUUID(),
+            title: title.trim(),
+            perspective,
+            linkedProjectIds: [],
+        });
+        setTitle('');
+        setPerspective('financial');
+        setIsModalOpen(false);
+    };
+
     return (
+        <>
         <div className="grid grid-cols-2 gap-6 h-full p-4 overflow-y-auto custom-scrollbar">
             {perspectives.map(p => (
                 <div key={p} className="bg-white rounded-xl border border-charcoal-200 shadow-sm p-4 flex flex-col min-h-[250px] relative overflow-hidden group">
@@ -68,13 +94,53 @@ const StrategyMap: React.FC<{ goals: StrategicGoal[], projects: Project[] }> = (
                                 </div>
                             )
                         })}
-                        <button className="w-full py-2 border border-dashed border-charcoal-200 rounded-lg text-xs text-charcoal-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1">
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="w-full py-2 border border-dashed border-charcoal-200 rounded-lg text-xs text-charcoal-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                        >
                             <Plus className="w-3 h-3" /> {t('strategy.addGoal')}
                         </button>
                     </div>
                 </div>
             ))}
         </div>
+
+        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('strategy.newGoal')} size="md">
+            <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                    <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                        {t('strategy.goalTitle')}
+                    </label>
+                    <input
+                        required
+                        className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                        value={title}
+                        onChange={e => setTitle(e.target.value)}
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                        {t('strategy.goalPerspective')}
+                    </label>
+                    <select
+                        className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                        value={perspective}
+                        onChange={e => setPerspective(e.target.value as StrategyPerspective)}
+                    >
+                        {perspectives.map(p => (
+                            <option key={p} value={p}>{t(`strategy.perspectives.${p}`)}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex justify-end gap-3 pt-2 border-t border-charcoal-100">
+                    <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
+                        {t('strategy.cancel')}
+                    </Button>
+                    <Button type="submit">{t('strategy.saveGoal')}</Button>
+                </div>
+            </form>
+        </Modal>
+        </>
     );
 };
 
@@ -261,7 +327,7 @@ const StrategyCoPilot: React.FC = () => {
             `;
 
             const chat = ai.chats.create({
-                model: 'gemini-3-pro-preview',
+                model: AI_MODEL_FORECAST,
                 config: { systemInstruction: systemPrompt },
                 history: history
             });
@@ -368,6 +434,10 @@ export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assign
   const [activeTab, setActiveTab] = useState<'map' | 'northstar' | 'copilot'>('map');
   const [goals, setGoals] = useState<StrategicGoal[]>(MOCK_GOALS);
 
+  const handleAddGoal = (goal: StrategicGoal) => {
+    setGoals(prev => [...prev, goal]);
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50/50 overflow-hidden relative tech-pattern">
        <div className="p-6 pb-2">
@@ -408,7 +478,7 @@ export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assign
            <div className="max-w-7xl mx-auto h-full">
                {activeTab === 'map' && (
                    <div className="h-full bg-white/50 backdrop-blur-sm rounded-2xl border border-charcoal-200 shadow-inner animate-fade-in-up">
-                       <StrategyMap goals={goals} projects={projects} />
+                       <StrategyMap goals={goals} projects={projects} onAddGoal={handleAddGoal} />
                    </div>
                )}
                

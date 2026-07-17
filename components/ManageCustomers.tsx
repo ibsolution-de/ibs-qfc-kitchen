@@ -1,20 +1,33 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Customer, Project, Assignment } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Briefcase, Mail, Building2, UserCircle, PieChart, AlertTriangle, CheckCircle, Folder } from 'lucide-react';
+import { Briefcase, Mail, Building2, UserCircle, PieChart, AlertTriangle, CheckCircle, Folder, Trash2, Edit2 } from 'lucide-react';
 import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
+import { Modal } from './ui/Modal';
 
 interface ManageCustomersProps {
   customers: Customer[];
   projects: Project[];
   assignments: Assignment[];
   onNavigateToProject: (projectId: string) => void;
+  onUpdateCustomers: (customers: Customer[]) => void;
 }
 
-export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, projects, assignments, onNavigateToProject }) => {
+export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, projects, assignments, onNavigateToProject, onUpdateCustomers }) => {
   const { t } = useLanguage();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<Partial<Customer>>({
+    name: '',
+    logo: '',
+    industry: '',
+    contactName: '',
+    email: '',
+    notes: '',
+  });
 
   const parseBudget = (budgetStr?: string): number => {
     if (!budgetStr) return 0;
@@ -77,6 +90,51 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
     };
   };
 
+  const handleAdd = () => {
+    setEditingId(null);
+    setFormData({ name: '', logo: '', industry: '', contactName: '', email: '', notes: '' });
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (customer: Customer) => {
+    setEditingId(customer.id);
+    setFormData({ ...customer });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm(t('customers.confirmDelete'))) {
+      onUpdateCustomers(customers.filter(c => c.id !== id));
+    }
+  };
+
+  const generateLogo = (name: string) => {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0D8ABC&color=fff`;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.email) return;
+
+    const logo = formData.logo?.trim() || generateLogo(formData.name);
+    const payload: Customer = {
+      id: editingId || crypto.randomUUID(),
+      name: formData.name.trim(),
+      logo,
+      industry: (formData.industry || '').trim(),
+      contactName: (formData.contactName || '').trim(),
+      email: formData.email.trim(),
+      notes: (formData.notes || '').trim(),
+    };
+
+    if (editingId) {
+      onUpdateCustomers(customers.map(c => c.id === editingId ? payload : c));
+    } else {
+      onUpdateCustomers([...customers, payload]);
+    }
+    setIsModalOpen(false);
+  };
+
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto">
@@ -85,7 +143,7 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                 <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('customers.title')}</h1>
                 <p className="text-charcoal-500 mt-1">{t('customers.subtitle')}</p>
             </div>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleAdd}>
                 <Building2 className="w-4 h-4" /> {t('customers.addCustomer')}
             </Button>
         </div>
@@ -95,9 +153,26 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                 const stats = getCustomerStats(customer);
                 
                 return (
-                    <div key={customer.id} className="bg-white rounded-xl border border-charcoal-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <div key={customer.id} className="bg-white rounded-xl border border-charcoal-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow relative group">
                         {/* Header Section */}
                         <div className="p-6 border-b border-charcoal-100 flex flex-col md:flex-row gap-6">
+                            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <button
+                                    onClick={() => handleEdit(customer)}
+                                    className="p-1.5 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                    title={t('customers.editCustomer')}
+                                >
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(customer.id)}
+                                    className="p-1.5 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                    title={t('customers.deleteCustomer')}
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                            </div>
+
                             {/* Customer Info */}
                             <div className="flex items-start gap-4 flex-1">
                                 <img src={customer.logo} alt={customer.name} className="w-16 h-16 rounded-lg border border-charcoal-100 object-cover" />
@@ -224,6 +299,96 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                 );
             })}
         </div>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingId ? t('customers.editCustomer') : t('customers.newCustomer')}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                  {t('customers.customerName')}
+                </label>
+                <input
+                  required
+                  className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                  {t('customers.logo')}
+                </label>
+                <input
+                  className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  value={formData.logo}
+                  onChange={e => setFormData({ ...formData, logo: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                  {t('customers.industry')}
+                </label>
+                <input
+                  className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  value={formData.industry}
+                  onChange={e => setFormData({ ...formData, industry: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                  {t('customers.contactName')}
+                </label>
+                <input
+                  className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  value={formData.contactName}
+                  onChange={e => setFormData({ ...formData, contactName: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                  {t('customers.email')}
+                </label>
+                <input
+                  type="email"
+                  required
+                  className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+              {t('customers.notes')}
+            </label>
+            <textarea
+              rows={3}
+              className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none"
+              value={formData.notes}
+              onChange={e => setFormData({ ...formData, notes: e.target.value })}
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-charcoal-100">
+            <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
+              {t('customers.cancel')}
+            </Button>
+            <Button type="submit">{t('customers.saveCustomer')}</Button>
+          </div>
+        </form>
+      </Modal>
       </div>
     </div>
   );

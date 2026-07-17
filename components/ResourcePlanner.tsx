@@ -24,6 +24,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Modal } from './ui/Modal';
 import { ResourcePlanChat } from './ResourcePlanChat';
 import { computeTargetDates, mergeDayEntries, dailyCapacityFraction, isOverloaded, allocationToHours } from '../utils/planner';
+import { assignmentsToCSV, downloadTextFile } from '../utils/export';
 
 interface ResourcePlannerProps {
   employees: Employee[];
@@ -383,6 +384,12 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       setSelectedCell(null);
   };
 
+  const handleExportCSV = () => {
+      const csv = assignmentsToCSV(employees, projects, assignments, absences);
+      const filename = `resource-plan-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      downloadTextFile(filename, csv, 'text/csv;charset=utf-8');
+  };
+
   const toggleRepeatDay = (dayIndex: number) => {
       setRepeatDays(prev => {
           if (prev.includes(dayIndex)) return prev.filter(d => d !== dayIndex);
@@ -604,9 +611,9 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
           <button onClick={() => setShowLegend(true)} className={`p-2 rounded-md transition-colors ${showLegend ? 'bg-blue-100 text-blue-700' : 'hover:bg-charcoal-100 text-charcoal-500'}`}>
             <Info className="w-5 h-5" />
           </button>
-          <Button variant="outline" className="gap-2" size="sm">
+          <Button variant="outline" className="gap-2" size="sm" onClick={handleExportCSV}>
             <Share2 className="w-4 h-4" />
-            {t('planner.exportState')}
+            {t('planner.exportCSV')}
           </Button>
         </div>
       </div>

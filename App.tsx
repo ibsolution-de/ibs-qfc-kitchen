@@ -302,6 +302,7 @@ const AppContent: React.FC = () => {
                       projects={projects}
                       assignments={plannerAssignments}
                       onNavigateToProject={handleNavigateToProject}
+                      onUpdateCustomers={setCustomers}
                   />
                 </AnimatedPage>
             } />

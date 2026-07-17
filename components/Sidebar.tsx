@@ -5,6 +5,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Sparkles, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Cpu, Zap, Shield, Activity, Target, Compass } from 'lucide-react';
 import { PlanVersion, UserRole } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+
+const BUILD_DATE = '2026-07-18';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Modal } from './ui/Modal';
@@ -435,7 +437,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         <div className="flex items-center gap-1.5">
                             <Clock className="w-3 h-3" />
-                            <span>{new Date().toLocaleDateString()}</span>
+                            <span>{new Date(BUILD_DATE).toLocaleDateString()}</span>
                         </div>
                     </div>
                 </div>
