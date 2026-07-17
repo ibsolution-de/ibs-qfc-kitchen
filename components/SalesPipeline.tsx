@@ -90,7 +90,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
               contents: prompt
           });
           
-          setAiResult(response.text);
+          setAiResult(response.text ?? null);
       } catch (e) {
           setAiResult("Error analyzing trends. Check API Key.");
       } finally {

@@ -159,7 +159,7 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
                         const pathInner = createSector(startAngle, endAngle, radiusCenter + 5, radiusInner, metric.color);
                         
                         // Outer Ring (Projects) - Split the metric wedge into project wedges
-                        const projSectors = [];
+                        const projSectors: React.ReactElement[] = [];
                         let projStart = startAngle;
                         
                         metric.projects.forEach(p => {
@@ -267,7 +267,7 @@ const StrategyCoPilot: React.FC = () => {
             });
 
             const result = await chat.sendMessage({ message: userMsg });
-            setMessages(prev => [...prev, { role: 'model', text: result.text }]);
+            setMessages(prev => [...prev, { role: 'model', text: result.text ?? '' }]);
         } catch (error) {
             setMessages(prev => [...prev, { role: 'system', text: 'Error connecting to AI Consultant.' }]);
         } finally {

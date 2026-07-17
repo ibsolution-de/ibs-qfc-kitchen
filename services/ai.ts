@@ -43,7 +43,7 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
       }
     });
 
-    return response.text;
+    return response.text ?? '';
   } catch (error) {
     console.error("AI Analysis Error:", error);
     throw new Error("Failed to generate analysis.");
@@ -73,7 +73,7 @@ export const generateCoachingAgenda = async (sentiment: Sentiment, role: string,
         contents: prompt
     });
 
-    return response.text;
+    return response.text ?? '';
 };
 
 export const extractActionItems = async (notes: string, apiKey: string, language: string): Promise<string[]> => {
@@ -98,7 +98,7 @@ export const extractActionItems = async (notes: string, apiKey: string, language
     });
 
     try {
-        let text = response.text;
+        let text = response.text ?? '';
         // Clean up markdown if present, though responseMimeType should handle it
         if (text.startsWith('```json')) {
             text = text.replace(/^```json\n/, '').replace(/\n```$/, '');

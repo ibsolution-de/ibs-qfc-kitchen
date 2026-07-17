@@ -92,8 +92,8 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
       onUpdateProjects(updated);
     } else {
       const newProj: Project = {
-        id: Math.random().toString(36).substr(2, 9),
-        ...formData as Project
+        ...formData as Project,
+        id: Math.random().toString(36).substr(2, 9)
       };
       onUpdateProjects([...projects, newProj]);
     }

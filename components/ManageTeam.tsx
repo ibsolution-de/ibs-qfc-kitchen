@@ -263,8 +263,8 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
     } else {
       // Create
       const newEmp: Employee = {
-        id: Math.random().toString(36).substr(2, 9),
         ...formData as Employee,
+        id: Math.random().toString(36).substr(2, 9),
         avatar: formData.type === 'future' ? '' : (formData.avatar || `https://ui-avatars.com/api/?name=${formData.name}&background=random`)
       };
       onUpdateEmployees([...employees, newEmp]);

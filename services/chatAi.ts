@@ -99,7 +99,7 @@ export const chatWithResourceData = async (
       message: message
     });
 
-    return result.text;
+    return result.text ?? '';
   } catch (error) {
     console.error("AI Chat Error:", error);
     return "ERROR: CONNECTION_FAILED. System diagnostic recommended.";
