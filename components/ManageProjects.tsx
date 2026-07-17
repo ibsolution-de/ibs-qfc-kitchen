@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Project, Milestone } from '../types';
 import { Button } from './ui/Button';
@@ -31,7 +32,9 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
     volume: 0,
     isCritical: false,
     hourlyRate: 100,
-    milestones: []
+    milestones: [],
+    probability: 50,
+    stage: 'qualified'
   });
 
   const [newMilestone, setNewMilestone] = useState<Partial<Milestone>>({ name: '', date: '', phase: 'planning' });
@@ -67,7 +70,9 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
       volume: 40,
       isCritical: false,
       hourlyRate: 100,
-      milestones: []
+      milestones: [],
+      probability: 50,
+      stage: 'lead'
     });
     setIsModalOpen(true);
   };
@@ -266,21 +271,43 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
              </div>
 
              <div className="space-y-4">
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.status')}</label>
-                   <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
-                     value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
-                     <option value="active">{t('status.active')}</option>
-                     <option value="opportunity">{t('status.opportunity')}</option>
-                     <option value="completed">{t('status.completed')}</option>
-                     <option value="on_hold">{t('status.on_hold')}</option>
-                   </select>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.status')}</label>
+                        <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                            value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
+                            <option value="active">{t('status.active')}</option>
+                            <option value="opportunity">{t('status.opportunity')}</option>
+                            <option value="completed">{t('status.completed')}</option>
+                            <option value="on_hold">{t('status.on_hold')}</option>
+                        </select>
+                    </div>
+                     <div>
+                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.salesStage')}</label>
+                        <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                            value={formData.stage || 'lead'} onChange={e => setFormData({...formData, stage: e.target.value as any})}>
+                            <option value="lead">{t('sales.stages.lead')}</option>
+                            <option value="qualified">{t('sales.stages.qualified')}</option>
+                            <option value="proposal">{t('sales.stages.proposal')}</option>
+                            <option value="negotiation">{t('sales.stages.negotiation')}</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.volume')}</label>
-                    <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                    value={formData.volume} onChange={e => setFormData({...formData, volume: Number(e.target.value)})} placeholder="80" />
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.volume')}</label>
+                        <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                        value={formData.volume} onChange={e => setFormData({...formData, volume: Number(e.target.value)})} placeholder="80" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.probability')} %</label>
+                        <input type="number" min="0" max="100" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
+                        value={formData.probability ?? 0} onChange={e => setFormData({...formData, probability: Number(e.target.value)})} placeholder="50" />
+                    </div>
                 </div>
+
                  <div>
                    <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.dates')}</label>
                    <div className="grid grid-cols-2 gap-2">

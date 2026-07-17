@@ -1,13 +1,14 @@
 
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Assignment, Project, Absence, Employee } from '../types';
+import { Assignment, Project, Absence, Employee, Sentiment } from '../types';
 import { format, isSameDay, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Briefcase, Clock, TrendingUp, Smile, Frown, Meh, Folder } from 'lucide-react';
-import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
+import { Briefcase, Clock, TrendingUp, Smile, Frown, Meh, Folder, HeartHandshake } from 'lucide-react';
+import { PASTEL_VARIANTS, MOCK_HOLIDAYS, MOCK_1ON1S } from '../constants';
 
 interface MyOverviewProps {
   assignments: Assignment[];
@@ -21,6 +22,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const { user } = useAuth();
   const { t, formatDate } = useLanguage();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [pulseSubmitted, setPulseSubmitted] = useState(false);
 
   // Determine which employee context to show
   // If targetEmployeeId is provided, try to find that employee.
@@ -42,6 +44,10 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const myProjectsIds = Array.from(new Set(myAssignments.map(a => a.projectId)));
   const myProjects = projects.filter(p => myProjectsIds.includes(p.id));
 
+  // Find next upcoming 1:1
+  const my1on1s = MOCK_1ON1S.filter(s => s.employeeId === displayId && s.status === 'scheduled').sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const nextSession = my1on1s.length > 0 ? my1on1s[0] : null;
+
   // Current Week Calendar
   const today = new Date();
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -53,6 +59,13 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const currentMonth = format(today, 'yyyy-MM');
   const daysThisMonth = myAssignments.filter(a => a.date.startsWith(currentMonth)).length;
   const utilization = Math.min(100, Math.round((daysThisMonth / 20) * 100)); // Rough estimate based on 20 working days
+
+  // Mock submission handler for pulse
+  const handlePulseSubmit = (sentiment: Sentiment) => {
+      // In a real app, this would update backend state
+      setPulseSubmitted(true);
+      if(nextSession) nextSession.sentiment = sentiment; // Update local mock
+  };
 
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
@@ -75,6 +88,41 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
               </Button>
           )}
         </div>
+
+        {/* Pulse Check Widget (Only for Self) */}
+        {isSelf && nextSession && !pulseSubmitted && nextSession.sentiment === 'unknown' && (
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-xl p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in-up">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
+                        <HeartHandshake className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-indigo-900">{t('myOverview.pulseCheckTitle')}</h3>
+                        <p className="text-sm text-indigo-700">{t('myOverview.pulseCheckDesc')} <span className="font-semibold">{formatDate(new Date(nextSession.date), 'MMM d')}</span></p>
+                    </div>
+                </div>
+                <div className="flex gap-4">
+                    <button onClick={() => handlePulseSubmit('great')} className="flex flex-col items-center gap-1 group">
+                        <div className="w-10 h-10 rounded-full bg-white border border-green-200 flex items-center justify-center text-green-500 group-hover:scale-110 group-hover:bg-green-50 transition-all shadow-sm">
+                            <Smile className="w-6 h-6" />
+                        </div>
+                        <span className="text-[10px] font-bold text-green-700 uppercase">{t('myOverview.feelingGood')}</span>
+                    </button>
+                    <button onClick={() => handlePulseSubmit('okay')} className="flex flex-col items-center gap-1 group">
+                        <div className="w-10 h-10 rounded-full bg-white border border-yellow-200 flex items-center justify-center text-yellow-500 group-hover:scale-110 group-hover:bg-yellow-50 transition-all shadow-sm">
+                            <Meh className="w-6 h-6" />
+                        </div>
+                        <span className="text-[10px] font-bold text-yellow-700 uppercase">{t('myOverview.bored')}</span>
+                    </button>
+                    <button onClick={() => handlePulseSubmit('stressful')} className="flex flex-col items-center gap-1 group">
+                        <div className="w-10 h-10 rounded-full bg-white border border-red-200 flex items-center justify-center text-red-500 group-hover:scale-110 group-hover:bg-red-50 transition-all shadow-sm">
+                            <Frown className="w-6 h-6" />
+                        </div>
+                        <span className="text-[10px] font-bold text-red-700 uppercase">{t('myOverview.overwhelmed')}</span>
+                    </button>
+                </div>
+            </div>
+        )}
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

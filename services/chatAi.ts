@@ -64,9 +64,9 @@ export const chatWithResourceData = async (
 
   const systemInstruction = `
     You are "ResourceOps AI", a highly advanced resource planning assistant.
-
+    
     Current System Language: ${targetLanguage}.
-
+    
     Context Data (JSON):
     ${JSON.stringify(contextData)}
 
@@ -87,10 +87,10 @@ export const chatWithResourceData = async (
 
   try {
     const chat = ai.chats.create({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-pro-preview',
       config: {
         systemInstruction: systemInstruction,
-        // thinkingConfig: { thinkingBudget: 32768 }
+        thinkingConfig: { thinkingBudget: 32768 }
       },
       history: chatHistory
     });

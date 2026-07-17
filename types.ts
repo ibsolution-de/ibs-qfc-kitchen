@@ -1,4 +1,5 @@
 
+
 export interface Milestone {
   id: string;
   name: string;
@@ -22,6 +23,25 @@ export interface Project {
   isCritical?: boolean; // Critical for conflict detection
   hourlyRate?: number; // EUR per hour (default ~100)
   milestones?: Milestone[];
+  probability?: number; // 0-100%
+  stage?: 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed'; // Sales pipeline stage
+  // Strategy Module Updates
+  health?: 'good' | 'warning' | 'critical';
+  northStarMetricId?: string;
+}
+
+export interface Competency {
+  skill: string;
+  selfRating: number; // 0-5
+  managerRating: number; // 0-5
+}
+
+export type IkigaiZone = 'love' | 'good' | 'paid' | 'needed' | 'ikigai' | 'burnout' | 'boreout';
+
+export interface IkigaiItem {
+  id: string;
+  text: string;
+  zone: IkigaiZone;
 }
 
 export interface Employee {
@@ -37,6 +57,12 @@ export interface Employee {
   notes?: string;
   location: string; // e.g. 'DE', 'US', 'UK'
   teamId?: string; // For grouping
+  // Team Management updates
+  type: 'internal' | 'external' | 'future';
+  department?: string;
+  // Development Module
+  competencies?: Competency[];
+  ikigaiItems?: IkigaiItem[];
 }
 
 export interface Customer {
@@ -92,7 +118,7 @@ export interface PlanVersion {
   forecastData: QuarterData[];
 }
 
-export type UserRole = 'employee' | 'pm' | 'bl';
+export type UserRole = 'employee' | 'pm' | 'bl' | 'sales';
 
 export interface User {
   id: string;
@@ -102,6 +128,38 @@ export interface User {
   employeeId?: string; // Links to an employee record if applicable
 }
 
+// Strategy Module Types
+export type StrategyPerspective = 'financial' | 'customer' | 'internal' | 'learning';
+
+export interface StrategicGoal {
+  id: string;
+  title: string;
+  description?: string;
+  perspective: StrategyPerspective;
+  linkedProjectIds: string[]; // Projects that contribute to this goal
+}
+
+export interface NorthStarMetric {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+}
+
+// 1:1 Feature Types
+export type Sentiment = 'great' | 'okay' | 'stressful' | 'unknown';
+
+export interface OneOnOneSession {
+  id: string;
+  employeeId: string;
+  date: string; // ISO String
+  status: 'scheduled' | 'completed';
+  sentiment: Sentiment;
+  notes: string;
+  commitments: string[]; // "The Elephant Memory" - things promised
+  agenda: string[];
+}
+
 export enum ViewMode {
   MY_OVERVIEW = 'MY_OVERVIEW',
   PLANNER = 'PLANNER',
@@ -109,7 +167,9 @@ export enum ViewMode {
   TEAM = 'TEAM',
   PROJECTS = 'PROJECTS',
   CUSTOMERS = 'CUSTOMERS',
-  FINANCIALS = 'FINANCIALS'
+  FINANCIALS = 'FINANCIALS',
+  STRATEGY = 'STRATEGY',
+  SALES = 'SALES'
 }
 
 export enum TimeScale {

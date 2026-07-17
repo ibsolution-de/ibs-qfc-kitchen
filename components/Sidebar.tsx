@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Sparkles, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Cpu, Zap, Shield, Activity } from 'lucide-react';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Sparkles, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Cpu, Zap, Shield, Activity, Target, Compass } from 'lucide-react';
 import { PlanVersion, UserRole } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -62,6 +63,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Everyone sees Resource Plan (Read-only for Emp)
     items.push({ path: '/planner', label: t('sidebar.resourcePlan'), icon: CalendarDays });
 
+    // Sales Pipeline: Sales Only
+    if (isRole('sales')) {
+        items.push({ path: '/sales-pipeline', label: t('sidebar.salesPipeline'), icon: Target });
+    }
+
     // Forecast: PM and BL only
     if (isRole(['pm', 'bl'])) {
         items.push({ path: '/forecast', label: t('sidebar.quarterlyForecast'), icon: BarChart3 });
@@ -70,6 +76,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // Financials: BL mainly, PM allowed (Moved to Planning section)
     if (isRole(['pm', 'bl'])) {
         items.push({ path: '/financials', label: t('sidebar.financials'), icon: PieChart });
+    }
+
+    // Strategy: PM and BL only
+    if (isRole(['pm', 'bl'])) {
+        items.push({ path: '/strategy', label: t('sidebar.strategy'), icon: Compass });
     }
 
     return items;
@@ -83,8 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         items.push({ path: '/team', label: t('sidebar.team'), icon: Users });
      }
      
-     // Projects: PM and BL
-     if (isRole(['pm', 'bl'])) {
+     // Projects: PM and BL and Sales
+     if (isRole(['pm', 'bl', 'sales'])) {
          items.push({ path: '/projects', label: t('sidebar.projects'), icon: Layers });
      }
      
@@ -246,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setIsChangelogOpen(true)}
                 className="text-[10px] text-charcoal-400 font-mono pr-2 opacity-50 hover:opacity-100 hover:text-blue-600 transition-all cursor-pointer"
             >
-                v1.1.0
+                v1.3.0
             </button>
         </div>
         
@@ -271,14 +282,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest px-2 py-2 border-b border-charcoal-100 mb-1 font-mono">
                     {t('sidebar.switchRole')}
                 </div>
-                {['pm', 'employee', 'bl'].map((role) => (
+                {['pm', 'employee', 'bl', 'sales'].map((role) => (
                     <button
                         key={role}
                         onClick={() => {
                             loginAs(role as UserRole);
                             setIsRoleSwitcherOpen(false);
                             // Navigate based on role
-                            navigate(role === 'employee' ? '/my-overview' : '/planner');
+                            if (role === 'sales') {
+                                navigate('/sales-pipeline');
+                            } else {
+                                navigate(role === 'employee' ? '/my-overview' : '/planner');
+                            }
                         }}
                         className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
                             ${user.role === role ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
@@ -399,7 +414,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
     </Modal>
 
-    {/* Changelog Modal - Light Sci-Fi Style */}
+    {/* Changelog Modal */}
     <Modal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} title="System Record" size="lg">
         <div className="relative bg-white rounded-lg overflow-hidden border border-charcoal-200 text-charcoal-800 font-mono shadow-[0_0_50px_rgba(0,0,0,0.05)]">
             {/* Background Effects */}
@@ -416,7 +431,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex gap-4 text-xs text-charcoal-500">
                         <div className="flex items-center gap-1.5">
                             <GitCommit className="w-3 h-3" />
-                            <span>Build: v1.1.0-stable</span>
+                            <span>Build: v1.3.0-stable</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                             <Clock className="w-3 h-3" />
@@ -436,80 +451,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Terminal Content */}
             <div className="relative z-10 p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                 
-                {/* Feature Block */}
+                {/* Sales Feature Block */}
                 <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                    <div className="flex items-center gap-2 text-sm font-bold text-blue-700 border-b border-blue-100 pb-1 mb-2">
-                        <Cpu className="w-4 h-4" />
-                        <span>CORE MODULE UPDATES</span>
+                    <div className="flex items-center gap-2 text-sm font-bold text-orange-700 border-b border-orange-100 pb-1 mb-2">
+                        <Target className="w-4 h-4" />
+                        <span>SALES MODULE ACTIVATED</span>
                     </div>
                     <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
                          <li className="flex gap-3 items-start group">
-                            <span className="text-blue-600 mt-0.5 group-hover:text-blue-500 transition-colors">➜</span>
+                            <span className="text-orange-600 mt-0.5 group-hover:text-orange-500 transition-colors">➜</span>
                             <div>
-                                <strong className="text-charcoal-900 block mb-0.5">AI Resource Chat Assistant</strong>
-                                Integrated Gemini 2.5 Flash model for real-time resource querying via specialized terminal interface. Supports minimizing and context-aware responses.
+                                <strong className="text-charcoal-900 block mb-0.5">Sales Pipeline Dashboard</strong>
+                                Kanban-style workflow for managing Leads, Opportunities, and Negotiations. Integrated probability tracking.
                             </div>
                         </li>
                         <li className="flex gap-3 items-start group">
-                            <span className="text-blue-600 mt-0.5 group-hover:text-blue-500 transition-colors">➜</span>
+                            <span className="text-orange-600 mt-0.5 group-hover:text-orange-500 transition-colors">➜</span>
                             <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Strategic AI Forecasting</strong>
-                                Added 'AI Analysis' to Quarterly Forecast view. Uses Gemini 3 Pro to generate executive summaries, risk assessments, and tactical directives.
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-
-                {/* UX Block */}
-                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                    <div className="flex items-center gap-2 text-sm font-bold text-purple-700 border-b border-purple-100 pb-1 mb-2">
-                        <Activity className="w-4 h-4" />
-                        <span>INTERFACE ENHANCEMENTS</span>
-                    </div>
-                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
-                         <li className="flex gap-3 items-start group">
-                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
-                            <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Resource Heatmap Visualization</strong>
-                                Updated Planner grid to visualize allocation density. Introduced overload alerts and conflict detection markers.
-                            </div>
-                        </li>
-                        <li className="flex gap-3 items-start group">
-                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
-                            <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Drag & Drop Assignment</strong>
-                                Implemented intuitive drag-and-drop mechanics for resource reallocation in planner view.
-                            </div>
-                        </li>
-                         <li className="flex gap-3 items-start group">
-                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
-                            <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Financial Dashboard</strong>
-                                New module for tracking project margins, revenue forecasts across quarters, and budget utilization.
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-
-                 {/* System Block */}
-                 <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 border-b border-emerald-100 pb-1 mb-2">
-                        <Shield className="w-4 h-4" />
-                        <span>SECURITY & INFRASTRUCTURE</span>
-                    </div>
-                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
-                         <li className="flex gap-3 items-start group">
-                            <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
-                            <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Local Key Storage</strong>
-                                API Keys are now strictly stored in localStorage and never transmitted to backend servers.
-                            </div>
-                        </li>
-                        <li className="flex gap-3 items-start group">
-                            <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
-                            <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Localization Engine</strong>
-                                Full EN/DE translation support across all modules including AI prompts.
+                                <strong className="text-charcoal-900 block mb-0.5">Market Trends Scout (AI)</strong>
+                                New AI capability to scan for industry trends and generate potential leads.
                             </div>
                         </li>
                     </ul>

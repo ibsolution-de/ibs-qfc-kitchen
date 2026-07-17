@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, Employee } from '../types';
 import { MOCK_EMPLOYEES } from '../constants';
@@ -33,6 +34,12 @@ const MOCK_USERS: Record<UserRole, User> = {
     name: 'Division Lead',
     role: 'bl',
     avatar: 'https://ui-avatars.com/api/?name=Division+Lead&background=333&color=fff'
+  },
+  sales: {
+      id: 'u4',
+      name: 'Sarah Sales',
+      role: 'sales',
+      avatar: 'https://ui-avatars.com/api/?name=Sarah+Sales&background=EF6C00&color=fff'
   }
 };
 

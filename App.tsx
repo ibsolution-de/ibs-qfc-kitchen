@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
@@ -7,17 +9,19 @@ import { ManageTeam } from './components/ManageTeam';
 import { ManageProjects } from './components/ManageProjects';
 import { ManageCustomers } from './components/ManageCustomers';
 import { FinancialOverview } from './components/FinancialOverview';
+import { StrategyModule } from './components/StrategyModule';
 import { CreateVersionDialog } from './components/CreateVersionDialog';
 import { MyOverview } from './components/MyOverview';
+import { SalesPipeline } from './components/SalesPipeline';
 import { Assignment, PlanVersion, Project, Employee, Customer, Absence, ViewMode } from './types';
 import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const STORAGE_KEYS = {
-  EMPLOYEES: 'ibs_qfc_employees',
-  PROJECTS: 'ibs_qfc_projects',
-  CUSTOMERS: 'ibs_qfc_customers',
-  VERSIONS: 'ibs_qfc_versions'
+  EMPLOYEES: 'ibs_qfc_employees_v3',
+  PROJECTS: 'ibs_qfc_projects_v3',
+  CUSTOMERS: 'ibs_qfc_customers_v3',
+  VERSIONS: 'ibs_qfc_versions_v3'
 };
 
 const loadState = <T,>(key: string, fallback: T): T => {
@@ -82,12 +86,8 @@ const AppContent: React.FC = () => {
   const forecastData = activeVersion.forecastData;
 
   const versionStartDate = useMemo(() => {
-    const hasQ42025 = activeVersion.forecastData.some(q => q.name === 'Q4 2025');
-    if (hasQ42025) return new Date(2025, 10, 1);
-    if (latestVersion.name.includes('Q4 2025')) return new Date(2025, 10, 1);
-    if (latestVersion.name.includes('Q1 2026')) return new Date(2026, 0, 1);
     return new Date();
-  }, [latestVersion, activeVersion]);
+  }, []);
 
   const handleAssignmentChange = (newAssignments: Assignment[]) => {
     setVersions(prev => {
@@ -188,7 +188,7 @@ const AppContent: React.FC = () => {
         <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-charcoal-50 to-transparent z-10 pointer-events-none" />
         
         <Routes>
-            <Route path="/" element={<Navigate to={isRole('employee') ? '/my-overview' : '/planner'} replace />} />
+            <Route path="/" element={<Navigate to={isRole('employee') ? '/my-overview' : (isRole('sales') ? '/sales-pipeline' : '/planner')} replace />} />
             
             <Route path="/my-overview" element={
                 <AnimatedPage>
@@ -219,6 +219,18 @@ const AppContent: React.FC = () => {
                 </AnimatedPage>
             } />
 
+            {/* Sales Pipeline Route */}
+            {isRole('sales') && (
+                <Route path="/sales-pipeline" element={
+                    <AnimatedPage>
+                        <SalesPipeline 
+                            projects={projects}
+                            onUpdateProjects={setProjects}
+                        />
+                    </AnimatedPage>
+                } />
+            )}
+
             {isRole(['pm', 'bl']) && (
                 <>
                     <Route path="/forecast" element={
@@ -241,16 +253,8 @@ const AppContent: React.FC = () => {
                               employees={employees}
                               onUpdateEmployees={setEmployees}
                               onNavigateToEmployee={handleNavigateToEmployee}
-                          />
-                        </AnimatedPage>
-                    } />
-
-                    <Route path="/projects" element={
-                        <AnimatedPage>
-                          <ManageProjects 
                               projects={projects}
-                              onUpdateProjects={setProjects}
-                              highlightedProjectId={highlightedProjectId}
+                              assignments={plannerAssignments}
                           />
                         </AnimatedPage>
                     } />
@@ -265,7 +269,30 @@ const AppContent: React.FC = () => {
                           />
                         </AnimatedPage>
                     } />
+
+                    <Route path="/strategy" element={
+                        <AnimatedPage>
+                          <StrategyModule
+                              projects={projects}
+                              assignments={plannerAssignments}
+                              onUpdateProjects={setProjects}
+                          />
+                        </AnimatedPage>
+                    } />
                 </>
+            )}
+            
+            {/* Manage Projects accessible to PM, BL, Sales */}
+            {isRole(['pm', 'bl', 'sales']) && (
+                <Route path="/projects" element={
+                    <AnimatedPage>
+                        <ManageProjects 
+                            projects={projects}
+                            onUpdateProjects={setProjects}
+                            highlightedProjectId={highlightedProjectId}
+                        />
+                    </AnimatedPage>
+                } />
             )}
 
             <Route path="/customers" element={

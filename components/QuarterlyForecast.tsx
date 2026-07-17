@@ -1,8 +1,10 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { QuarterData, Project, Assignment, Employee, Absence } from '../types';
 import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Badge } from './ui/Badge';
-import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, Presentation, FilePlus, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown } from 'lucide-react';
+import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, Presentation, FilePlus, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown, Dices } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -19,6 +21,18 @@ interface QuarterlyForecastProps {
   absences: Absence[];
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
   readOnly?: boolean;
+}
+
+interface SimResult {
+  p10: number; // Low load (Aggressive)
+  p50: number; // Median
+  p90: number; // High load (Conservative)
+  iterations: number[];
+  baseCapacity: number;
+  histogram: { binStart: number, count: number }[];
+  overloadProbability: number;
+  maxVol: number;
+  minVol: number;
 }
 
 // --- Sci-Fi UI Helpers ---
@@ -212,6 +226,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
 
+  // Sim State
+  const [simResult, setSimResult] = useState<SimResult | null>(null);
+  const [isSimModalOpen, setIsSimModalOpen] = useState(false);
+
   // Dynamic Calculation of Real Data
   const getRealQuarterData = (quarter: QuarterData): QuarterData => {
     // Heuristic to parse QX YYYY from name
@@ -332,6 +350,76 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
     }
   };
 
+  const runMonteCarloSimulation = (quarter: QuarterData) => {
+      const q = getRealQuarterData(quarter);
+      const metrics = calculateCapacity(q);
+      const baseAvailable = metrics.availableAfterRunning;
+      
+      const opportunities = [
+          ...q.mustWinOpportunities.map(p => ({ ...p, probability: p.probability ?? 70 })),
+          ...q.alternativeOpportunities.map(p => ({ ...p, probability: p.probability ?? 30 }))
+      ];
+
+      const iterations = 2000;
+      const results: number[] = [];
+
+      // Run Simulation
+      for(let i = 0; i < iterations; i++) {
+          let oppVolume = 0;
+          opportunities.forEach(opp => {
+              const rand = Math.random() * 100;
+              if (rand < (opp.probability || 50)) {
+                  oppVolume += (opp.volume || 0);
+              }
+          });
+          results.push(oppVolume);
+      }
+
+      results.sort((a, b) => a - b);
+      
+      // Calculate Percentiles
+      const p10Vol = results[Math.floor(iterations * 0.1)]; // Low probability of having ONLY this low volume (or less). So 90% chance it is higher. This is actually a "High Load" if we consider revenue, but "Low Load" if we consider work volume. Let's align with "Low Volume" scenario.
+      const p50Vol = results[Math.floor(iterations * 0.5)];
+      const p90Vol = results[Math.floor(iterations * 0.9)]; // 90% of outcomes are lower or equal. High volume scenario.
+
+      // Histogram Data Preparation
+      const minVal = results[0];
+      const maxVal = results[results.length - 1];
+      const binCount = 30;
+      const binSize = (maxVal - minVal) / binCount || 1;
+      
+      const histogram = new Array(binCount).fill(0).map((_, i) => ({ 
+          binStart: Math.floor(minVal + (i * binSize)), 
+          count: 0 
+      }));
+
+      results.forEach(val => {
+          const binIndex = Math.min(Math.floor((val - minVal) / binSize), binCount - 1);
+          histogram[binIndex].count++;
+      });
+      
+      // Normalize counts for display height (0-100)
+      const maxCount = Math.max(...histogram.map(h => h.count));
+      histogram.forEach(h => h.count = (h.count / maxCount) * 100);
+
+      // Overload Probability: How many times did demand exceed supply?
+      const overloadCount = results.filter(v => v > baseAvailable).length;
+      const overloadProbability = (overloadCount / iterations) * 100;
+
+      setSimResult({
+          p10: p10Vol,
+          p50: p50Vol,
+          p90: p90Vol,
+          iterations: results,
+          baseCapacity: baseAvailable,
+          histogram,
+          overloadProbability,
+          minVol: minVal,
+          maxVol: maxVal
+      });
+      setIsSimModalOpen(true);
+  };
+
   const handleRequestSAP = (project: Project, e: React.MouseEvent) => {
     e.stopPropagation();
     alert(`${t('forecast.requestingSAP')} "${project.name}"`);
@@ -342,7 +430,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
     type: 'mustWin' | 'alternative',
     projects: Project[],
     updatedProject: Project,
-    field: 'volume' | 'budget',
+    field: 'volume' | 'budget' | 'probability',
     value: string | number
   ) => {
     if (readOnly || !onUpdateForecast) return;
@@ -429,14 +517,25 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                 className={`flex flex-col bg-white rounded-xl border ${isCurrent ? 'border-charcoal-300 shadow-lg ring-1 ring-charcoal-200' : 'border-charcoal-200 shadow-sm'} transition-all duration-300 hover:shadow-xl hover:-translate-y-1`}
               >
                 {/* Header */}
-                <div className="p-5 border-b border-charcoal-100 bg-charcoal-50/30 rounded-t-xl">
-                  <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-lg font-bold text-charcoal-800">{quarter.name}</h2>
-                    {isCurrent && <Badge color="green">{t('forecast.current')}</Badge>}
+                <div className="p-5 border-b border-charcoal-100 bg-charcoal-50/30 rounded-t-xl flex justify-between items-start">
+                  <div>
+                      <div className="flex justify-between items-center mb-2 gap-2">
+                        <h2 className="text-lg font-bold text-charcoal-800">{quarter.name}</h2>
+                        {isCurrent && <Badge color="green">{t('forecast.current')}</Badge>}
+                      </div>
+                      <div className="flex gap-2 text-xs text-charcoal-500 font-mono">
+                        {quarter.months.join(' · ')}
+                      </div>
                   </div>
-                  <div className="flex gap-2 text-xs text-charcoal-500 font-mono">
-                    {quarter.months.join(' · ')}
-                  </div>
+                  {!readOnly && (
+                      <button 
+                        onClick={() => runMonteCarloSimulation(quarter)}
+                        className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                        title={t('forecast.monteCarlo')}
+                      >
+                          <Dices className="w-4 h-4" />
+                      </button>
+                  )}
                 </div>
 
                 <div className="p-5 space-y-6 flex-1">
@@ -560,6 +659,16 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                             <input 
                                                 type="number" 
                                                 disabled={readOnly}
+                                                className={`w-9 h-6 text-right text-xs font-bold text-gray-500 rounded border border-orange-200 focus:border-orange-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-orange-100'}`}
+                                                value={p.probability ?? 70}
+                                                onChange={(e) => handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'probability', Number(e.target.value))}
+                                                title={t('forecast.probability')}
+                                            />
+                                            <span className="text-[10px] text-gray-400 mr-1">%</span>
+
+                                            <input 
+                                                type="number" 
+                                                disabled={readOnly}
                                                 className={`w-12 h-6 text-right text-xs font-bold text-orange-600 rounded border border-orange-200 focus:border-orange-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-orange-100'}`}
                                                 value={p.volume || 0}
                                                 onChange={(e) => handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'volume', Number(e.target.value))}
@@ -654,6 +763,16 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <div className="flex items-center gap-1">
+                                            <input 
+                                                type="number" 
+                                                disabled={readOnly}
+                                                className={`w-9 h-6 text-right text-xs font-bold text-gray-500 rounded border border-blue-200 focus:border-blue-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-blue-100'}`}
+                                                value={p.probability ?? 30}
+                                                onChange={(e) => handleUpdateProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p, 'probability', Number(e.target.value))}
+                                                title={t('forecast.probability')}
+                                            />
+                                            <span className="text-[10px] text-gray-400 mr-1">%</span>
+
                                             <input 
                                                 type="number" 
                                                 disabled={readOnly}
@@ -871,6 +990,129 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                 </div>
             ) : null}
          </div>
+      </Modal>
+
+      {/* Simulation Modal (Dark Mode for Sci-Fi feel) */}
+      <Modal isOpen={isSimModalOpen} onClose={() => setIsSimModalOpen(false)} title={t('forecast.simTitle')} size="lg" variant="dark">
+         {simResult && (
+             <div className="p-4 space-y-6 font-sans">
+                 <div className="text-center space-y-2 mb-6 animate-fade-in-up">
+                    <Dices className="w-10 h-10 text-indigo-400 mx-auto mb-2" />
+                    <h3 className="text-xl font-bold text-white">{t('forecast.simTitle')}</h3>
+                    <p className="text-charcoal-400 text-sm max-w-md mx-auto">{t('forecast.simSubtitle')}</p>
+                 </div>
+
+                 <div className="flex items-center justify-between mb-2 px-2">
+                     <div className="text-xs font-mono text-charcoal-400">
+                         {t('forecast.capacityLimit')}: <span className="text-white font-bold">{simResult.baseCapacity}d</span>
+                     </div>
+                     <div className={`text-xs font-mono px-2 py-1 rounded ${simResult.overloadProbability > 50 ? 'bg-red-900/40 text-red-300 border border-red-800' : 'bg-green-900/40 text-green-300 border border-green-800'}`}>
+                         {t('forecast.riskOfOverload')}: {simResult.overloadProbability.toFixed(1)}%
+                     </div>
+                 </div>
+
+                 {/* Scenario Cards */}
+                 <div className="grid grid-cols-3 gap-4">
+                     {/* Low Load Scenario (P10 Volume) */}
+                     <div className="bg-charcoal-800/50 border border-charcoal-700 rounded-xl p-4 text-center relative overflow-hidden group">
+                         <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500/50"></div>
+                         <div className="text-xs font-bold text-charcoal-400 uppercase tracking-wider mb-2">{t('forecast.simScenarioLow')}</div>
+                         <div className="text-3xl font-bold text-white mb-1">{simResult.p10}d</div>
+                         <div className="text-xs text-charcoal-500 mb-4">{t('forecast.p10')}</div>
+                         
+                         <div className="pt-3 border-t border-charcoal-700/50">
+                             <div className="text-[10px] text-charcoal-400 uppercase">{t('forecast.netCap')}</div>
+                             <div className={`text-lg font-bold ${(simResult.baseCapacity - simResult.p10) < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                 {(simResult.baseCapacity - simResult.p10) > 0 ? '+' : ''}{simResult.baseCapacity - simResult.p10}d
+                             </div>
+                         </div>
+                     </div>
+
+                     {/* Likely Outcome (P50 Volume) */}
+                     <div className="bg-charcoal-800 border border-indigo-500/30 rounded-xl p-4 text-center relative overflow-hidden transform scale-105 shadow-xl">
+                         <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-500"></div>
+                         <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">{t('forecast.simScenarioMed')}</div>
+                         <div className="text-4xl font-bold text-white mb-1">{simResult.p50}d</div>
+                         <div className="text-xs text-charcoal-400 mb-4">{t('forecast.p50')}</div>
+                         
+                         <div className="pt-3 border-t border-charcoal-700">
+                             <div className="text-[10px] text-charcoal-400 uppercase">{t('forecast.netCap')}</div>
+                             <div className={`text-xl font-bold ${(simResult.baseCapacity - simResult.p50) < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                 {(simResult.baseCapacity - simResult.p50) > 0 ? '+' : ''}{simResult.baseCapacity - simResult.p50}d
+                             </div>
+                         </div>
+                     </div>
+
+                     {/* High Load Scenario (P90 Volume) */}
+                     <div className="bg-charcoal-800/50 border border-charcoal-700 rounded-xl p-4 text-center relative overflow-hidden">
+                         <div className="absolute top-0 left-0 right-0 h-1 bg-orange-500/50"></div>
+                         <div className="text-xs font-bold text-charcoal-400 uppercase tracking-wider mb-2">{t('forecast.simScenarioHigh')}</div>
+                         <div className="text-3xl font-bold text-white mb-1">{simResult.p90}d</div>
+                         <div className="text-xs text-charcoal-500 mb-4">{t('forecast.p90')}</div>
+                         
+                         <div className="pt-3 border-t border-charcoal-700/50">
+                             <div className="text-[10px] text-charcoal-400 uppercase">{t('forecast.netCap')}</div>
+                             <div className={`text-lg font-bold ${(simResult.baseCapacity - simResult.p90) < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                 {(simResult.baseCapacity - simResult.p90) > 0 ? '+' : ''}{simResult.baseCapacity - simResult.p90}d
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Visualization Bar */}
+                 <div className="mt-8 bg-charcoal-900 rounded-lg p-4 border border-charcoal-800 relative overflow-hidden">
+                     <div className="flex justify-between items-end mb-2">
+                         <div className="text-xs text-charcoal-500 font-mono">{t('forecast.simDistribution')} :: N=2000</div>
+                         <div className="flex gap-4 text-[10px]">
+                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500/50"></div><span className="text-charcoal-400">{t('forecast.safeZone')}</span></div>
+                             <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500/50"></div><span className="text-charcoal-400">{t('forecast.overloadZone')}</span></div>
+                         </div>
+                     </div>
+                     
+                     <div className="h-32 flex items-end gap-[2px] relative pt-6 border-b border-charcoal-700">
+                         {/* Capacity Limit Line */}
+                         {simResult.baseCapacity >= simResult.minVol && simResult.baseCapacity <= simResult.maxVol && (
+                             <div 
+                                className="absolute top-0 bottom-0 w-px bg-white border-r border-dashed border-charcoal-900 z-10 flex flex-col items-center"
+                                style={{ 
+                                    left: `${((simResult.baseCapacity - simResult.minVol) / (simResult.maxVol - simResult.minVol)) * 100}%` 
+                                }}
+                             >
+                                 <div className="text-[9px] font-mono text-white bg-charcoal-900 px-1 py-0.5 rounded border border-charcoal-600 -mt-6 whitespace-nowrap">
+                                     Limit: {simResult.baseCapacity}d
+                                 </div>
+                                 <div className="w-px h-full bg-gradient-to-b from-white via-white/50 to-transparent"></div>
+                             </div>
+                         )}
+
+                         {/* Histogram Bars */}
+                         {simResult.histogram.map((bin, i) => {
+                             const isOverload = bin.binStart > simResult.baseCapacity;
+                             return (
+                                 <div 
+                                    key={i} 
+                                    className={`flex-1 rounded-t-sm transition-all duration-500 relative group/bar
+                                        ${isOverload ? 'bg-red-500' : 'bg-blue-500'}
+                                    `}
+                                    style={{ 
+                                        height: `${Math.max(2, bin.count)}%`, 
+                                        opacity: 0.3 + (bin.count/150) 
+                                    }}
+                                 >
+                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/bar:opacity-100 bg-charcoal-950 text-white text-[9px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-20 border border-charcoal-700">
+                                         {bin.binStart}d
+                                     </div>
+                                 </div>
+                             )
+                         })}
+                     </div>
+                     <div className="flex justify-between mt-1 text-[10px] text-charcoal-600 font-mono">
+                         <span>{simResult.minVol}d</span>
+                         <span>{simResult.maxVol}d</span>
+                     </div>
+                 </div>
+             </div>
+         )}
       </Modal>
     </div>
   );
