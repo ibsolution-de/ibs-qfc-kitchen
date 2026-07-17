@@ -99,6 +99,10 @@ export const translations = {
       tooltipCapacity: 'Planned Days / Total Capacity',
       tooltipFree: 'Net Available Capacity',
       tooltipOverload: 'Number of days with overload',
+      conflictAbsence: 'This day already has an absence entry — it will be kept.',
+      conflictAssignments: 'This day already has project assignments — they will be kept.',
+      readOnly: 'Read Only',
+      deleteAbsence: 'Delete absence',
     },
     projects: {
       title: 'Projects',
@@ -477,6 +481,10 @@ export const translations = {
       tooltipCapacity: 'Geplante Tage / Gesamtkapazität',
       tooltipFree: 'Netto verfügbare Kapazität',
       tooltipOverload: 'Anzahl der Tage mit Überlast',
+      conflictAbsence: 'An diesem Tag ist bereits eine Abwesenheit eingetragen — sie bleibt erhalten.',
+      conflictAssignments: 'An diesem Tag sind bereits Projekte zugewiesen — sie bleiben erhalten.',
+      readOnly: 'Nur Lesen',
+      deleteAbsence: 'Abwesenheit löschen',
     },
     projects: {
       title: 'Projektverwaltung',

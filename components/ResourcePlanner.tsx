@@ -23,6 +23,7 @@ import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Modal } from './ui/Modal';
 import { ResourcePlanChat } from './ResourcePlanChat';
+import { computeTargetDates, mergeDayEntries } from '../utils/planner';
 
 interface ResourcePlannerProps {
   employees: Employee[];
@@ -65,6 +66,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
   // Interaction State
   const [selectedCell, setSelectedCell] = useState<{empId: string, date: Date} | null>(null);
+  const [selectedCellReadOnly, setSelectedCellReadOnly] = useState(false);
 
   // Modal State
   const [projectSearchQuery, setProjectSearchQuery] = useState('');
@@ -348,69 +350,32 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       onAbsenceChange(absences.filter(a => a.id !== absenceId));
   };
 
-  const handleSaveAssignments = () => {
+  const handleDeleteAbsenceFromModal = () => {
       if (readOnly || !selectedCell) return;
-      
-      const targetDateStr = format(selectedCell.date, 'yyyy-MM-dd');
-      let newAssignments = [...assignments];
-      let newAbsences = [...absences];
+      const dateStr = format(selectedCell.date, 'yyyy-MM-dd');
+      onAbsenceChange(absences.filter(a => !(a.employeeId === selectedCell.empId && a.date === dateStr)));
+      setSelectedCell(null);
+  };
 
-      const daysToProcess: string[] = [];
+  const handleSaveAssignments = () => {
+      if (readOnly || !selectedCell || selectedCellReadOnly) return;
 
-      if (tabMode === 'project') {
-          if (isRepeatMode) {
-              const monthStart = startOfMonth(selectedCell.date);
-              const monthEnd = endOfMonth(selectedCell.date);
-              const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      const daysToProcess = computeTargetDates({
+          baseDate: selectedCell.date,
+          mode: tabMode,
+          isRepeat: tabMode === 'project' ? isRepeatMode : undefined,
+          repeatDays: tabMode === 'project' ? repeatDays : undefined,
+          absenceDuration: tabMode === 'absence' ? absenceDuration : undefined,
+      });
 
-              daysInMonth.forEach(d => {
-                  if (repeatDays.includes(getDay(d))) {
-                      daysToProcess.push(format(d, 'yyyy-MM-dd'));
-                  }
-              });
-          } else {
-              daysToProcess.push(targetDateStr);
-          }
-      } else if (tabMode === 'absence') {
-          // Calculate consecutive working days
-          let count = 0;
-          let offset = 0;
-          while (count < absenceDuration) {
-              const d = addDays(selectedCell.date, offset);
-              // Skip weekends for absences
-              if (!isWeekend(d)) {
-                   daysToProcess.push(format(d, 'yyyy-MM-dd'));
-                   count++;
-              }
-              offset++;
-          }
-      }
-
-      // Cleanup existing data for target days/employee
-      newAssignments = newAssignments.filter(a => !(a.employeeId === selectedCell.empId && daysToProcess.includes(a.date)));
-      newAbsences = newAbsences.filter(a => !(a.employeeId === selectedCell.empId && daysToProcess.includes(a.date)));
-
-      daysToProcess.forEach(dateStr => {
-          if (tabMode === 'project') {
-             draftAssignments.forEach(draft => {
-                 newAssignments.push({
-                     id: Math.random().toString(36).substr(2, 9),
-                     employeeId: selectedCell.empId,
-                     projectId: draft.projectId,
-                     date: dateStr,
-                     allocation: draft.allocation
-                 });
-             });
-          } else {
-              // Add Absence
-              newAbsences.push({
-                  id: Math.random().toString(36).substr(2, 9),
-                  employeeId: selectedCell.empId,
-                  date: dateStr,
-                  type: absenceType,
-                  approved: true
-              });
-          }
+      const { assignments: newAssignments, absences: newAbsences } = mergeDayEntries({
+          assignments,
+          absences,
+          draftAssignments,
+          draftAbsence: tabMode === 'absence' ? { type: absenceType, approved: true } : null,
+          employeeId: selectedCell.empId,
+          dates: daysToProcess,
+          mode: tabMode,
       });
 
       onAssignmentChange(newAssignments);
@@ -532,6 +497,35 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   const draggedAssignment = useMemo(() => 
       draggingAssignmentId ? assignments.find(a => a.id === draggingAssignmentId) : null
   , [draggingAssignmentId, assignments]);
+
+  const targetDates = useMemo(() => {
+      if (!selectedCell) return [];
+      return computeTargetDates({
+          baseDate: selectedCell.date,
+          mode: tabMode,
+          isRepeat: tabMode === 'project' ? isRepeatMode : undefined,
+          repeatDays: tabMode === 'project' ? repeatDays : undefined,
+          absenceDuration: tabMode === 'absence' ? absenceDuration : undefined,
+      });
+  }, [selectedCell, tabMode, isRepeatMode, repeatDays, absenceDuration]);
+
+  const hasConflict = useMemo(() => {
+      if (!selectedCell || selectedCellReadOnly || targetDates.length === 0) return false;
+      if (tabMode === 'project') {
+          return targetDates.some(date => 
+              absences.some(a => a.employeeId === selectedCell.empId && a.date === date)
+          );
+      }
+      return targetDates.some(date => 
+          assignments.some(a => a.employeeId === selectedCell.empId && a.date === date)
+      );
+  }, [targetDates, selectedCell, tabMode, absences, assignments, selectedCellReadOnly]);
+
+  const selectedCellAbsence = useMemo(() => {
+      if (!selectedCell) return null;
+      const dateStr = format(selectedCell.date, 'yyyy-MM-dd');
+      return absences.find(a => a.employeeId === selectedCell.empId && a.date === dateStr) || null;
+  }, [selectedCell, absences]);
 
   const getDailyLoad = (empId: string, dateStr: string) => {
       const load = assignments
@@ -810,7 +804,8 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                     const isWknd = isWeekend(day);
                                     const isMonday = getDay(day) === 1;
                                     const isTodayCell = isToday(day);
-                                    const isInteractive = !readOnly && !isWknd && !holiday;
+                                    const isInteractive = !readOnly && !isWknd && !holiday && !absence;
+                                    const isCellClickable = !readOnly && !isWknd && !holiday;
                                     
                                     const dailyLoad = getDailyLoad(emp.id, format(day, 'yyyy-MM-dd'));
                                     const isOverloaded = dailyLoad > 1.0;
@@ -826,7 +821,12 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                           key={day.toISOString()}
                                           onDragOver={(e) => isInteractive && handleDragOver(e, emp.id, day)}
                                           onDrop={(e) => isInteractive && handleDrop(e, emp.id, day)}
-                                          onClick={() => isInteractive && setSelectedCell({ empId: emp.id, date: day })}
+                                          onClick={() => {
+                                              if (isCellClickable) {
+                                                  setSelectedCellReadOnly(!!absence);
+                                                  setSelectedCell({ empId: emp.id, date: day });
+                                              }
+                                          }}
                                           className={`
                                              border-r border-charcoal-100 p-1 relative min-h-[7rem] h-auto align-top transition-all group/cell
                                              ${holiday 
@@ -875,14 +875,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                          {absence.type === 'training' && <BookOpen className="w-4 h-4 mb-0.5 text-blue-500" />}
                                                          <span className="text-[8px] uppercase">{t(`planner.${absence.type}`)}</span>
                                                      </div>
-                                                     {isInteractive && (
-                                                        <button
-                                                            onClick={(e) => handleRemoveAbsence(absence.id, e)}
-                                                            className="absolute top-0 right-0 opacity-0 group-hover/absence:opacity-100 p-1 text-charcoal-400 hover:text-red-600 bg-white/80 rounded"
-                                                        >
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                     )}
+
                                                  </div>
                                              )}
 
@@ -942,6 +935,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                   <button 
                                                       onClick={(e) => {
                                                           e.stopPropagation();
+                                                          setSelectedCellReadOnly(false);
                                                           setSelectedCell({ empId: emp.id, date: day });
                                                       }}
                                                       className="w-full h-5 bg-white/90 hover:bg-blue-50 border border-charcoal-200 hover:border-blue-200 text-charcoal-400 hover:text-blue-600 rounded flex items-center justify-center shadow-sm backdrop-blur-sm transition-colors"
@@ -1007,10 +1001,11 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                             type="checkbox" 
                             id="repeatMode" 
                             checked={isRepeatMode} 
+                            disabled={selectedCellReadOnly}
                             onChange={(e) => setIsRepeatMode(e.target.checked)} 
-                            className="rounded border-charcoal-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            className={`rounded border-charcoal-300 text-blue-600 focus:ring-blue-500 ${selectedCellReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                         />
-                        <label htmlFor="repeatMode" className="text-sm text-charcoal-700 select-none flex items-center gap-2 cursor-pointer">
+                        <label htmlFor="repeatMode" className={`text-sm text-charcoal-700 select-none flex items-center gap-2 ${selectedCellReadOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
                             <Repeat className="w-4 h-4 text-charcoal-500" />
                             {t('planner.repeatMode')}
                         </label>
@@ -1024,11 +1019,12 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                     <button
                                         key={dayIdx}
                                         onClick={() => toggleRepeatDay(dayIdx)}
+                                        disabled={selectedCellReadOnly}
                                         className={`w-8 h-8 rounded text-xs font-bold transition-colors ${
                                             repeatDays.includes(dayIdx) 
                                             ? 'bg-blue-600 text-white shadow-sm' 
                                             : 'bg-white border border-charcoal-200 text-charcoal-500 hover:bg-charcoal-100'
-                                        }`}
+                                        } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {getDayLabel(dayIdx)}
                                     </button>
@@ -1048,19 +1044,22 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                         <div className="flex items-center gap-1">
                             <button 
                                 onClick={() => setAbsenceDuration(Math.max(1, absenceDuration - 1))}
-                                className="w-8 h-8 flex items-center justify-center rounded-l border border-charcoal-200 bg-white hover:bg-charcoal-50 text-charcoal-600"
+                                disabled={selectedCellReadOnly}
+                                className={`w-8 h-8 flex items-center justify-center rounded-l border border-charcoal-200 bg-white text-charcoal-600 ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'}`}
                             >
                                 -
                             </button>
                             <input 
                                 type="number" 
-                                className="w-12 h-8 text-center border-y border-charcoal-200 text-sm font-semibold focus:outline-none"
+                                className="w-12 h-8 text-center border-y border-charcoal-200 text-sm font-semibold focus:outline-none disabled:opacity-50"
                                 value={absenceDuration}
+                                disabled={selectedCellReadOnly}
                                 onChange={(e) => setAbsenceDuration(Math.max(1, parseInt(e.target.value) || 1))}
                             />
                             <button 
                                 onClick={() => setAbsenceDuration(absenceDuration + 1)}
-                                className="w-8 h-8 flex items-center justify-center rounded-r border border-charcoal-200 bg-white hover:bg-charcoal-50 text-charcoal-600"
+                                disabled={selectedCellReadOnly}
+                                className={`w-8 h-8 flex items-center justify-center rounded-r border border-charcoal-200 bg-white text-charcoal-600 ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'}`}
                             >
                                 +
                             </button>
@@ -1098,6 +1097,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                          <div className="text-[10px] text-charcoal-500 truncate leading-tight mt-0.5">{proj.client}</div>
                                                       </div>
                                                  </div>
+                                                 {!selectedCellReadOnly && (
                                                  <button 
                                                     onClick={() => removeDraftAssignment(draft.projectId)}
                                                     className="text-charcoal-300 hover:text-red-500 transition-colors -mt-0.5 -mr-0.5 p-0.5"
@@ -1105,6 +1105,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                  >
                                                     <X className="w-3.5 h-3.5" />
                                                  </button>
+                                                 )}
                                              </div>
                                              
                                              {/* Input Area */}
@@ -1115,8 +1116,9 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                       max="10" 
                                                       step="0.5" 
                                                       value={hours}
+                                                      disabled={selectedCellReadOnly}
                                                       onChange={(e) => updateDraftHours(draft.projectId, parseFloat(e.target.value))}
-                                                      className="flex-1 h-1.5 bg-charcoal-100 rounded-lg appearance-none cursor-pointer accent-charcoal-700"
+                                                      className={`flex-1 h-1.5 bg-charcoal-100 rounded-lg appearance-none accent-charcoal-700 ${selectedCellReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                                                   />
                                                   <div className="w-12 text-right">
                                                       <div className="flex items-center justify-end bg-charcoal-50 rounded border border-charcoal-100 px-1 py-0.5">
@@ -1170,26 +1172,30 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                 type="text" 
                                 placeholder={t('planner.searchProjects')} 
                                 value={projectSearchQuery}
+                                disabled={selectedCellReadOnly}
                                 onChange={(e) => setProjectSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                                className="w-full pl-9 pr-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white disabled:opacity-50"
                             />
                         </div>
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setProjectFilter('all')}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'all' ? 'bg-charcoal-800 text-white border-charcoal-800' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'}`}
+                                disabled={selectedCellReadOnly}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'all' ? 'bg-charcoal-800 text-white border-charcoal-800' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'} ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {t('planner.all')}
                             </button>
                             <button 
                                 onClick={() => setProjectFilter('active')}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'active' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'}`}
+                                disabled={selectedCellReadOnly}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'active' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'} ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {t('status.active')}
                             </button>
                             <button 
                                 onClick={() => setProjectFilter('opportunity')}
-                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'opportunity' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'}`}
+                                disabled={selectedCellReadOnly}
+                                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${projectFilter === 'opportunity' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-charcoal-600 border-charcoal-200 hover:bg-charcoal-50'} ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 {t('status.opportunity')}
                             </button>
@@ -1211,10 +1217,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                 <button 
                                     key={project.id}
                                     onClick={() => addDraftProject(project.id)}
-                                    disabled={isAdded}
+                                    disabled={isAdded || selectedCellReadOnly}
                                     className={`
                                         flex items-center gap-3 p-3 rounded-lg border text-left transition-all
-                                        ${isAdded 
+                                        ${isAdded || selectedCellReadOnly
                                             ? 'bg-charcoal-50 border-charcoal-100 opacity-50 cursor-default' 
                                             : 'bg-white border-charcoal-200 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer'}
                                         ${project.isCritical ? 'border-l-4 border-l-red-400' : ''}
@@ -1239,34 +1245,82 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
             )}
 
             {tabMode === 'absence' && (
-                <div className="grid grid-cols-3 gap-3">
-                    <button
-                        onClick={() => setAbsenceType('vacation')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'vacation' ? 'border-yellow-400 bg-yellow-50 text-yellow-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'}`}
-                    >
-                        <Sun className="w-6 h-6" />
-                        <span className="text-sm font-medium">{t('planner.vacation')}</span>
-                    </button>
-                    <button
-                        onClick={() => setAbsenceType('sick')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'sick' ? 'border-red-400 bg-red-50 text-red-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'}`}
-                    >
-                        <Umbrella className="w-6 h-6" />
-                        <span className="text-sm font-medium">{t('planner.sick')}</span>
-                    </button>
-                    <button
-                        onClick={() => setAbsenceType('training')}
-                        className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'training' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'}`}
-                    >
-                        <BookOpen className="w-6 h-6" />
-                        <span className="text-sm font-medium">{t('planner.training')}</span>
-                    </button>
+                <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-3">
+                        <button
+                            onClick={() => setAbsenceType('vacation')}
+                            disabled={selectedCellReadOnly}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'vacation' ? 'border-yellow-400 bg-yellow-50 text-yellow-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'} ${selectedCellReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            <Sun className="w-6 h-6" />
+                            <span className="text-sm font-medium">{t('planner.vacation')}</span>
+                        </button>
+                        <button
+                            onClick={() => setAbsenceType('sick')}
+                            disabled={selectedCellReadOnly}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'sick' ? 'border-red-400 bg-red-50 text-red-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'} ${selectedCellReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            <Umbrella className="w-6 h-6" />
+                            <span className="text-sm font-medium">{t('planner.sick')}</span>
+                        </button>
+                        <button
+                            onClick={() => setAbsenceType('training')}
+                            disabled={selectedCellReadOnly}
+                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${absenceType === 'training' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-charcoal-100 bg-white text-charcoal-500 hover:border-charcoal-300'} ${selectedCellReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        >
+                            <BookOpen className="w-6 h-6" />
+                            <span className="text-sm font-medium">{t('planner.training')}</span>
+                        </button>
+                    </div>
+                    {draftAssignments.length > 0 && (
+                        <div>
+                            <h4 className="text-[10px] font-bold text-charcoal-500 uppercase tracking-wider mb-2">
+                                {t('planner.assigned')}
+                            </h4>
+                            <div className="flex flex-wrap gap-2">
+                                {draftAssignments.map(draft => {
+                                    const proj = getProject(draft.projectId);
+                                    if (!proj) return null;
+                                    const hours = Math.round(draft.allocation * 8 * 10) / 10;
+                                    return (
+                                        <div key={draft.projectId} className={`text-[10px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm flex items-center gap-1 ${PASTEL_VARIANTS[proj.color].bg} ${PASTEL_VARIANTS[proj.color].text} ${PASTEL_VARIANTS[proj.color].border} ring-2 ring-amber-400`}>
+                                            <Folder className="w-2.5 h-2.5 flex-shrink-0" />
+                                            <span className="truncate">{proj.name}</span>
+                                            <span className="text-[8px] font-bold opacity-70 border border-current px-0.5 rounded whitespace-nowrap">
+                                                {hours}h
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {selectedCellReadOnly && (
+                <div className="flex items-center gap-2 text-xs font-medium text-charcoal-500 bg-charcoal-100 px-3 py-2 rounded-lg border border-charcoal-200">
+                    <Lock className="w-3 h-3" />
+                    {t('planner.readOnly')}
+                </div>
+            )}
+
+            {!selectedCellReadOnly && hasConflict && (
+                <div className="flex items-start gap-2 text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-100 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{t(tabMode === 'project' ? 'planner.conflictAbsence' : 'planner.conflictAssignments')}</span>
                 </div>
             )}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-charcoal-100">
+                {selectedCellReadOnly && selectedCellAbsence && (
+                    <Button variant="outline" className="mr-auto gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300" onClick={handleDeleteAbsenceFromModal}>
+                        <Trash2 className="w-4 h-4" />
+                        {t('planner.deleteAbsence')}
+                    </Button>
+                )}
                 <Button variant="ghost" onClick={() => setSelectedCell(null)}>{t('planner.cancel')}</Button>
-                {(!isRepeatMode || tabMode === 'absence' || draftAssignments.length > 0) && <Button onClick={handleSaveAssignments}>{t('planner.save')}</Button>}
+                {!selectedCellReadOnly && (!isRepeatMode || tabMode === 'absence' || draftAssignments.length > 0) && <Button onClick={handleSaveAssignments}>{t('planner.save')}</Button>}
             </div>
         </div>
       </Modal>

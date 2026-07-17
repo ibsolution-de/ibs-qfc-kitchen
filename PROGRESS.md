@@ -12,7 +12,12 @@ Gates: lint ✅ build ✅ (skipped: no source change) test ✅ (placeholder)
 Notes: branch refactor/hardening created; CI runs lint+build+test on push/PR to main + refactor/hardening.
 Next up: Step 0.2 — Test harness (Vitest).
 
-## 2026-07-18 Step 0.2 — Test harness (Vitest) — PENDING-SHA
+## 2026-07-18 Step 0.2 — Test harness (Vitest) — 7fcd896
 Gates: lint ✅ build ✅ test ✅ (10 tests, utils/money)
 Notes: vitest + jsdom + testing-library installed; utils/money.ts (parseBudget/formatEuro) seeded with canonical implementation; vitest.config.ts uses vitest/config typing.
 Next up: Step 1.1 — Planner data-loss fix.
+
+## 2026-07-18 Step 1.1 — Planner data-loss fix — PENDING-SHA
+Gates: lint ✅ build ✅ test ✅ (17 tests: money + planner merge semantics)
+Notes: mergeDayEntries/computeTargetDates extracted to utils/planner.ts (pure, tested). Merge semantics replace same-type only; other type preserved + translated conflict warnings + amber-flagged overlapping chips. Absence days non-interactive except read-only day view. Retry 1: restored absence deletion via modal read-only view (handleDeleteAbsenceFromModal). Follow-up: utils/planner.ts createId() still uses Math.random substr — swept in Step 1.7.
+Next up: Step 1.2 — Overload semantics honor availability.
