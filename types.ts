@@ -80,7 +80,7 @@ export interface Assignment {
   employeeId: string;
   projectId: string;
   date: string; // ISO YYYY-MM-DD
-  allocation: number; // 0.1 to 1.0 (10% to 100%)
+  allocation: number; // fraction of an 8h day, range 0.1–1.0; overload is evaluated against employee availability.
 }
 
 export interface Absence {

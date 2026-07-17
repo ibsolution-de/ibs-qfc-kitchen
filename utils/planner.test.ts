@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeTargetDates, mergeDayEntries } from './planner';
+import { computeTargetDates, mergeDayEntries, dailyCapacityFraction, isOverloaded, allocationToHours } from './planner';
 import type { Assignment, Absence } from '../types';
 
 const employeeId = 'emp-1';
@@ -147,6 +147,46 @@ describe('planner', () => {
         absenceDuration: 3,
       });
       expect(result).toEqual(['2024-06-07', '2024-06-10', '2024-06-11']);
+    });
+  });
+
+  describe('dailyCapacityFraction', () => {
+    it('treats missing or zero availability as 100%', () => {
+      expect(dailyCapacityFraction({ availability: 0 })).toBe(1);
+      expect(dailyCapacityFraction({ availability: undefined as unknown as number })).toBe(1);
+    });
+
+    it('returns availability as a fraction of a full day', () => {
+      expect(dailyCapacityFraction({ availability: 100 })).toBe(1);
+      expect(dailyCapacityFraction({ availability: 50 })).toBe(0.5);
+      expect(dailyCapacityFraction({ availability: 75 })).toBe(0.75);
+    });
+
+    it('clamps the result to the range (0, 1]', () => {
+      expect(dailyCapacityFraction({ availability: 150 })).toBe(1);
+      expect(dailyCapacityFraction({ availability: -20 })).toBe(1);
+    });
+  });
+
+  describe('isOverloaded', () => {
+    it('flags load above the availability-adjusted capacity', () => {
+      expect(isOverloaded(0.6, { availability: 50 })).toBe(true);
+      expect(isOverloaded(0.5, { availability: 50 })).toBe(false);
+      expect(isOverloaded(1.0, { availability: 100 })).toBe(false);
+      expect(isOverloaded(1.01, { availability: 100 })).toBe(true);
+    });
+
+    it('treats missing or zero availability as full capacity', () => {
+      expect(isOverloaded(1.0, { availability: 0 })).toBe(false);
+      expect(isOverloaded(1.01, { availability: 0 })).toBe(true);
+    });
+  });
+
+  describe('allocationToHours', () => {
+    it('converts an allocation fraction to hours rounded to one decimal', () => {
+      expect(allocationToHours(0.5)).toBe(4);
+      expect(allocationToHours(1)).toBe(8);
+      expect(allocationToHours(0.125)).toBe(1);
     });
   });
 });

@@ -23,7 +23,7 @@ import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Modal } from './ui/Modal';
 import { ResourcePlanChat } from './ResourcePlanChat';
-import { computeTargetDates, mergeDayEntries } from '../utils/planner';
+import { computeTargetDates, mergeDayEntries, dailyCapacityFraction, isOverloaded, allocationToHours } from '../utils/planner';
 
 interface ResourcePlannerProps {
   employees: Employee[];
@@ -107,7 +107,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
             .filter(a => a.employeeId === selectedCell.empId && a.date === dateStr)
             .map(a => ({
                 projectId: a.projectId,
-                allocation: a.allocation || 1,
+                allocation: Math.min(a.allocation || 1, 1),
                 assignmentId: a.id
             }));
         
@@ -204,14 +204,14 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         if (isAbsent) return;
 
         workingDaysCount++; // This is a valid working slot
-        totalCapacity += (emp.availability / 100);
+        totalCapacity += dailyCapacityFraction(emp);
 
         // 2. Calculate Overload
         // Get assignments for this specific day/emp
         const dailyAssignments = assignments.filter(a => a.employeeId === emp.id && a.date === dStr);
         const dailyLoad = dailyAssignments.reduce((acc, a) => acc + (a.allocation || 1), 0);
         
-        if (dailyLoad > 1.0) {
+        if (isOverloaded(dailyLoad, emp)) {
             overloadedDaysCount++;
         }
       });
@@ -418,8 +418,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       setDraftAssignments(prev => prev.filter(d => d.projectId !== projectId));
   };
   
-  const toHours = (alloc: number) => Math.round(alloc * 8 * 10) / 10;
-
   const getDayLabel = (idx: number) => {
       const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       return labels[idx];
@@ -478,7 +476,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       }).length;
 
       const effectiveWorkingDays = workingDays.length - validAbsences;
-      const capacity = Math.round(effectiveWorkingDays * (emp.availability / 100) * 10) / 10;
+      const capacity = Math.round(effectiveWorkingDays * dailyCapacityFraction(emp) * 10) / 10;
 
       const empAssignments = assignments.filter(a => 
           a.employeeId === emp.id && 
@@ -808,7 +806,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                     const isCellClickable = !readOnly && !isWknd && !holiday;
                                     
                                     const dailyLoad = getDailyLoad(emp.id, format(day, 'yyyy-MM-dd'));
-                                    const isOverloaded = dailyLoad > 1.0;
+                                    const cellIsOverloaded = isOverloaded(dailyLoad, emp);
                                     const conflict = hasCriticalConflict(dayAssignments);
 
                                     const isDuplicateDrop = (!draggedAssignment || !isInteractive) ? false : dayAssignments.some(a => 
@@ -837,7 +835,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                         ? 'bg-blue-50/40 border-x-2 border-x-blue-200/50' 
                                                     : isWknd 
                                                         ? 'bg-charcoal-50/50 cursor-not-allowed' 
-                                                        : isOverloaded 
+                                                        : cellIsOverloaded 
                                                             ? 'bg-red-50 hover:bg-red-100/50 cursor-pointer' 
                                                             : 'bg-white cursor-pointer hover:bg-blue-50/30'
                                               }
@@ -852,7 +850,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                       <AlertCircle className="w-3 h-3 text-red-600 fill-white" />
                                                   </div>
                                               )}
-                                              {isOverloaded && !holiday && !absence && (
+                                              {cellIsOverloaded && !holiday && !absence && (
                                                   <div title={t('planner.overload')} className="bg-red-100 rounded-full p-0.5 border border-red-200 shadow-sm">
                                                       <Zap className="w-2.5 h-2.5 text-red-600 fill-red-100" />
                                                   </div>
@@ -884,8 +882,8 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                 if (!proj) return null;
                                                 
                                                 const allocation = a.allocation || 1;
-                                                const hours = allocation * 8;
-                                                const formattedHours = hours % 1 === 0 ? hours : hours.toFixed(1).replace(/\.0$/, '');
+                                                const hours = allocationToHours(allocation);
+                                                const formattedHours = hours % 1 === 0 ? hours.toString() : hours.toFixed(1).replace(/\.0$/, '');
                                                 // Only hide hours if it's the only assignment AND it's exactly 8 hours
                                                 const showHours = !(dayAssignments.length === 1 && hours === 8);
 
@@ -1084,7 +1082,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                  {draftAssignments.map(draft => {
                                      const proj = getProject(draft.projectId);
                                      if (!proj) return null;
-                                     const hours = Math.round(draft.allocation * 8 * 10) / 10;
+                                     const hours = allocationToHours(draft.allocation);
                                      
                                      return (
                                          <div key={draft.projectId} className={`relative p-2.5 rounded-lg border flex flex-col gap-2 transition-all bg-white shadow-sm hover:shadow-md ${PASTEL_VARIANTS[proj.color].border}`}>
@@ -1113,7 +1111,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                   <input 
                                                       type="range" 
                                                       min="0.5" 
-                                                      max="10" 
+                                                      max="8" 
                                                       step="0.5" 
                                                       value={hours}
                                                       disabled={selectedCellReadOnly}
@@ -1135,7 +1133,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                              {/* Capacity Bar */}
                              {(() => {
                                  const totalAlloc = draftAssignments.reduce((acc, curr) => acc + curr.allocation, 0);
-                                 const totalHours = Math.round(totalAlloc * 8 * 10) / 10;
+                                 const totalHours = allocationToHours(totalAlloc);
                                  const isOver = totalHours > 8;
                                  return (
                                      <div className="bg-charcoal-50 p-3 rounded-lg border border-charcoal-100 flex items-center gap-4">
@@ -1281,7 +1279,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                 {draftAssignments.map(draft => {
                                     const proj = getProject(draft.projectId);
                                     if (!proj) return null;
-                                    const hours = Math.round(draft.allocation * 8 * 10) / 10;
+                                    const hours = allocationToHours(draft.allocation);
                                     return (
                                         <div key={draft.projectId} className={`text-[10px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm flex items-center gap-1 ${PASTEL_VARIANTS[proj.color].bg} ${PASTEL_VARIANTS[proj.color].text} ${PASTEL_VARIANTS[proj.color].border} ring-2 ring-amber-400`}>
                                             <Folder className="w-2.5 h-2.5 flex-shrink-0" />

@@ -7,7 +7,7 @@ import {
   isWeekend,
   startOfMonth,
 } from 'date-fns';
-import type { Absence, Assignment } from '../types';
+import type { Absence, Assignment, Employee } from '../types';
 
 export interface DraftAssignment {
   projectId: string;
@@ -91,6 +91,33 @@ export interface MergeDayEntriesOutput {
 
 function createId(): string {
   return Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Returns the fraction of a full day an employee can work, derived from their
+ * availability percentage. Missing or zero availability is treated as 100%.
+ * The result is clamped to the range (0, 1].
+ */
+export function dailyCapacityFraction(emp: Pick<Employee, 'availability'>): number {
+  const availability = emp.availability ?? 100;
+  if (availability <= 0) return 1;
+  return Math.min(availability / 100, 1);
+}
+
+/**
+ * Determines whether a given daily load exceeds the employee's available
+ * capacity. Uses a small epsilon to avoid floating-point surprises.
+ */
+export function isOverloaded(load: number, emp: Pick<Employee, 'availability'>): boolean {
+  return load > dailyCapacityFraction(emp) + 1e-9;
+}
+
+/**
+ * Converts an allocation fraction (share of a full 8-hour day) into hours,
+ * rounded to one decimal place.
+ */
+export function allocationToHours(allocation: number): number {
+  return Math.round(allocation * 8 * 10) / 10;
 }
 
 /**
