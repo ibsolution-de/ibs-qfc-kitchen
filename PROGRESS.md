@@ -127,3 +127,8 @@ Next up: epic 4.4 — Recharts migration (Gate C: approved by owner via "start r
 Gates: lint ✅ build ✅ test ✅ (93)
 Notes: recharts 3.9.2; PASTEL_HEX exported; stacked BarChart w/ axes+grid+tooltip (financials, verified live in headless Chrome), histogram + ReferenceLine (forecast, modal-only), two-level PieChart w/ labels+legend (strategy), RadarChart (development); role=img + sr-only data tables; dead trig deleted. Bundle: recharts isolated in lazy chunks (main flat ~27 kB gzip). False alarm: stale needs-attention signal on completed run.
 Next up: epic 4.5 — planner keyboard & touch.
+
+## 2026-07-18 Epic 4.5 — Planner keyboard & touch — 89f2992
+Gates: lint ✅ build ✅ test ✅ (97, +keyboard suite)
+Notes: roving tabindex grid (role=grid/gridcell/row, aria labels), arrows navigate, Enter/Space opens modal, Delete w/ confirm on single-assignment cells, Ctrl/Cmd+Arrow moves assignment (same guards as DnD), focus ring + focus return; pointer-coarse visibility + ≥24px hit areas for hover-only controls. Known bounds: Ctrl+Arrow stops at month edge; focus resets on view change.
+Next up: epic 4.6 — version rename/delete/diff. FINAL epic.
