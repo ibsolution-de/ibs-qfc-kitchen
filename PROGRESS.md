@@ -122,3 +122,8 @@ Next up: epic 4.3 — AI service layer + streaming.
 Gates: lint ✅ build ✅ test ✅ (93, +client suite)
 Notes: services/ai/client.ts (createClient, AI_MODELS registry, AiNotConfiguredError, thinkingBudget in registry); strategyChat.ts persistent session; both chats stream via sendMessageStream w/ incremental render + AbortController (new msg/close/unmount aborts); fake CONNECTION_FAILED string deleted → real errors + translated bubbles + error toast; 5 inline GoogleGenAI call sites migrated.
 Next up: epic 4.4 — Recharts migration (Gate C: approved by owner via "start remaining options").
+
+## 2026-07-18 Epic 4.4 — Recharts migration — 8f47fbc
+Gates: lint ✅ build ✅ test ✅ (93)
+Notes: recharts 3.9.2; PASTEL_HEX exported; stacked BarChart w/ axes+grid+tooltip (financials, verified live in headless Chrome), histogram + ReferenceLine (forecast, modal-only), two-level PieChart w/ labels+legend (strategy), RadarChart (development); role=img + sr-only data tables; dead trig deleted. Bundle: recharts isolated in lazy chunks (main flat ~27 kB gzip). False alarm: stale needs-attention signal on completed run.
+Next up: epic 4.5 — planner keyboard & touch.
