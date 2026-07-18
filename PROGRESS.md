@@ -70,3 +70,8 @@ Next up: Step 2.2 — build-time Tailwind (replace CDN). RISKY: requires visual 
 Gates: lint ✅ build ✅ test ✅ (33)
 Notes: tailwindcss v4 + @tailwindcss/vite; index.css @theme ports all colors/fonts/animations; @utility for animate-in/fade-in/zoom-in-95/pattern-diagonal-lines-sm/bg-stripes-gray/custom-scrollbar/markdown-prose; base layer ports scrollbars/glass-panel/hover-card/tech-pattern. Badge ring-ring→charcoal-400; PASTEL_VARIANTS.dot replaces class-string surgery. Verified: all used classes present in dist css (shimmer/scale-in unused→tree-shaken, correct); no CDN refs in dist; boot smoke test renders identical DOM text.
 Next up: Step 2.3 — Shared UI primitives.
+
+## 2026-07-18 Step 2.3 — Shared UI primitives — 883bc1f
+Gates: lint ✅ build ✅ test ✅ (42, +ConfirmDialog/Toast suites; vitest.setup.ts for jest-dom)
+Notes: PageHeader (7 adoptions), FormField/TextInput/SelectInput, ProgressBar (aria), StatusBadge, ConfirmDialog (native confirm() eliminated), Toast system (provider + success toasts on save/delete/export/version). Button type=button default. INTERRUPTION: k2p7 quota exhausted mid-run; resumed on k3 which completed. Lesson: keep k2p7 for fresh dispatches, resume falls back to k3.
+Next up: Step 2.4 — useCrudForm + Manage* refactor.
