@@ -95,3 +95,8 @@ Next up: Phase 3 — Step 3.1 ResourcePlanner render performance.
 Gates: lint ✅ build ✅ test ✅ (77, +PlannerCell suite)
 Notes: Map indexes (empId|date) for assignments+absences → O(1) cell lookups; PlannerCell/PlannerRow React.memo; DayEditModal extracted (669 LOC) — modal typing no longer re-renders grid; ref-based today-jump replaces setTimeout+getElementById; gridViewModel useMemo. ResourcePlanner.tsx 1340→987 LOC. Retry note: first k2p7 dispatch cold-failed (no output), second succeeded.
 Next up: Step 3.2 — QuarterlyForecast render performance.
+
+## 2026-07-18 Step 3.2 — QuarterlyForecast performance — 07a536a
+Gates: lint ✅ build ✅ test ✅ (79)
+Notes: CommitNumberInput (draft/blur-commit/Escape-revert) for all inline number inputs — keystrokes no longer re-render the route; ForecastQuarterCard memoized w/ useMemo'd capacity; SimResult drops 2000-element iterations array (percentiles computed inside, +expected mean).
+Next up: Step 3.3 — Bundle splitting (React.lazy routes).
