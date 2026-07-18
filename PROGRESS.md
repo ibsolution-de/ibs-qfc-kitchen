@@ -46,3 +46,8 @@ Next up: Step 1.6 — Financial correctness.
 Gates: lint ✅ build ✅ test ✅ (30)
 Notes: 4 divergent parseBudget copies deleted → utils/money canonical; compareBudgets numeric sort; KPIs from unfiltered list; MARGIN_THRESHOLDS {risk:10, healthy:25} single source incl. header coloring (was 20); Low-margin filter button added; dead margin SortField/customers prop removed.
 Next up: Step 1.7 — App-level consistency.
+
+## 2026-07-18 Step 1.7 — App-level consistency — a614cd4
+Gates: lint ✅ build ✅ test ✅ (33)
+Notes: utils/uid.ts (crypto.randomUUID) replaced 11 hand-rolled ids incl. utils/planner createId; handleAssignment/AbsenceChange now write to ACTIVE version w/ read-only no-op guard; NaN guards + clamps on number inputs; absenceDuration clamped 1–60; hooks/useToday.ts replaces frozen-at-mount today. Orchestrator fixed 1 missed id in SalesPipeline.
+Next up: Step 1.8 — i18n leak sweep + language persistence.
