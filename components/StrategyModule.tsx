@@ -12,6 +12,14 @@ import { type Chat } from '@google/genai';
 import { useSettings } from '../contexts/SettingsContext';
 import { uid } from '../utils/uid';
 import { PageHeader } from './ui/PageHeader';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 interface StrategyModuleProps {
   projects: Project[];
@@ -146,7 +154,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({ goals, projects, onAddGoal })
     );
 };
 
-const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignment[] }> = ({ projects, assignments }) => {
+const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignment[] }> = ({ projects, assignments: _assignments }) => {
     const { t } = useLanguage();
     
     const data = useMemo(() => {
@@ -175,75 +183,32 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
 
         const totalVolume = allItems.reduce((sum, d) => sum + d.volume, 0);
 
-        // Precompute sunburst sectors (keep render pure — no mutation during render)
-        const EPSILON = 1e-4;
-        const gap = 0.02;
-        const pathItems = totalVolume > 0 ? allItems.filter(m => m.volume > 0) : [];
+        // Recharts-compatible data: inner ring = metrics, outer ring = projects
+        const innerData = allItems
+            .filter(item => item.volume > 0)
+            .map(item => ({
+                id: item.id,
+                name: item.name,
+                value: item.volume,
+                color: item.color,
+            }));
 
-        let startAngle = 0;
-        const sectors = pathItems.map(metric => {
-            const sweep = (metric.volume / totalVolume) * 2 * Math.PI;
-            // Clamp full-circle sweep so the SVG arc doesn't degenerate (end === start)
-            const clampedSweep = Math.min(sweep, 2 * Math.PI - EPSILON);
-            const endAngle = startAngle + clampedSweep;
-
-            const metricSector = {
-                id: metric.id,
-                name: metric.name,
-                color: metric.color,
-                volume: metric.volume,
-                startAngle,
-                endAngle,
-            };
-
-            let projStart = startAngle;
-            const projectSectors = metric.projects
+        const outerData = allItems.flatMap(item => {
+            return item.projects
                 .filter(p => (p.volume || 0) > 0)
-                .map(p => {
-                    const pVolume = p.volume || 0;
-                    const pSweep = (pVolume / metric.volume) * clampedSweep;
-                    const pEnd = projStart + pSweep;
-                    const sector = {
-                        id: p.id,
-                        name: p.name,
-                        color: metric.color,
-                        volume: pVolume,
-                        startAngle: projStart + gap / 2,
-                        endAngle: Math.max(projStart + gap / 2, pEnd - gap / 2),
-                    };
-                    projStart = pEnd;
-                    return sector;
-                });
-
-            startAngle = endAngle;
-            return { metricSector, projectSectors };
+                .map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    value: p.volume || 0,
+                    color: item.color,
+                    metric: item.name,
+                }));
         });
 
-        return { totalVolume, allItems, sectors };
-    }, [projects, assignments, t]);
+        return { totalVolume, allItems, innerData, outerData };
+    }, [projects, t]);
 
-    const { totalVolume, allItems, sectors } = data;
-
-    // Simple SVG Sunburst (Concentric Donuts)
-    const radiusOuter = 140;
-    const radiusInner = 90;
-    const radiusCenter = 50;
-
-    const createSector = (start: number, end: number, rIn: number, rOut: number) => {
-        const x1 = 150 + rOut * Math.cos(start);
-        const y1 = 150 + rOut * Math.sin(start);
-        const x2 = 150 + rOut * Math.cos(end);
-        const y2 = 150 + rOut * Math.sin(end);
-        
-        const x3 = 150 + rIn * Math.cos(end);
-        const y3 = 150 + rIn * Math.sin(end);
-        const x4 = 150 + rIn * Math.cos(start);
-        const y4 = 150 + rIn * Math.sin(start);
-
-        const largeArc = end - start > Math.PI ? 1 : 0;
-
-        return `M ${x1} ${y1} A ${rOut} ${rOut} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${rIn} ${rIn} 0 ${largeArc} 0 ${x4} ${y4} Z`;
-    };
+    const { totalVolume, allItems, innerData, outerData } = data;
 
     return (
         <div className="flex flex-col h-full">
@@ -252,51 +217,94 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
                  <p className="text-sm text-charcoal-500">{t('strategy.sunburstSubtitle')}</p>
             </div>
             
-            <div className="flex-1 flex items-center justify-center p-4 relative">
-                <svg viewBox="0 0 300 300" className="w-full max-w-[500px] h-auto drop-shadow-xl">
-                    {/* Center Text */}
-                    <circle cx="150" cy="150" r={radiusCenter} fill="white" className="drop-shadow-sm" />
-                    <text x="150" y="145" textAnchor="middle" fontSize="10" className="fill-charcoal-500 font-medium uppercase tracking-widest">
-                        {t('strategy.totalVolume')}
-                    </text>
-                    <text x="150" y="165" textAnchor="middle" fontSize="16" className="fill-charcoal-900 font-bold">
-                        {totalVolume}d
-                    </text>
-
-                    {/* Rings */}
-                    {sectors.map(({ metricSector, projectSectors }) => (
-                        <g key={metricSector.id}>
-                            <path
-                                d={createSector(metricSector.startAngle, metricSector.endAngle, radiusCenter + 5, radiusInner)}
-                                fill={metricSector.color}
-                                className="stroke-white stroke-2 hover:brightness-110 transition-all cursor-pointer shadow-sm"
-                            >
-                                <title>{metricSector.name}: {Math.round((metricSector.volume / totalVolume) * 100)}%</title>
-                            </path>
-                            {projectSectors.map(s => (
-                                <path
-                                    key={s.id}
-                                    d={createSector(s.startAngle, s.endAngle, radiusInner + 5, radiusOuter)}
-                                    fill={s.color}
-                                    className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer stroke-white stroke-1"
-                                >
-                                    <title>{s.name} ({s.volume}d)</title>
-                                </path>
+            <div
+                className="flex-1 relative p-4 min-h-[340px]"
+                role="img"
+                aria-label={t('strategy.sunburstTitle')}
+            >
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Tooltip
+                            formatter={(value: any, name: any, props: any) => {
+                                const payload = props?.payload;
+                                const percent = totalVolume > 0 ? Math.round((value / totalVolume) * 100) : 0;
+                                return [`${value}d (${percent}%)`, payload?.metric ? `${payload.metric} → ${name}` : name];
+                            }}
+                            contentStyle={{ borderRadius: '0.5rem', border: '1px solid #d5d9df' }}
+                        />
+                        <Legend
+                            layout="horizontal"
+                            verticalAlign="bottom"
+                            align="center"
+                            wrapperStyle={{ fontSize: 12, color: '#2f333a', paddingTop: '1rem' }}
+                        />
+                        <Pie
+                            data={innerData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={1}
+                        >
+                            {innerData.map((entry, index) => (
+                                <Cell key={`inner-cell-${index}`} fill={entry.color} />
                             ))}
-                        </g>
-                    ))}
-                </svg>
-            </div>
-            
-            <div className="flex flex-wrap justify-center gap-4 p-4 border-t border-charcoal-100 bg-charcoal-50/50">
-                {allItems.map(m => (
-                    <div key={m.id} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }}></div>
-                        <span className="text-xs font-medium text-charcoal-700">{m.name}</span>
-                        <span className="text-xs text-charcoal-400 font-mono">({totalVolume > 0 ? Math.round((m.volume / totalVolume) * 100) : 0}%)</span>
+                        </Pie>
+                        <Pie
+                            data={outerData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={95}
+                            outerRadius={130}
+                            labelLine
+                            label={(entry: any) => {
+                                if (!entry || (entry.percent || 0) < 0.05) return null;
+                                return entry.name;
+                            }}
+                            paddingAngle={1}
+                        >
+                            {outerData.map((entry, index) => (
+                                <Cell key={`outer-cell-${index}`} fill={entry.color} fillOpacity={0.6} />
+                            ))}
+                        </Pie>
+                    </PieChart>
+                </ResponsiveContainer>
+
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center">
+                        <div className="text-xs text-charcoal-500 uppercase tracking-widest">{t('strategy.totalVolume')}</div>
+                        <div className="text-lg font-bold text-charcoal-900">{totalVolume}d</div>
                     </div>
-                ))}
+                </div>
             </div>
+
+            <table className="sr-only">
+                <caption>{t('accessibility.chartData')}: {t('strategy.sunburstTitle')}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{t('forecast.metric')}</th>
+                        <th scope="col">{t('financials.project')}</th>
+                        <th scope="col">{t('forecast.volumeDays')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {allItems.map(item => (
+                        item.projects.length > 0 ? item.projects.map(p => (
+                            <tr key={p.id}>
+                                <td>{item.name}</td>
+                                <td>{p.name}</td>
+                                <td>{p.volume || 0}d</td>
+                            </tr>
+                        )) : (
+                            <tr key={item.id}>
+                                <td>{item.name}</td>
+                                <td>—</td>
+                                <td>{item.volume}d</td>
+                            </tr>
+                        )
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 };

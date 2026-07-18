@@ -3,7 +3,17 @@ import { Project, Assignment } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AlertTriangle, CheckCircle, BarChart3, PieChart, Folder, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { addMonths, startOfQuarter, endOfMonth } from 'date-fns';
-import { PASTEL_VARIANTS } from '../constants';
+import { PASTEL_VARIANTS, PASTEL_HEX } from '../constants';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
 import { PageHeader } from './ui/PageHeader';
 
@@ -147,18 +157,22 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
 
   const allClientsInForecast: string[] = Array.from(new Set(quarters.flatMap(q => Object.keys(q.breakdown))));
 
-  // Determine Client Colors based on their projects
-  const getClientColorConfig = (clientName: string) => {
-      // Find a project for this client to determine color
-      const project = projects.find(p => p.client === clientName);
-      const colorKey = project?.color || 'gray';
-      return PASTEL_VARIANTS[colorKey] ?? PASTEL_VARIANTS.gray;
-  };
+  // Transform revenue data for Recharts and map clients to hex colors
+  const revenueChartData = useMemo(() => {
+    return quarters.map(q => {
+      const row: Record<string, number | string> = { name: q.name, total: q.totalRevenue };
+      allClientsInForecast.forEach(client => {
+        row[client] = q.breakdown[client] || 0;
+      });
+      return row;
+    });
+  }, [quarters, allClientsInForecast]);
 
-  // Calculate global max revenue for scaling charts, avoid Math.max spread issues on empty array
-  const maxQuarterRevenue = useMemo(() => {
-    return quarters.reduce((max, q) => Math.max(max, q.totalRevenue), 0) * 1.15;
-  }, [quarters]);
+  const getClientHexColor = (clientName: string) => {
+    const project = projects.find(p => p.client === clientName);
+    const colorKey = project?.color || 'gray';
+    return PASTEL_HEX[colorKey] ?? PASTEL_HEX.gray;
+  };
 
   const handleSort = (field: SortField) => {
       setSortConfig(prev => ({
@@ -201,75 +215,63 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                     <BarChart3 className="w-5 h-5 text-charcoal-600" />
                     {t('financials.revenueForecast')}
                 </h3>
-                {/* Legend */}
-                <div className="flex flex-wrap gap-2 max-w-lg justify-end">
-                    {allClientsInForecast.map(client => {
-                        const style = getClientColorConfig(client);
-                        return (
-                            <div key={client} className="flex items-center gap-1.5 text-xs bg-charcoal-50 px-2 py-1 rounded-md border border-charcoal-100">
-                                <div className={`w-3 h-3 rounded-full ${style.bg} border ${style.border}`} />
-                                <span className="text-charcoal-600 font-medium">{client}</span>
-                            </div>
-                        );
-                    })}
-                </div>
             </div>
-            
-            <div className="flex items-end gap-12 h-72 w-full px-8 pb-4 border-b border-charcoal-200">
-                {quarters.map(q => {
-                    const maxRevenue = maxQuarterRevenue;
-                    const clients = Object.keys(q.breakdown).sort();
-                    
-                    return (
-                        <div key={q.name} className="flex-1 flex flex-col items-center gap-3 group relative h-full justify-end">
-                             {/* Floating Tooltip */}
-                             <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-charcoal-900 text-xs rounded-lg p-3 z-20 w-48 shadow-xl border border-charcoal-200 pointer-events-none transform translate-y-2 group-hover:translate-y-0">
-                                 <div className="font-bold border-b border-charcoal-100 pb-2 mb-2 flex justify-between">
-                                     <span>{q.name}</span>
-                                     <span>€{Math.round(q.totalRevenue/1000)}k</span>
-                                 </div>
-                                 <div className="space-y-1">
-                                     {Object.entries(q.breakdown).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([client, amount]: [string, number]) => {
-                                         const style = getClientColorConfig(client);
-                                         return (
-                                            <div key={client} className="flex justify-between items-center">
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className={`w-2 h-2 rounded-full ${style.bg} border ${style.border}`} />
-                                                    <span>{client}</span>
-                                                </div>
-                                                <span className="font-mono opacity-80">€{Math.round(amount/1000)}k</span>
-                                            </div>
-                                         );
-                                     })}
-                                 </div>
-                             </div>
 
-                             {/* Stacked Bar Container */}
-                             <div className="w-full relative flex flex-col-reverse justify-start overflow-hidden rounded-t-sm" style={{ height: '100%' }}>
-                                 {/* Render Segments */}
-                                 {clients.map(client => {
-                                     const revenue = q.breakdown[client] || 0;
-                                     const heightPercent = maxRevenue > 0 ? (revenue / maxRevenue) * 100 : 0;
-                                     const style = getClientColorConfig(client);
-                                     
-                                     return (
-                                         <div 
-                                            key={client}
-                                            className={`w-full ${style.bg} border-x border-t border-charcoal-900/10 transition-all duration-500 relative first:border-b`}
-                                            style={{ height: `${heightPercent}%` }}
-                                         />
-                                     );
-                                 })}
-                             </div>
-                             
-                             <div className="text-center">
-                                 <div className="text-sm font-bold text-charcoal-900">€{Math.round(q.totalRevenue / 1000)}k</div>
-                                 <div className="text-xs font-medium text-charcoal-500">{q.name}</div>
-                             </div>
-                        </div>
-                    );
-                })}
+            <div
+                role="img"
+                aria-label={t('financials.revenueForecast')}
+                className="h-72 w-full"
+            >
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={revenueChartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceef0" />
+                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#647081' }} />
+                        <YAxis
+                            tick={{ fontSize: 12, fill: '#647081' }}
+                            tickFormatter={(value: number) => `€${Math.round(value / 1000)}k`}
+                            width={80}
+                        />
+                        <Tooltip
+                            formatter={(value: any) => [`€${Math.round(value / 1000)}k`, '']}
+                            labelStyle={{ color: '#2f333a' }}
+                            contentStyle={{ borderRadius: '0.5rem', border: '1px solid #d5d9df' }}
+                        />
+                        <Legend wrapperStyle={{ paddingTop: '1rem' }} />
+                        {allClientsInForecast.map(client => (
+                            <Bar
+                                key={client}
+                                dataKey={client}
+                                name={client}
+                                stackId="a"
+                                fill={getClientHexColor(client)}
+                                radius={[0, 0, 0, 0]}
+                            />
+                        ))}
+                    </BarChart>
+                </ResponsiveContainer>
             </div>
+
+            <table className="sr-only">
+                <caption>{t('accessibility.chartData')}: {t('financials.revenueForecast')}</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">{t('planner.quarter')}</th>
+                        <th scope="col">{t('projects.client')}</th>
+                        <th scope="col">{t('financials.totalRevenue')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {quarters.map(q =>
+                        allClientsInForecast.map(client => (
+                            <tr key={`${q.name}-${client}`}>
+                                <td>{q.name}</td>
+                                <td>{client}</td>
+                                <td>€{Math.round((q.breakdown[client] || 0) / 1000)}k</td>
+                            </tr>
+                        ))
+                    )}
+                </tbody>
+            </table>
         </div>
 
         {/* Profitability Table */}

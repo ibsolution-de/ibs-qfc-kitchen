@@ -4,6 +4,17 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { QuarterData, Project, Assignment, Employee, Absence, PublicHoliday } from '../types';
 import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Badge } from './ui/Badge';
+import {
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
 import { TrendingUp, AlertCircle, Calculator, Target, GitBranch, FileText, Trash2, Plus, X, Lock, Sparkles, BrainCircuit, Folder, Cpu, ShieldAlert, Activity, ChevronRight, Settings, CornerLeftDown, Dices, Zap } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -733,6 +744,13 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   const [simResult, setSimResult] = useState<SimResult | null>(null);
   const [isSimModalOpen, setIsSimModalOpen] = useState(false);
 
+  const binWidth = useMemo(() => {
+    if (!simResult || simResult.histogram.length === 0) return 1;
+    return simResult.maxVol === simResult.minVol
+      ? 1
+      : (simResult.maxVol - simResult.minVol) / simResult.histogram.length;
+  }, [simResult]);
+
   // Dynamic calculation helpers live in utils/forecast.ts.
 
   const handleExportForecastJSON = () => {
@@ -1010,52 +1028,79 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500/50"></div><span className="text-charcoal-400">{t('forecast.overloadZone')}</span></div>
                          </div>
                      </div>
-                     
-                     <div className="h-32 flex items-end gap-[2px] relative pt-6 border-b border-charcoal-700">
-                         {/* Capacity Limit Line */}
-                         {simResult.baseCapacity >= simResult.minVol && simResult.baseCapacity <= simResult.maxVol && (
-                             <div 
-                                className="absolute top-0 bottom-0 w-px bg-white border-r border-dashed border-charcoal-900 z-10 flex flex-col items-center"
-                                style={{ 
-                                    left: `${((simResult.baseCapacity - simResult.minVol) / (simResult.maxVol - simResult.minVol)) * 100}%` 
-                                }}
-                             >
-                                 <div className="text-[9px] font-mono text-white bg-charcoal-900 px-1 py-0.5 rounded border border-charcoal-600 -mt-6 whitespace-nowrap">
-                                     Limit: {simResult.baseCapacity}d
-                                 </div>
-                                 <div className="w-px h-full bg-gradient-to-b from-white via-white/50 to-transparent"></div>
-                             </div>
-                         )}
 
-                         {/* Histogram Bars */}
-                         {(() => {
-                             const maxHistogramCount = Math.max(...simResult.histogram.map(h => h.count), 1);
-                             return simResult.histogram.map((bin, i) => {
-                                 const isOverload = bin.binStart > simResult.baseCapacity;
-                                 const displayPercentage = (bin.count / maxHistogramCount) * 100;
+                     <div
+                         role="img"
+                         aria-label={t('forecast.simTitle')}
+                         className="h-72"
+                     >
+                         <ResponsiveContainer width="100%" height="100%">
+                             <BarChart data={simResult.histogram} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#363c45" />
+                                 <XAxis
+                                     dataKey="binStart"
+                                     type="number"
+                                     domain={simResult.minVol === simResult.maxVol
+                                         ? [simResult.minVol, simResult.minVol + 1]
+                                         : [simResult.minVol, simResult.maxVol]}
+                                     tick={{ fontSize: 10, fill: '#647081' }}
+                                     tickFormatter={(value: number) => `${value}d`}
+                                 />
+                                 <YAxis
+                                     tick={{ fontSize: 10, fill: '#647081' }}
+                                     width={40}
+                                 />
+                                 <Tooltip
+                                     formatter={(value: any, _name: any, props: any) => {
+                                         const start = props?.payload?.binStart ?? 0;
+                                         const end = start + binWidth;
+                                         return [value, `${start}d – ${end}d`];
+                                     }}
+                                     labelFormatter={() => ''}
+                                     contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
+                                 />
+                                 <ReferenceLine
+                                     x={simResult.baseCapacity}
+                                     stroke="#f3f4f6"
+                                     strokeDasharray="4 2"
+                                     label={{ value: `${t('forecast.capacityLimit')}: ${simResult.baseCapacity}d`, position: 'top', fill: '#f3f4f6', fontSize: 10 }}
+                                 />
+                                 <Bar
+                                     dataKey="count"
+                                     radius={[2, 2, 0, 0]}
+                                     isAnimationActive={false}
+                                 >
+                                     {simResult.histogram.map((bin, i) => {
+                                         const isOverload = bin.binStart > simResult.baseCapacity;
+                                         return (
+                                             <Cell key={`cell-${i}`} fill={isOverload ? '#ef4444' : '#3b82f6'} />
+                                         );
+                                     })}
+                                 </Bar>
+                             </BarChart>
+                         </ResponsiveContainer>
+                     </div>
+
+                     <table className="sr-only">
+                         <caption>{t('accessibility.chartData')}: {t('forecast.simTitle')}</caption>
+                         <thead>
+                             <tr>
+                                 <th scope="col">{t('accessibility.bin')}</th>
+                                 <th scope="col">{t('accessibility.count')}</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             {simResult.histogram.map((bin, i) => {
+                                 const binEnd = bin.binStart + binWidth;
                                  return (
-                                     <div 
-                                        key={i} 
-                                        className={`flex-1 rounded-t-sm transition-all duration-500 relative group/bar
-                                            ${isOverload ? 'bg-red-500' : 'bg-blue-500'}
-                                        `}
-                                        style={{ 
-                                            height: `${Math.max(2, displayPercentage)}%`, 
-                                            opacity: 0.3 + (displayPercentage/150) 
-                                        }}
-                                     >
-                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/bar:opacity-100 bg-charcoal-950 text-white text-[9px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-20 border border-charcoal-700">
-                                             {bin.binStart}d
-                                         </div>
-                                     </div>
-                                 )
-                             });
-                         })()}
-                     </div>
-                     <div className="flex justify-between mt-1 text-[10px] text-charcoal-600 font-mono">
-                         <span>{simResult.minVol}d</span>
-                         <span>{simResult.maxVol}d</span>
-                     </div>
+                                     <tr key={i}>
+                                         <td>{bin.binStart}d – {binEnd}d</td>
+                                         <td>{bin.count}</td>
+                                     </tr>
+                                 );
+                             })}
+                         </tbody>
+                     </table>
                  </div>
              </div>
          )}

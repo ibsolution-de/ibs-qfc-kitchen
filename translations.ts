@@ -11,6 +11,11 @@ export const translations = {
     common: {
       loading: 'Loading…'
     },
+    accessibility: {
+      chartData: 'Chart data',
+      bin: 'Bin',
+      count: 'Count',
+    },
     myOverview: {
       title: 'My Overview',
       subtitle: 'Your schedule and tasks',
@@ -515,6 +520,11 @@ export const translations = {
     },
     common: {
       loading: 'Laden…'
+    },
+    accessibility: {
+      chartData: 'Diagrammdaten',
+      bin: 'Bin',
+      count: 'Anzahl',
     },
     myOverview: {
       title: 'Meine Übersicht',

@@ -1,7 +1,16 @@
-
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Competency } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
 
 interface CompetencyRadarProps {
   competencies: Competency[];
@@ -13,106 +22,66 @@ export const CompetencyRadar: React.FC<CompetencyRadarProps> = ({ competencies }
       return <div className="text-center text-charcoal-400 py-10">No competency data available.</div>;
   }
 
-  // Config
-  const size = 300;
-  const center = size / 2;
-  const radius = (size / 2) - 40;
-  const levels = 5;
-
-  // Helper to get coordinates
-  const getCoords = (value: number, index: number, total: number) => {
-    const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
-    const r = (value / levels) * radius;
-    const x = center + Math.cos(angle) * r;
-    const y = center + Math.sin(angle) * r;
-    return { x, y };
-  };
-
-  // Generate paths
-  const selfPoints = competencies.map((c, i) => {
-    const { x, y } = getCoords(c.selfRating, i, competencies.length);
-    return `${x},${y}`;
-  }).join(' ');
-
-  const managerPoints = competencies.map((c, i) => {
-    const { x, y } = getCoords(c.managerRating, i, competencies.length);
-    return `${x},${y}`;
-  }).join(' ');
+  const radarData = useMemo(() => {
+    return competencies.map(c => ({
+      skill: c.skill,
+      self: c.selfRating,
+      manager: c.managerRating,
+    }));
+  }, [competencies]);
 
   return (
     <div className="flex flex-col items-center">
-      <svg width={size} height={size} className="overflow-visible">
-        {/* Background Grid */}
-        {[...Array(levels)].map((_, i) => (
-          <circle 
-            key={i} 
-            cx={center} 
-            cy={center} 
-            r={(i + 1) * (radius / levels)} 
-            fill="none" 
-            stroke="#e5e7eb" 
-            strokeWidth="1" 
-          />
-        ))}
-
-        {/* Axes */}
-        {competencies.map((_, i) => {
-          const { x, y } = getCoords(levels, i, competencies.length);
-          return (
-            <line 
-              key={i} 
-              x1={center} 
-              y1={center} 
-              x2={x} 
-              y2={y} 
-              stroke="#e5e7eb" 
-              strokeWidth="1" 
+      <div
+        role="img"
+        aria-label={t('development.competencies')}
+        className="h-[300px] w-full"
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+            <PolarGrid />
+            <PolarAngleAxis dataKey="skill" tick={{ fontSize: 10, fill: '#4f5968' }} />
+            <PolarRadiusAxis angle={30} domain={[0, 5]} tickCount={6} tick={{ fontSize: 10, fill: '#647081' }} />
+            <Radar
+              name={t('development.self')}
+              dataKey="self"
+              stroke="#3b82f6"
+              fill="#3b82f6"
+              fillOpacity={0.2}
             />
-          );
-        })}
-
-        {/* Self Data */}
-        <polygon points={selfPoints} fill="rgba(59, 130, 246, 0.2)" stroke="#3b82f6" strokeWidth="2" />
-        {competencies.map((c, i) => {
-          const { x, y } = getCoords(c.selfRating, i, competencies.length);
-          return <circle key={`self-${i}`} cx={x} cy={y} r="3" fill="#3b82f6" />;
-        })}
-
-        {/* Manager Data */}
-        <polygon points={managerPoints} fill="rgba(168, 85, 247, 0.1)" stroke="#a855f7" strokeWidth="2" strokeDasharray="4 2" />
-        {competencies.map((c, i) => {
-          const { x, y } = getCoords(c.managerRating, i, competencies.length);
-          return <circle key={`mgr-${i}`} cx={x} cy={y} r="3" fill="#a855f7" />;
-        })}
-
-        {/* Labels */}
-        {competencies.map((c, i) => {
-          const { x, y } = getCoords(levels + 1.2, i, competencies.length); // Push label out a bit
-          return (
-            <text 
-              key={`label-${i}`} 
-              x={x} 
-              y={y} 
-              textAnchor="middle" 
-              dominantBaseline="middle" 
-              className="text-[10px] fill-charcoal-600 font-medium"
-            >
-              {c.skill}
-            </text>
-          );
-        })}
-      </svg>
-      
-      <div className="flex gap-4 mt-4 text-xs">
-          <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-blue-500/20 border border-blue-500 rounded"></div>
-              <span>{t('development.self')}</span>
-          </div>
-          <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-purple-500/10 border border-purple-500 border-dashed rounded"></div>
-              <span>{t('development.manager')}</span>
-          </div>
+            <Radar
+              name={t('development.manager')}
+              dataKey="manager"
+              stroke="#a855f7"
+              fill="#a855f7"
+              fillOpacity={0.1}
+              strokeDasharray="4 2"
+            />
+            <Legend />
+            <Tooltip formatter={(value: any) => [value, '']} />
+          </RadarChart>
+        </ResponsiveContainer>
       </div>
+
+      <table className="sr-only">
+        <caption>{t('accessibility.chartData')}: {t('development.competencies')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('team.skills')}</th>
+            <th scope="col">{t('development.self')}</th>
+            <th scope="col">{t('development.manager')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {competencies.map(c => (
+            <tr key={c.skill}>
+              <td>{c.skill}</td>
+              <td>{c.selfRating}</td>
+              <td>{c.managerRating}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

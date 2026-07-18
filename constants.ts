@@ -12,6 +12,15 @@ export const PASTEL_VARIANTS = {
   gray: { bg: 'bg-pastel-gray', text: 'text-pastel-grayText', border: 'border-gray-200', dot: 'bg-pastel-grayText' },
 };
 
+export const PASTEL_HEX: Record<keyof typeof PASTEL_VARIANTS, string> = {
+  blue: '#1565C0',
+  green: '#2E7D32',
+  purple: '#7B1FA2',
+  orange: '#EF6C00',
+  pink: '#C2185B',
+  gray: '#616161',
+};
+
 // MOCK 1:1 SESSIONS
 export const MOCK_1ON1S: OneOnOneSession[] = [
     {
