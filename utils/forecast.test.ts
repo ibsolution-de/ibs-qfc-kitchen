@@ -298,4 +298,31 @@ describe('runMonteCarloSimulation', () => {
     expect(result.baseCapacity).toBe(30);
     expect(result.overloadProbability).toBe(100);
   });
+
+  it('does not return the raw iterations array', () => {
+    const quarter = baseQuarter({
+      totalCapacity: [100, 100, 100],
+      mustWinOpportunities: [baseProject({ volume: 50, probability: 50 })],
+    });
+
+    const result = runMonteCarloSimulation(quarter, mulberry32(12345));
+
+    expect('iterations' in result).toBe(false);
+  });
+
+  it('returns an expected mean within the observed range', () => {
+    const quarter = baseQuarter({
+      totalCapacity: [100, 100, 100],
+      mustWinOpportunities: [
+        baseProject({ volume: 50, probability: 50 }),
+        baseProject({ volume: 30, probability: 30 }),
+      ],
+    });
+
+    const result = runMonteCarloSimulation(quarter, mulberry32(12345));
+
+    expect(typeof result.expected).toBe('number');
+    expect(result.expected).toBeGreaterThanOrEqual(result.minVol);
+    expect(result.expected).toBeLessThanOrEqual(result.maxVol);
+  });
 });

@@ -212,8 +212,8 @@ export interface SimResult {
   p50: number;
   /** High volume percentile (P90). */
   p90: number;
-  /** Raw opportunity volume from every iteration. */
-  iterations: number[];
+  /** Expected (mean) volume. */
+  expected: number;
   /** Base available capacity used for overload comparison. */
   baseCapacity: number;
   /** Histogram of opportunity volumes with raw bin counts. */
@@ -272,6 +272,7 @@ export function runMonteCarloSimulation(
 
   const minVal = results[0] ?? 0;
   const maxVal = results[results.length - 1] ?? 0;
+  const expectedVal = Math.round(results.reduce((a, b) => a + b, 0) / iterations);
   const binCount = 30;
   const binSize = (maxVal - minVal) / binCount || 1;
 
@@ -292,7 +293,7 @@ export function runMonteCarloSimulation(
     p10: p10Vol,
     p50: p50Vol,
     p90: p90Vol,
-    iterations: results,
+    expected: expectedVal,
     baseCapacity: baseAvailable,
     histogram,
     overloadProbability,
