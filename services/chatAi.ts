@@ -1,6 +1,6 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { type Chat } from "@google/genai";
 import { Employee, Project, Assignment, Absence } from "../types";
+import { AI_MODELS, AI_MODEL_CONFIG, createClient } from "./ai/client";
 
 interface ChatContext {
   employees: Employee[];
@@ -10,48 +10,46 @@ interface ChatContext {
   currentDate: Date;
 }
 
-export const chatWithResourceData = async (
-  message: string,
+export type { ChatContext };
+
+export function createResourceChat(
   context: ChatContext,
   apiKey: string,
-  language: string,
-  history: { role: string, content: string }[] = []
-): Promise<string> => {
-  if (!apiKey && !process.env.API_KEY) {
+  language: string
+): Chat {
+  if (!apiKey) {
     throw new Error("Missing API Key");
   }
 
-  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY });
+  const ai = createClient(apiKey);
   const targetLanguage = language === 'de' ? 'German' : 'English';
 
-  // Simplify data
   const simplifiedEmployees = context.employees.map(e => ({
-      id: e.id,
-      name: e.name,
-      role: e.role,
-      skills: e.skills,
-      availability: e.availability,
-      location: e.location
+    id: e.id,
+    name: e.name,
+    role: e.role,
+    skills: e.skills,
+    availability: e.availability,
+    location: e.location
   }));
 
   const simplifiedProjects = context.projects.map(p => ({
-      id: p.id,
-      name: p.name,
-      client: p.client,
-      status: p.status,
-      start: p.startDate,
-      end: p.endDate,
-      budget: p.budget,
-      volume: p.volume
+    id: p.id,
+    name: p.name,
+    client: p.client,
+    status: p.status,
+    start: p.startDate,
+    end: p.endDate,
+    budget: p.budget,
+    volume: p.volume
   }));
 
-  // Filter assignments for relevant timeframe (e.g., +/- 6 months from view date) to optimize context
   const viewDate = context.currentDate;
   const assignments = context.assignments.map(a => ({
-      eId: a.employeeId,
-      pId: a.projectId,
-      d: a.date,
-      a: a.allocation
+    eId: a.employeeId,
+    pId: a.projectId,
+    d: a.date,
+    a: a.allocation
   }));
 
   const contextData = {
@@ -80,28 +78,14 @@ export const chatWithResourceData = async (
     7.  Adopt a professional, helpful assistant persona. Do not be robotic.
   `;
 
-  const chatHistory = history.map(h => ({
-    role: h.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: h.content }]
-  }));
+  return ai.chats.create({
+    model: AI_MODELS.pro,
+    config: {
+      systemInstruction: systemInstruction,
+      thinkingConfig: { thinkingBudget: AI_MODEL_CONFIG[AI_MODELS.pro].thinkingBudget }
+    },
+    history: []
+  });
+}
 
-  try {
-    const chat = ai.chats.create({
-      model: 'gemini-3-pro-preview',
-      config: {
-        systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 32768 }
-      },
-      history: chatHistory
-    });
-
-    const result = await chat.sendMessage({
-      message: message
-    });
-
-    return result.text ?? '';
-  } catch (error) {
-    console.error("AI Chat Error:", error);
-    return "ERROR: CONNECTION_FAILED. System diagnostic recommended.";
-  }
-};
+export { streamChatMessage } from "./ai/client";

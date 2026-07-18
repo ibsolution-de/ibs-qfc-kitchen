@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Bot, Minimize2, Settings, Cpu, AlertTriangle, ChevronDown, Sparkles, ArrowRight, X } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { chatWithResourceData } from '../services/chatAi';
+import { useToast } from '../components/ui/Toast';
+import { createResourceChat, streamChatMessage } from '../services/chatAi';
+import { type Chat } from '@google/genai';
 import { Assignment, Employee, Project, Absence } from '../types';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 
@@ -21,6 +23,24 @@ interface Message {
   timestamp: number;
 }
 
+function buildContextKey(context: {
+  employees: Employee[];
+  projects: Project[];
+  assignments: Assignment[];
+  absences: Absence[];
+  currentDate: Date;
+}) {
+  return JSON.stringify({
+    employeeIds: context.employees.map(e => e.id).join(','),
+    projectIds: context.projects.map(p => p.id).join(','),
+    assignmentSignature: context.assignments
+      .map(a => `${a.employeeId}-${a.projectId}-${a.date}-${a.allocation}`)
+      .join(','),
+    absenceSignature: context.absences.map(a => `${a.employeeId}-${a.date}`).join(','),
+    currentDate: context.currentDate.toISOString().split('T')[0]
+  });
+}
+
 export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
   employees,
   projects,
@@ -30,6 +50,7 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
 }) => {
   const { isAiEnabled, apiKey, openSettings } = useSettings();
   const { language, t } = useLanguage();
+  const { error: showError } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
@@ -38,6 +59,50 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const chatRef = useRef<Chat | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  const contextKey = useMemo(
+    () => buildContextKey({ employees, projects, assignments, absences, currentDate }),
+    [employees, projects, assignments, absences, currentDate]
+  );
+
+  const abortCurrentStream = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    abortCurrentStream();
+    chatRef.current = null;
+
+    if (!isAiEnabled || !apiKey) {
+      return;
+    }
+
+    chatRef.current = createResourceChat(
+      { employees, projects, assignments, absences, currentDate },
+      apiKey,
+      language
+    );
+  }, [isAiEnabled, apiKey, language, contextKey, employees, projects, assignments, absences, currentDate]);
+
+  useEffect(() => {
+    return () => {
+      abortCurrentStream();
+      chatRef.current = null;
+    };
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,7 +111,6 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
   useEffect(() => {
     if (isOpen && !isMinimized) {
       scrollToBottom();
-      // Auto-focus only if not mobile
       if (window.innerWidth > 768) {
          inputRef.current?.focus();
       }
@@ -68,6 +132,20 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
       return;
     }
 
+    const chat = chatRef.current;
+    if (!chat) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'system',
+        content: t('chat.sendError'),
+        timestamp: Date.now()
+      }]);
+      showError(t('chat.sendError'));
+      return;
+    }
+
+    abortCurrentStream();
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -75,47 +153,56 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
       timestamp: Date.now()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const assistantId = (Date.now() + 1).toString();
+
+    setMessages(prev => [...prev, userMessage, {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now()
+    }]);
     setInput('');
     setIsLoading(true);
 
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
-      const history = messages
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role, content: m.content }));
+      let accumulatedText = '';
+      await streamChatMessage(chat, userMessage.content, abortController.signal, (chunk) => {
+        if (abortController.signal.aborted || !mountedRef.current) return;
+        accumulatedText += chunk;
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: m.content + chunk } : m));
+      });
 
-      const responseText = await chatWithResourceData(
-        userMessage.content,
-        { employees, projects, assignments, absences, currentDate },
-        apiKey,
-        language,
-        history
-      );
-
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: responseText,
-        timestamp: Date.now()
-      }]);
-    } catch (error) {
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'system',
-        content: t('chat.errorComputation'),
-        timestamp: Date.now()
-      }]);
+      if (accumulatedText.trim() === '') {
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('chat.sendError') } : m));
+        showError(t('chat.sendError'));
+      }
+    } catch (err) {
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: t('chat.sendError') } : m));
+        showError(t('chat.sendError'));
+      }
     } finally {
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
       setIsLoading(false);
     }
   };
 
   const toggleChat = () => {
+    if (isOpen) {
+      abortCurrentStream();
+    }
     setIsOpen(!isOpen);
     setIsMinimized(false);
   };
 
   const handleClose = () => {
+    abortCurrentStream();
     setIsOpen(false);
     setMessages([]);
     setInput('');

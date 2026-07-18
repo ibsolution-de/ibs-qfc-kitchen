@@ -7,7 +7,7 @@ import { useSettings } from '../contexts/SettingsContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { PASTEL_VARIANTS } from '../constants';
-import { GoogleGenAI } from "@google/genai";
+import { AI_MODELS, createClient } from '../services/ai';
 import { Plus, DollarSign, TrendingUp, Search, Briefcase, AlertCircle, Sparkles } from 'lucide-react';
 import { PageHeader } from './ui/PageHeader';
 import { AsciiSpinner } from './ui/AsciiSpinner';
@@ -78,7 +78,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
       setAiResult(null);
       
       try {
-          const ai = new GoogleGenAI({ apiKey });
+          const ai = createClient(apiKey);
           const prompt = `
             Act as a Business Development Consultant.
             Analyze market trends for: "${trendsPrompt || 'General Tech Industry in DACH region'}".
@@ -87,7 +87,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
           `;
           
           const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-preview',
+              model: AI_MODELS.pro,
               contents: prompt
           });
           

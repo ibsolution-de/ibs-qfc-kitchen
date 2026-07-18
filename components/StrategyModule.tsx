@@ -6,8 +6,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Target, Map as MapIcon, Bot, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
-import { AI_MODEL_FORECAST } from '../services/ai';
+import { useToast } from '../components/ui/Toast';
+import { createStrategyChat, streamChatMessage } from '../services/ai/strategyChat';
+import { type Chat } from '@google/genai';
 import { useSettings } from '../contexts/SettingsContext';
 import { uid } from '../utils/uid';
 import { PageHeader } from './ui/PageHeader';
@@ -303,64 +304,98 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
 const StrategyCoPilot: React.FC = () => {
     const { t, language } = useLanguage();
     const { apiKey, isAiEnabled, openSettings } = useSettings();
+    const { error: showError } = useToast();
     const [messages, setMessages] = useState<{role: 'user'|'model'|'system', text: string}[]>([
         { role: 'model', text: t('strategy.greeting') }
     ]);
     const [input, setInput] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatRef = useRef<Chat | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const mountedRef = useRef(true);
+
+    const abortCurrentStream = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+    };
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            abortCurrentStream();
+            chatRef.current = null;
+        };
+    }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
+    const ensureChat = () => {
+        if (!chatRef.current && isAiEnabled && apiKey) {
+            chatRef.current = createStrategyChat(apiKey, language);
+        }
+        return chatRef.current;
+    };
+
     const handleSend = async (e?: React.FormEvent, manualInput?: string) => {
         if (e) e.preventDefault();
         const textToSend = manualInput || input;
-        if (!textToSend.trim()) return;
+        if (!textToSend.trim() || isGenerating) return;
 
         if (!isAiEnabled || !apiKey) {
              setMessages(prev => [...prev, { role: 'system', text: t('strategy.aiDisabled') }]);
              return;
         }
 
+        const chat = ensureChat();
+        if (!chat) {
+            setMessages(prev => [...prev, { role: 'system', text: t('strategy.aiError') }]);
+            showError(t('strategy.aiError'));
+            return;
+        }
+
+        abortCurrentStream();
+
         const userMsg = textToSend;
         setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
         setInput('');
         setIsGenerating(true);
 
-        try {
-            const ai = new GoogleGenAI({ apiKey });
-            
-            // Build Context
-            const history = messages.filter(m => m.role !== 'system').map(m => ({
-                role: m.role,
-                parts: [{ text: m.text }]
-            }));
-            
-            // System Prompt
-            const systemPrompt = `
-                You are an expert Strategy Consultant AI. Your goal is to interview the user to build a company strategy document.
-                Current Language: ${language}.
-                
-                Phase 1: Interview. Ask ONE relevant strategic question at a time (e.g., about SWOT, Goals, Risks, Differentiation).
-                Phase 2: If the user asks to "Generate Document", synthesize all previous answers into a structured Markdown Strategy Document.
-                
-                Be professional, concise, and insightful.
-            `;
+        const abortController = new AbortController();
+        abortControllerRef.current = abortController;
 
-            const chat = ai.chats.create({
-                model: AI_MODEL_FORECAST,
-                config: { systemInstruction: systemPrompt },
-                history: history
+        try {
+            let accumulatedText = '';
+            await streamChatMessage(chat, userMsg, abortController.signal, (chunk) => {
+                if (abortController.signal.aborted || !mountedRef.current) return;
+                accumulatedText += chunk;
+                setMessages(prev => [...prev.slice(0, -1), { role: 'model', text: accumulatedText }]);
             });
 
-            const result = await chat.sendMessage({ message: userMsg });
-            setMessages(prev => [...prev, { role: 'model', text: result.text ?? '' }]);
+            if (accumulatedText.trim() === '') {
+                setMessages(prev => [...prev.slice(0, -1), { role: 'system', text: t('strategy.aiError') }]);
+                showError(t('strategy.aiError'));
+            }
         } catch (error) {
-            console.error('Error connecting to AI Consultant:', error);
-            setMessages(prev => [...prev, { role: 'system', text: t('strategy.aiError') }]);
+            const err = error as Error;
+            if (err.name !== 'AbortError') {
+                setMessages(prev => [...prev.slice(0, -1), { role: 'system', text: t('strategy.aiError') }]);
+                showError(t('strategy.aiError'));
+            }
         } finally {
+            if (abortControllerRef.current === abortController) {
+                abortControllerRef.current = null;
+            }
             setIsGenerating(false);
         }
     };
@@ -401,7 +436,7 @@ const StrategyCoPilot: React.FC = () => {
                             'bg-charcoal-800 border border-charcoal-700 text-gray-300'
                         }`}>
                             {m.role === 'model' ? (
-                                <div className="markdown-prose">{m.text}</div> // Simplified rendering
+                                <div className="markdown-prose">{m.text}</div>
                             ) : m.text}
                         </div>
                     </div>

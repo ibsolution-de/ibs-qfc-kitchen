@@ -1,21 +1,16 @@
-
-
-import { GoogleGenAI } from "@google/genai";
 import { QuarterData, Sentiment } from "../types";
+import { AI_MODELS, AI_MODEL_FORECAST, buildModelConfig, createClient } from "./ai/client";
 
-export const AI_MODEL_FORECAST = 'gemini-3-pro-preview';
+export { AI_MODEL_FORECAST };
 
 export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey: string, language: string): Promise<string> => {
-  if (!apiKey && !process.env.API_KEY) {
+  if (!apiKey) {
     throw new Error("Missing API Key");
   }
 
-  // Use user-provided key or fallback to env key
-  const ai = new GoogleGenAI({ apiKey: apiKey || process.env.API_KEY });
-
+  const ai = createClient(apiKey);
   const targetLanguage = language === 'de' ? 'German' : 'English';
 
-  // Prepare a prompt based on the forecast data
   const prompt = `
     You are an expert Project Manager Assistant and Resource Planner.
     Analyze the following quarterly forecast data for ${quarterData.name}.
@@ -38,13 +33,10 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
 
   try {
     const response = await ai.models.generateContent({
-      model: AI_MODEL_FORECAST,
+      model: AI_MODELS.pro,
       contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 32768 } // Using max thinking budget for complex analysis
-      }
+      config: buildModelConfig(AI_MODELS.pro)
     });
-
     return response.text ?? '';
   } catch (error) {
     console.error("AI Analysis Error:", error);
@@ -53,11 +45,12 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
 };
 
 export const generateCoachingAgenda = async (sentiment: Sentiment, role: string, apiKey: string, language: string): Promise<string> => {
-    if (!apiKey) throw new Error("Missing API Key");
-    const ai = new GoogleGenAI({ apiKey });
-    const targetLanguage = language === 'de' ? 'German' : 'English';
+  if (!apiKey) throw new Error("Missing API Key");
 
-    const prompt = `
+  const ai = createClient(apiKey);
+  const targetLanguage = language === 'de' ? 'German' : 'English';
+
+  const prompt = `
         You are an expert Leadership Coach.
         Create a 1:1 meeting agenda for an employee with the role "${role}".
         Their reported pre-meeting sentiment is: "${sentiment}".
@@ -70,20 +63,22 @@ export const generateCoachingAgenda = async (sentiment: Sentiment, role: string,
         Language: ${targetLanguage}.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-    });
+  const response = await ai.models.generateContent({
+    model: AI_MODELS.flash,
+    contents: prompt,
+    config: buildModelConfig(AI_MODELS.flash)
+  });
 
-    return response.text ?? '';
+  return response.text ?? '';
 };
 
 export const extractActionItems = async (notes: string, apiKey: string, language: string): Promise<string[]> => {
-    if (!apiKey) throw new Error("Missing API Key");
-    const ai = new GoogleGenAI({ apiKey });
-    const targetLanguage = language === 'de' ? 'German' : 'English';
+  if (!apiKey) throw new Error("Missing API Key");
 
-    const prompt = `
+  const ai = createClient(apiKey);
+  const targetLanguage = language === 'de' ? 'German' : 'English';
+
+  const prompt = `
         Analyze the following meeting notes and extract concrete action items or commitments.
         Return ONLY a JSON array of strings. No markdown formatting.
         
@@ -93,22 +88,24 @@ export const extractActionItems = async (notes: string, apiKey: string, language
         Language of items: ${targetLanguage}.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' }
-    });
+  const response = await ai.models.generateContent({
+    model: AI_MODELS.flash,
+    contents: prompt,
+    config: { ...buildModelConfig(AI_MODELS.flash), responseMimeType: 'application/json' }
+  });
 
-    try {
-        let text = response.text ?? '';
-        // Clean up markdown if present, though responseMimeType should handle it
-        if (text.startsWith('```json')) {
-            text = text.replace(/^```json\n/, '').replace(/\n```$/, '');
-        } else if (text.startsWith('```')) {
-            text = text.replace(/^```\n/, '').replace(/\n```$/, '');
-        }
-        return JSON.parse(text);
-    } catch (e) {
-        return ["Error extracting items: Invalid format returned by AI"];
+  try {
+    let text = response.text ?? '';
+    if (text.startsWith('```json')) {
+      text = text.replace(/^```json\n/, '').replace(/\n```$/, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/^```\n/, '').replace(/\n```$/, '');
     }
+    return JSON.parse(text);
+  } catch (e) {
+    return ["Error extracting items: Invalid format returned by AI"];
+  }
 };
+
+export type { AIModelName } from "./ai/client";
+export { AI_MODELS, createClient, buildModelConfig } from './ai/client';
