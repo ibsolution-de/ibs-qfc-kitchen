@@ -267,18 +267,30 @@ pnpm test        # vitest run — must pass (from Step 0.2 on)
 
 ---
 
-## Phase 4 — P3: Product (decision-gated)
+## Phase 4 — Future Split (SEPARATE implementation & design run — NOT this plan's scope)
 
-> Each epic starts only after the user answers its gate question. Defaults are recommended.
+> **Decision (owner, 2026-07-18):** the app stays a standalone web UI deployed
+> to gh-pages from `main`. The frontend/backend split comes later with a
+> DIFFERENT architecture than originally drafted:
+>
+> - **Backend:** Rust, single worker process, **SQLite** embedded storage
+> - **Contract:** **Protobuf** messages mirroring `types.ts` / `PersistedState`
+> - **Transport:** HTTP/3 over QUIC (**WebTransport**) where browsers support
+>   it, graceful HTTP/2 fallback
+>
+> Preparation already DONE in this run (minimal, standalone-safe):
+> - ✅ `services/persistence/` — `PersistenceProvider` interface is the single
+>   seam; `localStorageProvider` implements today's behavior; swap one binding
+>   to migrate. See `services/persistence/README.md` for the migration path.
+> - ✅ Domain types are JSON-plain and versioned storage keys are stable.
+> - ✅ Repository-friendly state flow: all mutations funnel through App.tsx
+>   handlers already.
+>
+> The epics below remain as STANDALONE UX/product improvements (no backend
+> required); pick them up per priority:
 
-### Epic 4.1 — Persistence backend
-**Gate A:** backend choice — **recommended: Supabase** (Postgres + Auth + RLS, free tier, fast for this data shape).
-**Steps:** schema (employees, projects, customers, versions, assignments, absences, forecast_quarters, forecast_projects) → `services/repository/types.ts` interface → `LocalStorageRepository` (current behavior, adapter of existing code) → `SupabaseRepository` → provider switch in `index.tsx` → one-time import tool localStorage→Supabase.
-### Epic 4.2 — Real auth & roles
-**Gate B:** identity provider — recommended: Supabase Auth (magic link) with `app_metadata.role`.
-**Steps:** replace `AuthContext` mock users; role claims → `isRole`; route guards stay; remove role-switcher popover behind a dev flag.
-### Epic 4.3 — AI service layer
-**No gate. Steps:** single `services/ai/client.ts` factory (apiKey + model registry — one place for `gemini-*` strings) → migrate all 5 call sites → `sendMessageStream` with incremental render in both chats → AbortController on close/re-send → consistent translated error toasts → server-side key proxy when 4.1 lands (browser key only in demo mode).
+### Epic 4.3 — AI service layer (standalone-compatible)
+**Steps:** single `services/ai/client.ts` factory (apiKey + model registry — one place for `gemini-*` strings) → migrate all 5 call sites → `sendMessageStream` with incremental render in both chats → AbortController on close/re-send → consistent translated error toasts.
 ### Epic 4.4 — Chart library
 **Gate C:** library — recommended: Recharts (React-native, tree-shakeable).
 **Steps:** revenue forecast (axis, gridlines, tooltips), Monte-Carlo histogram (with capacity-limit reference line), strategy donut (labeled, a11y table alternative), competency radar. Delete hand-rolled trig.
@@ -302,6 +314,7 @@ Notes: <deviations, follow-ups>
 0.1 → 0.2 → 1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6 → 1.7 → 1.8
 → 2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6
 → 3.1 → 3.2 → 3.3
-→ [Gate A] 4.1 → [Gate B] 4.2 → 4.3 → [Gate C] 4.4 → 4.5 → 4.6
+→ 4.0 (persistence seam, DONE) → standalone epics: 4.3 → [Gate C] 4.4 → 4.5 → 4.6
+→ [FUTURE RUN] Rust+SQLite+Protobuf+HTTP3 backend split
 ```
 Steps 1.4, 1.8 are parallel-safe with 1.1–1.3/1.5–1.7 pairs ONLY if the orchestrator verifies disjoint diffs — default is sequential.

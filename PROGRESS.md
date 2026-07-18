@@ -105,3 +105,10 @@ Next up: Step 3.3 — Bundle splitting (React.lazy routes).
 Gates: lint ✅ build ✅ test ✅ (79)
 Notes: 8 lazy routes + single Suspense (AsciiSpinner + common.loading); rolldown output.codeSplitting groups vendor-react/vendor-ai/vendor-date (orchestrator renamed deprecated advancedChunks→codeSplitting). Main chunk 909.51→97.48 kB; no size warning. Verified in headless CHROME (--dump-dom): planner/strategy/forecast all render incl. lazy chunks. IMPORTANT: Lightpanda CANNOT load nested module graphs (static cross-chunk imports + dynamic import() fail) — all future smoke tests must use headless Chrome. PHASE 3 (P2) COMPLETE.
 Next up: Phase 4 (P3) — decision-gated epics (Gate A backend, Gate B auth, Gate C charts).
+
+## 2026-07-18 Step 4.0 — Persistence seam (backend prep) — 33d6a83
+Gates: lint ✅ build ✅ test ✅ (84, +5 persistence tests)
+Notes: services/persistence/ — PersistenceProvider interface + localStorageProvider (identical keys/behavior) + README with Rust/SQLite/Protobuf/HTTP3-WebTransport migration path. App.tsx uses the seam. Environment lesson: vitest jsdom under Node 26 is flaky (experimental built-in localStorage interferes) → persistence suite stubs localStorage hermetically; CI on Node 24 unaffected.
+Owner decision recorded in PLAN.md: standalone gh-pages app; future split = Rust single worker + SQLite + protobuf + HTTP3 (WebTransport), separate design run. Phase 4 reduced to standalone epics 4.3/4.4/4.5/4.6.
+BLOCKER: `git push` fails from this session (no GitHub credentials: HTTPS remote, osxkeychain empty, no gh CLI, no SSH key). main is merged locally (ff) and ready for the user to push.
+Next up: user pushes main → CI deploys gh-pages. Optional standalone epics 4.3–4.6 on request.
