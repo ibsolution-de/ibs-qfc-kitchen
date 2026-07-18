@@ -132,3 +132,8 @@ Next up: epic 4.5 — planner keyboard & touch.
 Gates: lint ✅ build ✅ test ✅ (97, +keyboard suite)
 Notes: roving tabindex grid (role=grid/gridcell/row, aria labels), arrows navigate, Enter/Space opens modal, Delete w/ confirm on single-assignment cells, Ctrl/Cmd+Arrow moves assignment (same guards as DnD), focus ring + focus return; pointer-coarse visibility + ≥24px hit areas for hover-only controls. Known bounds: Ctrl+Arrow stops at month edge; focus resets on view change.
 Next up: epic 4.6 — version rename/delete/diff. FINAL epic.
+
+## 2026-07-18 Epic 4.6 — Version rename/delete/diff — 868e700
+Gates: lint ✅ build ✅ test ✅ (103, +versions suite)
+Notes: inline rename (Enter/Escape) any version; delete guarded (not latest, ≥1 remains, active falls back to latest) w/ ConfirmDialog + toasts; utils/versions.ts diffVersions (assignments keyed empId|projId|date w/ allocation changes, absences empId|date|type); Sidebar compare mode → diff Modal w/ resolved names + formatted dates. ALL PLANNED WORK COMPLETE (Phases 0-3 + epics 4.3-4.6 + v1.3.1).
+Next up: owner pushes main → CI + gh-pages deploy. Future run: Rust backend split.
