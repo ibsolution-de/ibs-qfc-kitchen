@@ -297,6 +297,22 @@ export const translations = {
       cancel: 'Cancel',
       create: 'Create Version'
     },
+    versions: {
+      rename: 'Rename',
+      delete: 'Delete',
+      deleteTitle: 'Delete Version',
+      deleteMessage: 'Are you sure you want to delete version "{{name}}"?',
+      compare: 'Compare',
+      compareSelect: 'Select base and target versions',
+      diffAdded: 'Added',
+      diffRemoved: 'Removed',
+      diffChanged: 'Changed',
+      diffEmpty: 'No differences found.',
+      toastRenamed: 'Version renamed successfully.',
+      toastDeleted: 'Version deleted successfully.',
+      lastVersionGuard: 'Cannot delete the last version.',
+      cancel: 'Cancel'
+    },
     team: {
       title: 'Team Management',
       subtitle: 'Manage employees, extended team, and hiring',
@@ -812,6 +828,22 @@ export const translations = {
       placeholderDesc: 'Was hat sich geändert?',
       cancel: 'Abbrechen',
       create: 'Erstellen'
+    },
+    versions: {
+      rename: 'Umbenennen',
+      delete: 'Löschen',
+      deleteTitle: 'Version löschen',
+      deleteMessage: 'Möchten Sie die Version "{{name}}" wirklich löschen?',
+      compare: 'Vergleichen',
+      compareSelect: 'Basis- und Zielversion wählen',
+      diffAdded: 'Hinzugefügt',
+      diffRemoved: 'Entfernt',
+      diffChanged: 'Geändert',
+      diffEmpty: 'Keine Unterschiede gefunden.',
+      toastRenamed: 'Version erfolgreich umbenannt.',
+      toastDeleted: 'Version erfolgreich gelöscht.',
+      lastVersionGuard: 'Die letzte Version kann nicht gelöscht werden.',
+      cancel: 'Abbrechen'
     },
     team: {
       title: 'Teamverwaltung',

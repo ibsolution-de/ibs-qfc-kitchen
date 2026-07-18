@@ -36,7 +36,7 @@ const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 const AppContent: React.FC = () => {
   const { isRole } = useAuth();
   const { t } = useLanguage();
-  const { success } = useToast();
+  const { success, error } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -130,6 +130,36 @@ const AppContent: React.FC = () => {
     success(t('toast.versionCreated'));
   };
 
+  const handleRenameVersion = (id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    const version = versions.find(v => v.id === id);
+    if (!version || version.name === trimmed) return;
+
+    setVersions(prev => prev.map(v => v.id === id ? { ...v, name: trimmed } : v));
+    success(t('versions.toastRenamed'));
+  };
+
+  const handleDeleteVersion = (id: string) => {
+    if (versions.length <= 1) {
+      error(t('versions.lastVersionGuard'));
+      return;
+    }
+
+    const version = versions.find(v => v.id === id);
+    if (!version) return;
+    if (version.id === latestVersion.id) return;
+
+    setVersions(prev => prev.filter(v => v.id !== id));
+
+    if (activeVersionId === id) {
+      setActiveVersionId(latestVersion.id);
+    }
+
+    success(t('versions.toastDeleted'));
+  };
+
   const handleForecastUpdate = (quarterId: string, type: 'mustWin' | 'alternative', updatedProjects: Project[]) => {
     setVersions(prev => {
         const newVersions = [...prev];
@@ -179,9 +209,13 @@ const AppContent: React.FC = () => {
     <div className="flex h-screen bg-charcoal-50 text-charcoal-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       <Sidebar 
         versions={versions}
+        employees={employees}
+        projects={projects}
         activeVersionId={activeVersionId}
         onSelectVersion={setActiveVersionId}
         onCreateVersion={() => setIsVersionDialogOpen(true)}
+        onRenameVersion={handleRenameVersion}
+        onDeleteVersion={handleDeleteVersion}
       />
       
       <main className="flex-1 flex flex-col h-full overflow-hidden relative tech-pattern">

@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck } from 'lucide-react';
-import { PlanVersion, UserRole } from '../types';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare } from 'lucide-react';
+import { PlanVersion, UserRole, Employee, Project } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { diffVersions } from '../utils/versions';
 
 const BUILD_DATE = '2026-07-18';
 import { useSettings } from '../contexts/SettingsContext';
@@ -14,16 +16,24 @@ import { Button } from './ui/Button';
 
 interface SidebarProps {
   versions: PlanVersion[];
+  employees: Employee[];
+  projects: Project[];
   activeVersionId: string;
   onSelectVersion: (id: string) => void;
   onCreateVersion: () => void;
+  onRenameVersion: (id: string, name: string) => void;
+  onDeleteVersion: (id: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   versions,
+  employees,
+  projects,
   activeVersionId,
   onSelectVersion,
-  onCreateVersion
+  onCreateVersion,
+  onRenameVersion,
+  onDeleteVersion
 }) => {
   const { t, language, setLanguage, formatDate } = useLanguage();
   const { apiKey, setApiKey, isAiEnabled, setIsAiEnabled, isSettingsModalOpen, openSettings, closeSettings } = useSettings();
@@ -33,6 +43,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const firstRoleItemRef = useRef<HTMLButtonElement>(null);
+
+  // Version management state
+  const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [deletingVersion, setDeletingVersion] = useState<PlanVersion | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareBaseId, setCompareBaseId] = useState<string | null>(null);
+  const [compareTargetId, setCompareTargetId] = useState<string | null>(null);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Local state for Settings Modal
   const [localLang, setLocalLang] = useState(language);
@@ -72,6 +92,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setIsAiEnabled(localAiEnabled);
       setApiKey(localApiKey);
       closeSettings();
+  };
+
+  // Version management helpers
+  useEffect(() => {
+    if (editingVersionId) {
+      editInputRef.current?.focus();
+    }
+  }, [editingVersionId]);
+
+  const latestVersionId = versions[versions.length - 1]?.id;
+
+  const startEditing = (version: PlanVersion) => {
+    setEditingVersionId(version.id);
+    setEditingName(version.name);
+  };
+
+  const handleCompareSelect = (id: string) => {
+    if (compareBaseId === null) {
+      setCompareBaseId(id);
+    } else if (compareTargetId === null) {
+      if (id === compareBaseId) return;
+      setCompareTargetId(id);
+      setIsCompareModalOpen(true);
+      setCompareMode(false);
+    }
   };
 
   // Navigation Logic
@@ -192,19 +237,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Version History */}
         {!isRole('employee') && (
         <div className="mt-8 flex-1 flex flex-col min-h-0 animate-slide-in-right" style={{ animationDelay: '0.3s' }}>
-          <div className="flex items-center justify-between px-3 mb-4 flex-shrink-0">
+          <div className="flex items-center justify-between px-3 mb-2 flex-shrink-0">
              <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest flex items-center gap-2 font-mono opacity-80">
                 <History className="w-3 h-3" /> {t('sidebar.versions')}
              </div>
-             <button 
-                onClick={onCreateVersion}
-                className="text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
-                aria-label={t('sidebar.saveNewVersion')}
-                title={t('sidebar.saveNewVersion')}
-              >
-                <Plus className="w-3.5 h-3.5" />
-             </button>
+             <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => {
+                    setCompareMode(prev => !prev);
+                    setCompareBaseId(null);
+                    setCompareTargetId(null);
+                  }}
+                  className={`text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95 ${compareMode ? 'bg-blue-50 text-blue-600' : ''}`}
+                  aria-label={t('versions.compare')}
+                  title={t('versions.compare')}
+                  aria-pressed={compareMode}
+                >
+                  <GitCompare className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={onCreateVersion}
+                  className="text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
+                  aria-label={t('sidebar.saveNewVersion')}
+                  title={t('sidebar.saveNewVersion')}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+             </div>
           </div>
+
+          {compareMode && (
+            <div className="px-3 mb-2 text-[11px] text-blue-600 font-medium leading-tight">
+              {t('versions.compareSelect')}
+            </div>
+          )}
           
           <div className="relative flex-1 overflow-y-auto custom-scrollbar px-2 pb-2"> 
              {/* Timeline Container */}
@@ -213,9 +279,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-charcoal-200 via-charcoal-200 to-transparent" />
 
                 <div className="space-y-1 relative">
-                  {versions.slice().reverse().map((version, index) => {
+                  {versions.slice().reverse().map((version) => {
                       const isActive = activeVersionId === version.id;
-                      const isLatest = index === 0;
+                      const isLatest = version.id === latestVersionId;
+                      const isEditing = editingVersionId === version.id;
+                      const isSelectedCompare = compareBaseId === version.id || compareTargetId === version.id;
 
                       return (
                           <div key={version.id} className="relative pl-12 group">
@@ -233,18 +301,67 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               
                               {/* Content Card */}
                               <button 
-                                  onClick={() => onSelectVersion(version.id)}
+                                  onClick={() => compareMode ? handleCompareSelect(version.id) : onSelectVersion(version.id)}
                                   className={`text-left w-full transition-all duration-200 rounded-lg p-3 border group-hover:translate-x-1
                                       ${isActive 
                                           ? 'bg-white border-charcoal-200 shadow-sm' 
                                           : 'bg-transparent border-transparent hover:bg-white/50 hover:border-charcoal-100'}
+                                      ${isSelectedCompare ? 'ring-2 ring-blue-200 border-blue-200' : ''}
                                   `}
                               >
                                   <div className="flex items-center justify-between gap-2">
-                                      <div className={`text-sm font-medium leading-tight ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
-                                          {version.name}
-                                      </div>
-                                      {isLatest && (
+                                      {isEditing ? (
+                                        <input
+                                          ref={editInputRef}
+                                          type="text"
+                                          value={editingName}
+                                          onChange={(e) => setEditingName(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              onRenameVersion(version.id, editingName);
+                                              setEditingVersionId(null);
+                                            } else if (e.key === 'Escape') {
+                                              setEditingVersionId(null);
+                                            }
+                                          }}
+                                          onBlur={() => setEditingVersionId(null)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="w-full text-sm font-medium leading-tight text-charcoal-900 bg-white border border-charcoal-200 rounded px-2 py-1 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                        />
+                                      ) : (
+                                        <div className={`text-sm font-medium leading-tight ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
+                                            {version.name}
+                                        </div>
+                                      )}
+                                      {!isEditing && !compareMode && (
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              startEditing(version);
+                                            }}
+                                            className="p-1 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                            aria-label={t('versions.rename')}
+                                            title={t('versions.rename')}
+                                          >
+                                            <Pencil className="w-3 h-3" />
+                                          </button>
+                                          {!isLatest && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeletingVersion(version);
+                                              }}
+                                              className="p-1 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                              aria-label={t('versions.delete')}
+                                              title={t('versions.delete')}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                      {isLatest && !compareMode && !isEditing && (
                                           <span className="text-[8px] font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-full border border-blue-100/50 uppercase tracking-wide ml-auto">
                                             {t('sidebar.latest')}
                                           </span>
@@ -531,6 +648,125 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-blue-500/20 rounded-tl-lg pointer-events-none"></div>
             <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-blue-500/20 rounded-br-lg pointer-events-none"></div>
         </div>
+    </Modal>
+
+    {/* Delete Version Confirm Dialog */}
+    <ConfirmDialog
+      isOpen={!!deletingVersion}
+      title={t('versions.deleteTitle')}
+      message={deletingVersion ? t('versions.deleteMessage').replace('{{name}}', deletingVersion.name) : ''}
+      confirmLabel={t('versions.delete')}
+      cancelLabel={t('version.cancel')}
+      destructive={true}
+      onConfirm={() => {
+        if (deletingVersion) onDeleteVersion(deletingVersion.id);
+        setDeletingVersion(null);
+      }}
+      onCancel={() => setDeletingVersion(null)}
+    />
+
+    {/* Compare Versions Modal */}
+    <Modal
+      isOpen={isCompareModalOpen}
+      onClose={() => {
+        setIsCompareModalOpen(false);
+        setCompareBaseId(null);
+        setCompareTargetId(null);
+      }}
+      title={t('versions.compare')}
+      size="lg"
+    >
+      {(() => {
+        const baseVersion = versions.find(v => v.id === compareBaseId);
+        const targetVersion = versions.find(v => v.id === compareTargetId);
+        const diff = baseVersion && targetVersion ? diffVersions(baseVersion, targetVersion) : null;
+
+        const getEmployeeName = (id: string) => employees.find(e => e.id === id)?.name ?? id;
+        const getProjectName = (id: string) => projects.find(p => p.id === id)?.name ?? id;
+
+        if (!diff) return <p className="text-sm text-charcoal-500">{t('versions.diffEmpty')}</p>;
+
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-100">
+                {t('versions.diffAdded')}: {diff.addedAssignments}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
+                {t('versions.diffRemoved')}: {diff.removedAssignments}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">
+                {t('versions.diffChanged')}: {diff.changedAssignments}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                {t('versions.diffAdded')} {t('planner.absence')}: {diff.addedAbsences}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                {t('versions.diffRemoved')} {t('planner.absence')}: {diff.removedAbsences}
+              </span>
+            </div>
+
+            {diff.assignmentEntries.length === 0 && diff.absenceEntries.length === 0 ? (
+              <p className="text-sm text-charcoal-500">{t('versions.diffEmpty')}</p>
+            ) : (
+              <div className="space-y-6">
+                {diff.assignmentEntries.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-charcoal-900 mb-2">{t('planner.assigned')}</h4>
+                    <div className="space-y-3">
+                      {(['added', 'removed', 'changed'] as const).map((type) => {
+                        const entries = diff.assignmentEntries.filter(e => e.type === type);
+                        if (entries.length === 0) return null;
+                        return (
+                          <div key={type}>
+                            <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest mb-1">
+                              {t(`versions.diff${type.charAt(0).toUpperCase() + type.slice(1)}`)}
+                            </div>
+                            <ul className="space-y-1">
+                              {entries.map((entry) => (
+                                <li key={entry.key} className="text-sm text-charcoal-700">
+                                  {getEmployeeName(entry.employeeId)} → {getProjectName(entry.projectId)}, {formatDate(new Date(entry.date), 'MMM d, yyyy')}
+                                  {entry.type === 'changed' && ` (${entry.baseAllocation} → ${entry.targetAllocation})`}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {diff.absenceEntries.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-charcoal-900 mb-2">{t('planner.absence')}</h4>
+                    <div className="space-y-3">
+                      {(['added', 'removed'] as const).map((type) => {
+                        const entries = diff.absenceEntries.filter(e => e.type === type);
+                        if (entries.length === 0) return null;
+                        return (
+                          <div key={type}>
+                            <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest mb-1">
+                              {t(`versions.diff${type.charAt(0).toUpperCase() + type.slice(1)}`)}
+                            </div>
+                            <ul className="space-y-1">
+                              {entries.map((entry) => (
+                                <li key={entry.key} className="text-sm text-charcoal-700">
+                                  {getEmployeeName(entry.employeeId)}, {formatDate(new Date(entry.date), 'MMM d, yyyy')} ({entry.absenceType})
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </Modal>
     </>
   );
