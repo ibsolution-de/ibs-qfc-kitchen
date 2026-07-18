@@ -36,3 +36,8 @@ Next up: Step 1.4 — date-fns locale formatting.
 Gates: lint ✅ build ✅ test ✅ (27)
 Notes: formatDate now fnsFormat with de locale; EEEE/EEE bug + MM gap gone. Minor: German short weekday now locale-standard ("Di." style) instead of custom 2-letter.
 Next up: Step 1.5 — StrategyModule repairs.
+
+## 2026-07-18 Step 1.5 — StrategyModule repairs — e415db1
+Gates: lint ✅ build ✅ test ✅ (27)
+Notes: manualInput pattern fixes Generate-Document button; sunburst clamps 2π−ε, skips zero-volume, empty-state legend-only; AI errors translated + logged; dead prop/imports removed; render now pure (angles in useMemo).
+Next up: Step 1.6 — Financial correctness.
