@@ -112,3 +112,8 @@ Notes: services/persistence/ — PersistenceProvider interface + localStoragePro
 Owner decision recorded in PLAN.md: standalone gh-pages app; future split = Rust single worker + SQLite + protobuf + HTTP3 (WebTransport), separate design run. Phase 4 reduced to standalone epics 4.3/4.4/4.5/4.6.
 BLOCKER: `git push` fails from this session (no GitHub credentials: HTTPS remote, osxkeychain empty, no gh CLI, no SSH key). main is merged locally (ff) and ready for the user to push.
 Next up: user pushes main → CI deploys gh-pages. Optional standalone epics 4.3–4.6 on request.
+
+## 2026-07-18 Release v1.3.1 — $(git rev-parse --short HEAD)
+Gates: lint ✅ build ✅ test ✅ (84)
+Notes: package.json 0.0.0→1.3.1; __APP_VERSION__ injected via vite define (single source); Sidebar version button + changelog build line dynamic; new v1.3.1 changelog section (en+de, 11/11 key parity): data safety, overloads, exports, performance, quality. Verified rendering via headless Chrome dump-dom.
+Next up: epic 4.3 — AI service layer + streaming.
