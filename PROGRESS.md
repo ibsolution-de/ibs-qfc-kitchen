@@ -41,3 +41,8 @@ Next up: Step 1.5 — StrategyModule repairs.
 Gates: lint ✅ build ✅ test ✅ (27)
 Notes: manualInput pattern fixes Generate-Document button; sunburst clamps 2π−ε, skips zero-volume, empty-state legend-only; AI errors translated + logged; dead prop/imports removed; render now pure (angles in useMemo).
 Next up: Step 1.6 — Financial correctness.
+
+## 2026-07-18 Step 1.6 — Financial correctness — 4062526
+Gates: lint ✅ build ✅ test ✅ (30)
+Notes: 4 divergent parseBudget copies deleted → utils/money canonical; compareBudgets numeric sort; KPIs from unfiltered list; MARGIN_THRESHOLDS {risk:10, healthy:25} single source incl. header coloring (was 20); Low-margin filter button added; dead margin SortField/customers prop removed.
+Next up: Step 1.7 — App-level consistency.
