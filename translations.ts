@@ -354,7 +354,9 @@ export const translations = {
         startInterview: 'Start Strategy Interview',
         generateDoc: 'Generate Strategy Doc',
         interviewMode: 'INTERVIEW MODE',
-        docMode: 'DOCUMENT MODE'
+        docMode: 'DOCUMENT MODE',
+        aiDisabled: 'Please enable AI in settings and provide an API Key.',
+        aiError: 'Error connecting to AI Consultant.'
     },
     sales: {
         title: 'Sales Pipeline',
@@ -753,7 +755,9 @@ export const translations = {
         startInterview: 'Interview starten',
         generateDoc: 'Dokument generieren',
         interviewMode: 'INTERVIEW MODUS',
-        docMode: 'DOKUMENTEN MODUS'
+        docMode: 'DOKUMENTEN MODUS',
+        aiDisabled: 'Bitte aktivieren Sie KI in den Einstellungen und geben Sie einen API-Key ein.',
+        aiError: 'Fehler bei der Verbindung zum KI-Strategieberater.'
     },
     sales: {
         title: 'Sales Pipeline',

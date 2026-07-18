@@ -5,7 +5,7 @@ import { MOCK_GOALS, MOCK_NORTH_STARS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Compass, Target, Map as MapIcon, Bot, Mic, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus, ChevronRight } from 'lucide-react';
+import { Compass, Target, Map as MapIcon, Bot, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { AI_MODEL_FORECAST } from '../services/ai';
 import { useSettings } from '../contexts/SettingsContext';
@@ -13,7 +13,6 @@ import { useSettings } from '../contexts/SettingsContext';
 interface StrategyModuleProps {
   projects: Project[];
   assignments: Assignment[];
-  onUpdateProjects: (projects: Project[]) => void;
 }
 
 // Sub-components
@@ -152,11 +151,9 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
         const metrics = MOCK_NORTH_STARS.map(ns => {
             const linkedProjects = projects.filter(p => p.northStarMetricId === ns.id);
             const volume = linkedProjects.reduce((sum, p) => {
-                 // Calculate actual assigned volume or use planned volume
-                 // Simplified: use project volume property
                  return sum + (p.volume || 0);
             }, 0);
-            
+
             return {
                 ...ns,
                 volume,
@@ -167,17 +164,64 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
         // Add "Maintenance / Unaligned" category
         const unalignedProjects = projects.filter(p => !p.northStarMetricId && p.status === 'active');
         const unalignedVolume = unalignedProjects.reduce((sum, p) => sum + (p.volume || 0), 0);
-        
-        return [
+
+        const allItems = [
             ...metrics,
             { id: 'unaligned', name: t('strategy.maintenance'), description: '', color: '#94a3b8', volume: unalignedVolume, projects: unalignedProjects }
-        ].filter(m => m.volume > 0);
+        ];
+
+        const totalVolume = allItems.reduce((sum, d) => sum + d.volume, 0);
+
+        // Precompute sunburst sectors (keep render pure — no mutation during render)
+        const EPSILON = 1e-4;
+        const gap = 0.02;
+        const pathItems = totalVolume > 0 ? allItems.filter(m => m.volume > 0) : [];
+
+        let startAngle = 0;
+        const sectors = pathItems.map(metric => {
+            const sweep = (metric.volume / totalVolume) * 2 * Math.PI;
+            // Clamp full-circle sweep so the SVG arc doesn't degenerate (end === start)
+            const clampedSweep = Math.min(sweep, 2 * Math.PI - EPSILON);
+            const endAngle = startAngle + clampedSweep;
+
+            const metricSector = {
+                id: metric.id,
+                name: metric.name,
+                color: metric.color,
+                volume: metric.volume,
+                startAngle,
+                endAngle,
+            };
+
+            let projStart = startAngle;
+            const projectSectors = metric.projects
+                .filter(p => (p.volume || 0) > 0)
+                .map(p => {
+                    const pVolume = p.volume || 0;
+                    const pSweep = (pVolume / metric.volume) * clampedSweep;
+                    const pEnd = projStart + pSweep;
+                    const sector = {
+                        id: p.id,
+                        name: p.name,
+                        color: metric.color,
+                        volume: pVolume,
+                        startAngle: projStart + gap / 2,
+                        endAngle: Math.max(projStart + gap / 2, pEnd - gap / 2),
+                    };
+                    projStart = pEnd;
+                    return sector;
+                });
+
+            startAngle = endAngle;
+            return { metricSector, projectSectors };
+        });
+
+        return { totalVolume, allItems, sectors };
     }, [projects, assignments, t]);
 
-    const totalVolume = data.reduce((sum, d) => sum + d.volume, 0);
+    const { totalVolume, allItems, sectors } = data;
 
     // Simple SVG Sunburst (Concentric Donuts)
-    let startAngle = 0;
     const radiusOuter = 140;
     const radiusInner = 90;
     const radiusCenter = 50;
@@ -217,60 +261,36 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
                     </text>
 
                     {/* Rings */}
-                    {data.map((metric, i) => {
-                        const sweep = (metric.volume / totalVolume) * 2 * Math.PI;
-                        const endAngle = startAngle + sweep;
-                        
-                        // Inner Ring (Metric)
-                        const pathInner = createSector(startAngle, endAngle, radiusCenter + 5, radiusInner, metric.color);
-                        
-                        // Outer Ring (Projects) - Split the metric wedge into project wedges
-                        const projSectors: React.ReactElement[] = [];
-                        let projStart = startAngle;
-                        
-                        metric.projects.forEach(p => {
-                            const pSweep = ( (p.volume || 0) / metric.volume ) * sweep;
-                            const pEnd = projStart + pSweep;
-                            // Slight gap
-                            const gap = 0.02;
-                            projSectors.push(
-                                <path 
-                                    key={p.id}
-                                    d={createSector(projStart + gap/2, pEnd - gap/2, radiusInner + 5, radiusOuter, metric.color)}
-                                    fill={metric.color}
+                    {sectors.map(({ metricSector, projectSectors }) => (
+                        <g key={metricSector.id}>
+                            <path
+                                d={createSector(metricSector.startAngle, metricSector.endAngle, radiusCenter + 5, radiusInner, metricSector.color)}
+                                fill={metricSector.color}
+                                className="stroke-white stroke-2 hover:brightness-110 transition-all cursor-pointer shadow-sm"
+                            >
+                                <title>{metricSector.name}: {Math.round((metricSector.volume / totalVolume) * 100)}%</title>
+                            </path>
+                            {projectSectors.map(s => (
+                                <path
+                                    key={s.id}
+                                    d={createSector(s.startAngle, s.endAngle, radiusInner + 5, radiusOuter, s.color)}
+                                    fill={s.color}
                                     className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer stroke-white stroke-1"
                                 >
-                                    <title>{p.name} ({p.volume}d)</title>
+                                    <title>{s.name} ({s.volume}d)</title>
                                 </path>
-                            );
-                            projStart = pEnd;
-                        });
-
-                        const result = (
-                            <g key={metric.id}>
-                                <path 
-                                    d={pathInner} 
-                                    fill={metric.color} 
-                                    className="stroke-white stroke-2 hover:brightness-110 transition-all cursor-pointer shadow-sm"
-                                >
-                                    <title>{metric.name}: {Math.round((metric.volume/totalVolume)*100)}%</title>
-                                </path>
-                                {projSectors}
-                            </g>
-                        );
-
-                        startAngle = endAngle;
-                        return result;
-                    })}
+                            ))}
+                        </g>
+                    ))}
                 </svg>
             </div>
             
             <div className="flex flex-wrap justify-center gap-4 p-4 border-t border-charcoal-100 bg-charcoal-50/50">
-                {data.map(m => (
+                {allItems.map(m => (
                     <div key={m.id} className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: m.color }}></div>
                         <span className="text-xs font-medium text-charcoal-700">{m.name}</span>
-                        <span className="text-xs text-charcoal-400 font-mono">({Math.round((m.volume/totalVolume)*100)}%)</span>
+                        <span className="text-xs text-charcoal-400 font-mono">({totalVolume > 0 ? Math.round((m.volume / totalVolume) * 100) : 0}%)</span>
                     </div>
                 ))}
             </div>
@@ -292,16 +312,17 @@ const StrategyCoPilot: React.FC = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const handleSend = async (e?: React.FormEvent) => {
+    const handleSend = async (e?: React.FormEvent, manualInput?: string) => {
         if (e) e.preventDefault();
-        if (!input.trim()) return;
+        const textToSend = manualInput || input;
+        if (!textToSend.trim()) return;
 
         if (!isAiEnabled || !apiKey) {
-             setMessages(prev => [...prev, { role: 'system', text: 'Please enable AI in settings and provide an API Key.' }]);
+             setMessages(prev => [...prev, { role: 'system', text: t('strategy.aiDisabled') }]);
              return;
         }
 
-        const userMsg = input;
+        const userMsg = textToSend;
         setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
         setInput('');
         setIsGenerating(true);
@@ -335,7 +356,8 @@ const StrategyCoPilot: React.FC = () => {
             const result = await chat.sendMessage({ message: userMsg });
             setMessages(prev => [...prev, { role: 'model', text: result.text ?? '' }]);
         } catch (error) {
-            setMessages(prev => [...prev, { role: 'system', text: 'Error connecting to AI Consultant.' }]);
+            console.error('Error connecting to AI Consultant:', error);
+            setMessages(prev => [...prev, { role: 'system', text: t('strategy.aiError') }]);
         } finally {
             setIsGenerating(false);
         }
@@ -417,7 +439,7 @@ const StrategyCoPilot: React.FC = () => {
                 </form>
                 <div className="flex justify-center gap-2 mt-2">
                     <button 
-                        onClick={() => { setInput("Generate Strategy Document"); handleSend(); }}
+                        onClick={() => { handleSend(undefined, "Generate Strategy Document"); }}
                         className="text-[10px] text-charcoal-500 hover:text-blue-400 flex items-center gap-1 transition-colors"
                     >
                         <FileText className="w-3 h-3" /> {t('strategy.generateDoc')}
@@ -429,7 +451,7 @@ const StrategyCoPilot: React.FC = () => {
 };
 
 // Main Module Container
-export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assignments, onUpdateProjects }) => {
+export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assignments }) => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'map' | 'northstar' | 'copilot'>('map');
   const [goals, setGoals] = useState<StrategicGoal[]>(MOCK_GOALS);

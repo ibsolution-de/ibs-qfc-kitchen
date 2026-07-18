@@ -275,7 +275,6 @@ const AppContent: React.FC = () => {
                           <StrategyModule
                               projects={projects}
                               assignments={plannerAssignments}
-                              onUpdateProjects={setProjects}
                           />
                         </AnimatedPage>
                     } />
