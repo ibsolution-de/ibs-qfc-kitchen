@@ -5,6 +5,7 @@ import { Employee, OneOnOneSession, Sentiment } from '../types';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
+import { uid } from '../utils/uid';
 import { Calendar, CheckCircle, Clock, Smile, Meh, Frown, Bot, Mic, FileText, Sparkles, Save, Archive, BrainCircuit, ArrowRight, Plus, X } from 'lucide-react';
 import { generateCoachingAgenda, extractActionItems } from '../services/ai';
 import { Modal } from './ui/Modal';
@@ -46,7 +47,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
 
     const handleCreateSession = () => {
         const newSession: OneOnOneSession = {
-            id: Math.random().toString(36).substr(2, 9),
+            id: uid(),
             employeeId: employee.id,
             date: new Date().toISOString(),
             status: 'scheduled',

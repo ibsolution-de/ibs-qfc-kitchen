@@ -8,6 +8,7 @@ import {
   startOfMonth,
 } from 'date-fns';
 import type { Absence, Assignment, Employee } from '../types';
+import { uid } from './uid';
 
 export interface DraftAssignment {
   projectId: string;
@@ -89,10 +90,6 @@ export interface MergeDayEntriesOutput {
   absences: Absence[];
 }
 
-function createId(): string {
-  return Math.random().toString(36).substr(2, 9);
-}
-
 /**
  * Returns the fraction of a full day an employee can work, derived from their
  * availability percentage. Missing or zero availability is treated as 100%.
@@ -146,7 +143,7 @@ export function mergeDayEntries(
     dates.forEach((dateStr) => {
       draftAssignments.forEach((draft) => {
         addedAssignments.push({
-          id: draft.assignmentId || createId(),
+          id: draft.assignmentId || uid(),
           employeeId,
           projectId: draft.projectId,
           date: dateStr,
@@ -167,7 +164,7 @@ export function mergeDayEntries(
   );
 
   const addedAbsences: Absence[] = dates.map((dateStr) => ({
-    id: createId(),
+    id: uid(),
     employeeId,
     date: dateStr,
     type: draftAbsence?.type ?? 'vacation',

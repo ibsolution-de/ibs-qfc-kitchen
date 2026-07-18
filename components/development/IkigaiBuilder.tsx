@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Employee, IkigaiItem, IkigaiZone } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Plus, X } from 'lucide-react';
+import { uid } from '../../utils/uid';
 
 interface IkigaiBuilderProps {
   items: IkigaiItem[];
@@ -18,7 +19,7 @@ export const IkigaiBuilder: React.FC<IkigaiBuilderProps> = ({ items, onUpdate })
       if(!newItemText.trim()) return;
       
       const newItem: IkigaiItem = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: uid(),
           text: newItemText,
           zone: 'good' // Default start zone
       };

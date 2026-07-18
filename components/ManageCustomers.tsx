@@ -7,6 +7,7 @@ import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { parseBudget } from '../utils/money';
+import { uid } from '../utils/uid';
 
 interface ManageCustomersProps {
   customers: Customer[];
@@ -110,7 +111,7 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
 
     const logo = formData.logo?.trim() || generateLogo(formData.name);
     const payload: Customer = {
-      id: editingId || crypto.randomUUID(),
+      id: editingId || uid(),
       name: formData.name.trim(),
       logo,
       industry: (formData.industry || '').trim(),

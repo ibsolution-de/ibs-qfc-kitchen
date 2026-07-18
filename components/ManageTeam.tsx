@@ -8,6 +8,7 @@ import { Modal } from './ui/Modal';
 import { Plus, Trash2, Edit2, Mail, Phone, Upload, User, Star, MapPin, Briefcase, UserPlus, Users, Search, Sparkles, Building2, X, MessageSquare, Target, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { MOCK_COMPANY_DIRECTORY } from '../constants';
+import { uid } from '../utils/uid';
 import { OneOnOneDashboard } from './OneOnOneDashboard';
 import { CompetencyRadar } from './development/CompetencyRadar';
 import { IkigaiBuilder } from './development/IkigaiBuilder';
@@ -264,7 +265,7 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
       // Create
       const newEmp: Employee = {
         ...formData as Employee,
-        id: Math.random().toString(36).substr(2, 9),
+        id: uid(),
         avatar: formData.type === 'future' ? '' : (formData.avatar || `https://ui-avatars.com/api/?name=${formData.name}&background=random`)
       };
       onUpdateEmployees([...employees, newEmp]);

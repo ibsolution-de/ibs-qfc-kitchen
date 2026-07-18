@@ -652,7 +652,11 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 disabled={readOnly}
                                                 className={`w-9 h-6 text-right text-xs font-bold text-gray-500 rounded border border-orange-200 focus:border-orange-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-orange-100'}`}
                                                 value={p.probability ?? 70}
-                                                onChange={(e) => handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'probability', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                  const n = e.target.valueAsNumber;
+                                                  if (Number.isNaN(n)) return;
+                                                  handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'probability', Math.max(0, Math.min(100, n)));
+                                                }}
                                                 title={t('forecast.probability')}
                                             />
                                             <span className="text-[10px] text-gray-400 mr-1">%</span>
@@ -662,7 +666,11 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 disabled={readOnly}
                                                 className={`w-12 h-6 text-right text-xs font-bold text-orange-600 rounded border border-orange-200 focus:border-orange-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-orange-100'}`}
                                                 value={p.volume || 0}
-                                                onChange={(e) => handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'volume', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                  const n = e.target.valueAsNumber;
+                                                  if (Number.isNaN(n) || n < 0) return;
+                                                  handleUpdateProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p, 'volume', n);
+                                                }}
                                                 title={t('forecast.volumeDays')}
                                             />
                                             <span className="text-[10px] text-orange-500 font-medium">d</span>
@@ -759,7 +767,11 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 disabled={readOnly}
                                                 className={`w-9 h-6 text-right text-xs font-bold text-gray-500 rounded border border-blue-200 focus:border-blue-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-blue-100'}`}
                                                 value={p.probability ?? 30}
-                                                onChange={(e) => handleUpdateProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p, 'probability', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                  const n = e.target.valueAsNumber;
+                                                  if (Number.isNaN(n)) return;
+                                                  handleUpdateProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p, 'probability', Math.max(0, Math.min(100, n)));
+                                                }}
                                                 title={t('forecast.probability')}
                                             />
                                             <span className="text-[10px] text-gray-400 mr-1">%</span>
@@ -769,7 +781,11 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 disabled={readOnly}
                                                 className={`w-12 h-6 text-right text-xs font-bold text-blue-600 rounded border border-blue-200 focus:border-blue-400 focus:outline-none px-1 ${readOnly ? 'bg-transparent border-transparent' : 'bg-blue-100'}`}
                                                 value={p.volume || 0}
-                                                onChange={(e) => handleUpdateProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p, 'volume', Number(e.target.value))}
+                                                onChange={(e) => {
+                                                  const n = e.target.valueAsNumber;
+                                                  if (Number.isNaN(n) || n < 0) return;
+                                                  handleUpdateProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p, 'volume', n);
+                                                }}
                                                 title={t('forecast.volumeDays')}
                                             />
                                             <span className="text-[10px] text-blue-500 font-medium">d</span>

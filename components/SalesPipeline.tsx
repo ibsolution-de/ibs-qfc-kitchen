@@ -10,6 +10,7 @@ import { PASTEL_VARIANTS } from '../constants';
 import { GoogleGenAI } from "@google/genai";
 import { Plus, Target, DollarSign, TrendingUp, Search, Briefcase, Zap, AlertCircle, Sparkles } from 'lucide-react';
 import { AsciiSpinner } from './ui/AsciiSpinner';
+import { uid } from '../utils/uid';
 import { parseBudget, formatEuro } from '../utils/money';
 
 interface SalesPipelineProps {
@@ -55,7 +56,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
       const formData = new FormData(form);
       
       const newProject: Project = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: uid(),
           name: formData.get('name') as string,
           client: formData.get('client') as string,
           status: 'opportunity',

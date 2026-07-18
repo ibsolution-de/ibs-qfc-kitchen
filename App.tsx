@@ -16,6 +16,8 @@ import { SalesPipeline } from './components/SalesPipeline';
 import { Assignment, PlanVersion, Project, Employee, Customer, Absence, ViewMode } from './types';
 import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { uid } from './utils/uid';
+import { useToday } from './hooks/useToday';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'ibs_qfc_employees_v3',
@@ -85,16 +87,19 @@ const AppContent: React.FC = () => {
   const plannerAbsences = activeVersion.absences || [];
   const forecastData = activeVersion.forecastData;
 
-  const versionStartDate = useMemo(() => {
-    return new Date();
-  }, []);
+  const versionStartDate = useToday();
 
   const handleAssignmentChange = (newAssignments: Assignment[]) => {
+    if (!isLatestVersion) {
+      console.warn('handleAssignmentChange: active version is read-only, ignoring update');
+      return;
+    }
     setVersions(prev => {
+        const vIndex = prev.findIndex(v => v.id === activeVersionId);
+        if (vIndex === -1) return prev;
         const newVersions = [...prev];
-        const lastIdx = newVersions.length - 1;
-        newVersions[lastIdx] = {
-            ...newVersions[lastIdx],
+        newVersions[vIndex] = {
+            ...newVersions[vIndex],
             assignments: newAssignments
         };
         return newVersions;
@@ -102,11 +107,16 @@ const AppContent: React.FC = () => {
   };
 
   const handleAbsenceChange = (newAbsences: Absence[]) => {
+    if (!isLatestVersion) {
+      console.warn('handleAbsenceChange: active version is read-only, ignoring update');
+      return;
+    }
     setVersions(prev => {
+        const vIndex = prev.findIndex(v => v.id === activeVersionId);
+        if (vIndex === -1) return prev;
         const newVersions = [...prev];
-        const lastIdx = newVersions.length - 1;
-        newVersions[lastIdx] = {
-            ...newVersions[lastIdx],
+        newVersions[vIndex] = {
+            ...newVersions[vIndex],
             absences: newAbsences
         };
         return newVersions;
@@ -115,7 +125,7 @@ const AppContent: React.FC = () => {
 
   const handleCreateVersion = (name: string, description: string) => {
     const newVersion: PlanVersion = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: uid(),
         name: name,
         description: description,
         createdAt: new Date().toISOString(),

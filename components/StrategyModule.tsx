@@ -9,6 +9,7 @@ import { Compass, Target, Map as MapIcon, Bot, FileText, Send, Sparkles, AlertCi
 import { GoogleGenAI } from "@google/genai";
 import { AI_MODEL_FORECAST } from '../services/ai';
 import { useSettings } from '../contexts/SettingsContext';
+import { uid } from '../utils/uid';
 
 interface StrategyModuleProps {
   projects: Project[];
@@ -40,7 +41,7 @@ const StrategyMap: React.FC<StrategyMapProps> = ({ goals, projects, onAddGoal })
         e.preventDefault();
         if (!title.trim()) return;
         onAddGoal({
-            id: crypto.randomUUID(),
+            id: uid(),
             title: title.trim(),
             perspective,
             linkedProjectIds: [],

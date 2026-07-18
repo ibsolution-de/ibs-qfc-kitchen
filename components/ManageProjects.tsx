@@ -8,6 +8,7 @@ import { PASTEL_VARIANTS } from '../constants';
 import { Plus, Trash2, Edit2, Calendar, DollarSign, Folder, BarChart2, AlertCircle, Flag, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { parseBudget, MARGIN_THRESHOLDS } from '../utils/money';
+import { uid } from '../utils/uid';
 
 interface ManageProjectsProps {
   projects: Project[];
@@ -94,7 +95,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
     } else {
       const newProj: Project = {
         ...formData as Project,
-        id: Math.random().toString(36).substr(2, 9)
+        id: uid()
       };
       onUpdateProjects([...projects, newProj]);
     }
@@ -105,7 +106,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
       if(newMilestone.name && newMilestone.date) {
           setFormData(prev => ({
               ...prev,
-              milestones: [...(prev.milestones || []), { ...newMilestone, id: Math.random().toString(36).substr(2, 9) } as Milestone]
+              milestones: [...(prev.milestones || []), { ...newMilestone, id: uid() } as Milestone]
           }));
           setNewMilestone({ name: '', date: '', phase: 'planning' });
       }
@@ -266,7 +267,11 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                     <div>
                         <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.hourlyRate')}</label>
                         <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.hourlyRate} onChange={e => setFormData({...formData, hourlyRate: Number(e.target.value)})} placeholder="100" />
+                        value={formData.hourlyRate} onChange={e => {
+                          const n = e.target.valueAsNumber;
+                          if (Number.isNaN(n)) return;
+                          setFormData({...formData, hourlyRate: n});
+                        }} placeholder="100" />
                     </div>
                 </div>
              </div>
@@ -300,12 +305,20 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                     <div>
                         <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.volume')}</label>
                         <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.volume} onChange={e => setFormData({...formData, volume: Number(e.target.value)})} placeholder="80" />
+                        value={formData.volume} onChange={e => {
+                          const n = e.target.valueAsNumber;
+                          if (Number.isNaN(n) || n < 0) return;
+                          setFormData({...formData, volume: n});
+                        }} placeholder="80" />
                     </div>
                     <div>
                         <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.probability')} %</label>
                         <input type="number" min="0" max="100" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.probability ?? 0} onChange={e => setFormData({...formData, probability: Number(e.target.value)})} placeholder="50" />
+                        value={formData.probability ?? 0} onChange={e => {
+                          const n = e.target.valueAsNumber;
+                          if (Number.isNaN(n)) return;
+                          setFormData({...formData, probability: Math.max(0, Math.min(100, n))});
+                        }} placeholder="50" />
                     </div>
                 </div>
 

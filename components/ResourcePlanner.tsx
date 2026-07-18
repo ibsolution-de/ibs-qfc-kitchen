@@ -1048,7 +1048,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                         </label>
                         <div className="flex items-center gap-1">
                             <button 
-                                onClick={() => setAbsenceDuration(Math.max(1, absenceDuration - 1))}
+                                onClick={() => setAbsenceDuration(Math.max(1, Math.min(60, absenceDuration - 1)))}
                                 disabled={selectedCellReadOnly}
                                 className={`w-8 h-8 flex items-center justify-center rounded-l border border-charcoal-200 bg-white text-charcoal-600 ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'}`}
                             >
@@ -1059,10 +1059,14 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                 className="w-12 h-8 text-center border-y border-charcoal-200 text-sm font-semibold focus:outline-none disabled:opacity-50"
                                 value={absenceDuration}
                                 disabled={selectedCellReadOnly}
-                                onChange={(e) => setAbsenceDuration(Math.max(1, parseInt(e.target.value) || 1))}
+                                onChange={(e) => {
+                                  const raw = parseInt(e.target.value, 10);
+                                  const clamped = Number.isNaN(raw) ? 1 : Math.max(1, Math.min(60, raw));
+                                  setAbsenceDuration(clamped);
+                                }}
                             />
                             <button 
-                                onClick={() => setAbsenceDuration(absenceDuration + 1)}
+                                onClick={() => setAbsenceDuration(Math.min(60, absenceDuration + 1))}
                                 disabled={selectedCellReadOnly}
                                 className={`w-8 h-8 flex items-center justify-center rounded-r border border-charcoal-200 bg-white text-charcoal-600 ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'}`}
                             >
