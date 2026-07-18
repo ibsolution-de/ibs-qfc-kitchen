@@ -60,3 +60,8 @@ Next up: Phase 2 — Step 2.1 TypeScript strict mode.
 ## 2026-07-18 Smoke test after Phase 1
 Lightpanda check on fresh preview: app boots, planner renders, CSV Export visible, German locale dates (März/Feb.), translated Latest badge, zero page errors. FALSE ALARM post-mortem: initial blank page was a STALE vite preview process from the previous session holding port 4173 — not a code regression. Bisected 1.1→1.8 before finding it; all builds were fine.
 Next up: Step 2.1 — TypeScript strict mode.
+
+## 2026-07-18 Step 2.1 — TypeScript strict mode — d5fd3f0
+Gates: lint ✅ build ✅ test ✅ (33)
+Notes: strict + noUnusedLocals/Parameters + noUncheckedIndexedAccess ON. 55 unused-code + 35 indexed-access errors fixed across 21 files. Dead: draggingEmpId, handleRemoveAbsence, workingDaysCount, Q1_OUTLOOK mocks, ~20 dead imports. Type predicates replace filter-narrowing; PASTEL fallback everywhere; 4 as-any select casts typed; ProjectFilter discriminated union in planner; forecast.noData key added.
+Next up: Step 2.2 — build-time Tailwind (replace CDN). RISKY: requires visual screenshot comparison before commit.
