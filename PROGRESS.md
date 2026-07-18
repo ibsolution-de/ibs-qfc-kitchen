@@ -51,3 +51,8 @@ Next up: Step 1.7 — App-level consistency.
 Gates: lint ✅ build ✅ test ✅ (33)
 Notes: utils/uid.ts (crypto.randomUUID) replaced 11 hand-rolled ids incl. utils/planner createId; handleAssignment/AbsenceChange now write to ACTIVE version w/ read-only no-op guard; NaN guards + clamps on number inputs; absenceDuration clamped 1–60; hooks/useToday.ts replaces frozen-at-mount today. Orchestrator fixed 1 missed id in SalesPipeline.
 Next up: Step 1.8 — i18n leak sweep + language persistence.
+
+## 2026-07-18 Step 1.8 — i18n leak sweep + language persistence — 79d6f5c
+Gates: lint ✅ build ✅ test ✅ (33)
+Notes: 71 new keys (411/411 en/de parity); language persisted to localStorage; t() warns on missing keys; bonus fix: sidebar.manage was German in en section. PHASE 1 (P0) COMPLETE.
+Next up: Phase 2 — Step 2.1 TypeScript strict mode.
