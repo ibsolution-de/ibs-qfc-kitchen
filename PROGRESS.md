@@ -75,3 +75,8 @@ Next up: Step 2.3 — Shared UI primitives.
 Gates: lint ✅ build ✅ test ✅ (42, +ConfirmDialog/Toast suites; vitest.setup.ts for jest-dom)
 Notes: PageHeader (7 adoptions), FormField/TextInput/SelectInput, ProgressBar (aria), StatusBadge, ConfirmDialog (native confirm() eliminated), Toast system (provider + success toasts on save/delete/export/version). Button type=button default. INTERRUPTION: k2p7 quota exhausted mid-run; resumed on k3 which completed. Lesson: keep k2p7 for fresh dispatches, resume falls back to k3.
 Next up: Step 2.4 — useCrudForm + Manage* refactor.
+
+## 2026-07-18 Step 2.4 — useCrudForm + Manage* refactor — 9f9f145
+Gates: lint ✅ build ✅ test ✅ (49, +useCrudForm suite)
+Notes: typed hook (openAdd/openEdit/handleSubmit(buildItem)/requestDelete/validate) adopted by all 3 Manage*; single makeDefaults (drift fixed); i18n validation messages (dates, required) for projects/team/customers; no as-T casts remain in CRUD submits.
+Next up: Step 2.5 — Modal & focus accessibility.
