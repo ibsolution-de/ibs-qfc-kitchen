@@ -90,3 +90,8 @@ Next up: Step 2.6 — business-math test coverage (utils/forecast extraction). P
 Gates: lint ✅ build ✅ test ✅ (74, +17 forecast tests)
 Notes: utils/forecast.ts (parseQuarterName/computeQuarterCapacity/computeMonthlyBreakdown/runMonteCarloSimulation w/ injectable rng). Fixes: rawAvailable exposed (red negatives live), histogram raw counts, probability 0/100 honored (was || 50). PHASE 2 (P1) COMPLETE.
 Next up: Phase 3 — Step 3.1 ResourcePlanner render performance.
+
+## 2026-07-18 Step 3.1 — ResourcePlanner performance — a27ecee
+Gates: lint ✅ build ✅ test ✅ (77, +PlannerCell suite)
+Notes: Map indexes (empId|date) for assignments+absences → O(1) cell lookups; PlannerCell/PlannerRow React.memo; DayEditModal extracted (669 LOC) — modal typing no longer re-renders grid; ref-based today-jump replaces setTimeout+getElementById; gridViewModel useMemo. ResourcePlanner.tsx 1340→987 LOC. Retry note: first k2p7 dispatch cold-failed (no output), second succeeded.
+Next up: Step 3.2 — QuarterlyForecast render performance.
