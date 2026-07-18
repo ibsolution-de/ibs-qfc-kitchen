@@ -32,6 +32,7 @@ export interface RowViewModel {
 
 export interface PlannerRowProps {
   row: RowViewModel;
+  rowIndex: number;
   projectMap: Map<string, Project>;
   readOnly: boolean;
   draggedProjectId?: string;
@@ -44,10 +45,15 @@ export interface PlannerRowProps {
   onDrop: (e: React.DragEvent, employeeId: string, date: Date) => void;
   onRemoveAssignment: (assignmentId: string) => void;
   onNavigateToEmployee?: (employeeId: string) => void;
+  onCellKeyDown: (e: React.KeyboardEvent, employeeId: string, dateStr: string) => void;
+  onCellFocus: (employeeId: string, dateStr: string) => void;
+  registerCell: (key: string, el: HTMLTableCellElement | null) => void;
+  focusedCellKey: string | null;
 }
 
 export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
   row,
+  rowIndex,
   projectMap,
   readOnly,
   draggedProjectId,
@@ -60,6 +66,10 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
   onDrop,
   onRemoveAssignment,
   onNavigateToEmployee,
+  onCellKeyDown,
+  onCellFocus,
+  registerCell,
+  focusedCellKey,
 }) {
   const { t } = useLanguage();
   const { employee, stats, cells } = row;
@@ -78,8 +88,10 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
           : 'bg-yellow-50 text-yellow-700 border-yellow-200';
 
   return (
-    <tr className="group hover:bg-charcoal-50/30 transition-colors border-b border-charcoal-100 last:border-0">
+    <tr role="row" aria-rowindex={rowIndex + 3} className="group hover:bg-charcoal-50/30 transition-colors border-b border-charcoal-100 last:border-0">
       <td
+        role="rowheader"
+        aria-colindex={1}
         className="sticky left-0 z-10 bg-white group-hover:bg-charcoal-50/30 border-r border-charcoal-200 p-3 shadow-[2px_0_5px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-blue-50/20 align-top"
         onClick={handleEmployeeClick}
         title={t('planner.viewEmployeeOverview')}
@@ -126,7 +138,7 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
           </div>
         </div>
       </td>
-      {cells.map((cell) => (
+      {cells.map((cell, colIndex) => (
         <PlannerCell
           key={cell.dateStr}
           date={cell.date}
@@ -143,6 +155,9 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
           isOverloaded={cell.isOverloaded}
           hasConflict={cell.hasConflict}
           readOnly={readOnly}
+          rowIndex={rowIndex}
+          colIndex={colIndex}
+          isFocused={focusedCellKey === `${employee.id}|${cell.dateStr}`}
           draggedProjectId={draggedProjectId}
           draggedAssignmentId={draggedAssignmentId}
           onCellClick={onCellClick}
@@ -152,6 +167,9 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
           onDragOver={onDragOver}
           onDrop={onDrop}
           onRemoveAssignment={onRemoveAssignment}
+          onKeyDown={onCellKeyDown}
+          onFocus={onCellFocus}
+          registerCell={registerCell}
         />
       ))}
     </tr>

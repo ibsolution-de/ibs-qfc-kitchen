@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { format } from 'date-fns';
 import {
   X,
   PartyPopper,
@@ -30,6 +31,9 @@ export interface PlannerCellProps {
   isOverloaded: boolean;
   hasConflict: boolean;
   readOnly: boolean;
+  rowIndex: number;
+  colIndex: number;
+  isFocused: boolean;
   draggedProjectId?: string;
   draggedAssignmentId?: string;
   onCellClick: (employeeId: string, date: Date) => void;
@@ -39,6 +43,9 @@ export interface PlannerCellProps {
   onDragOver: (e: React.DragEvent, employeeId: string, date: Date) => void;
   onDrop: (e: React.DragEvent, employeeId: string, date: Date) => void;
   onRemoveAssignment: (assignmentId: string) => void;
+  onKeyDown: (e: React.KeyboardEvent, employeeId: string, dateStr: string) => void;
+  onFocus: (employeeId: string, dateStr: string) => void;
+  registerCell: (key: string, el: HTMLTableCellElement | null) => void;
 }
 
 export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
@@ -56,6 +63,9 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
   isOverloaded,
   hasConflict,
   readOnly,
+  rowIndex,
+  colIndex,
+  isFocused,
   draggedProjectId,
   draggedAssignmentId,
   onCellClick,
@@ -65,8 +75,14 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
   onDragOver,
   onDrop,
   onRemoveAssignment,
+  onKeyDown,
+  onFocus,
+  registerCell,
 }) {
-  const { t } = useLanguage();
+  const { t, formatDate } = useLanguage();
+
+  const dateStr = useMemo(() => format(date, 'yyyy-MM-dd'), [date]);
+  const cellKey = useMemo(() => `${employee.id}|${dateStr}`, [employee.id, dateStr]);
 
   const isDuplicateDrop = useMemo(() => {
     if (!draggedProjectId || !isInteractive) return false;
@@ -94,6 +110,36 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
     onDrop(e, employee.id, date);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    onKeyDown(e, employee.id, dateStr);
+  };
+
+  const handleFocus = () => {
+    onFocus(employee.id, dateStr);
+  };
+
+  const ariaLabel = useMemo(() => {
+    const parts: string[] = [`${employee.name}, ${formatDate(date, 'd. MMMM')}`];
+    if (holiday) {
+      parts.push(`${t('planner.holiday')}: ${holiday.name}`);
+    } else if (absence) {
+      parts.push(`${t('planner.absence')}: ${t(`planner.${absence.type}`)}`);
+    } else if (entries.length === 0) {
+      parts.push(t('planner.cellNoAssignments'));
+    } else {
+      const entryLabels = entries
+        .map((a) => {
+          const proj = projectMap.get(a.projectId);
+          if (!proj) return '';
+          const hours = allocationToHours(a.allocation);
+          return `${hours}h ${proj.name}`;
+        })
+        .filter(Boolean);
+      parts.push(entryLabels.join(', '));
+    }
+    return parts.join(': ');
+  }, [employee.name, date, holiday, absence, entries, projectMap, t, formatDate]);
+
   const absenceStyle = absence
     ? ({
         backgroundImage:
@@ -104,12 +150,22 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
 
   return (
     <td
+      ref={(el) => registerCell(cellKey, el)}
       data-testid="planner-cell"
+      data-cell-key={cellKey}
+      role="gridcell"
+      aria-label={ariaLabel}
+      aria-rowindex={rowIndex + 3}
+      aria-colindex={colIndex + 2}
+      tabIndex={isFocused ? 0 : -1}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onFocus={handleFocus}
       className={`
         border-r border-charcoal-100 p-1 relative min-h-[7rem] h-auto align-top transition-all group/cell
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 focus-visible:z-20
         ${holiday
           ? 'bg-red-50/30 cursor-not-allowed pattern-diagonal-lines-sm text-red-800'
           : ''}
@@ -212,15 +268,16 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
                 </div>
                 {isInteractive && (
                   <button
+                    tabIndex={-1}
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
                       onRemoveAssignment(a.id);
                     }}
-                    className="opacity-0 group-hover/cell:opacity-100 hover:bg-black/10 p-0.5 rounded transition-opacity flex-shrink-0 ml-1"
+                    className="opacity-0 group-hover/cell:opacity-100 pointer-coarse:opacity-100 hover:bg-black/10 p-0.5 pointer-coarse:p-1.5 pointer-coarse:min-w-6 pointer-coarse:min-h-6 rounded transition-opacity flex-shrink-0 ml-1 flex items-center justify-center"
                     title={t('planner.remove')}
                   >
-                    <X className="w-2.5 h-2.5" />
+                    <X className="w-2.5 h-2.5 pointer-coarse:w-3.5 pointer-coarse:h-3.5" />
                   </button>
                 )}
               </div>
@@ -229,10 +286,10 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
       </div>
 
       {isInteractive && !isDuplicateDrop && !absence && !holiday && (
-        <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover/cell:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/cell:translate-y-0">
+        <div className="absolute bottom-1 left-1 right-1 opacity-0 group-hover/cell:opacity-100 pointer-coarse:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/cell:translate-y-0 pointer-coarse:translate-y-0">
           <button
             onClick={handleAddClick}
-            className="w-full h-5 bg-white/90 hover:bg-blue-50 border border-charcoal-200 hover:border-blue-200 text-charcoal-400 hover:text-blue-600 rounded flex items-center justify-center shadow-sm backdrop-blur-sm transition-colors"
+            className="w-full h-5 pointer-coarse:h-7 bg-white/90 hover:bg-blue-50 border border-charcoal-200 hover:border-blue-200 text-charcoal-400 hover:text-blue-600 rounded flex items-center justify-center shadow-sm backdrop-blur-sm transition-colors"
             title={t('planner.oneClickAssign')}
           >
             <Plus className="w-3.5 h-3.5" />

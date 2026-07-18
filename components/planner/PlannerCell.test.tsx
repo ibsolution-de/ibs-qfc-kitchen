@@ -66,6 +66,9 @@ const renderCell = (overrides: Partial<React.ComponentProps<typeof PlannerCell>>
             isOverloaded={false}
             hasConflict={false}
             readOnly={false}
+            rowIndex={0}
+            colIndex={0}
+            isFocused={false}
             onCellClick={noop}
             onAddClick={noop}
             onDragStart={noop as unknown as (e: React.DragEvent, a: Assignment) => void}
@@ -73,6 +76,9 @@ const renderCell = (overrides: Partial<React.ComponentProps<typeof PlannerCell>>
             onDragOver={noop as unknown as (e: React.DragEvent, id: string, d: Date) => void}
             onDrop={noop as unknown as (e: React.DragEvent, id: string, d: Date) => void}
             onRemoveAssignment={noop}
+            onKeyDown={noop as unknown as (e: React.KeyboardEvent, id: string, d: string) => void}
+            onFocus={noop}
+            registerCell={noop}
             {...overrides}
           />
         </tr>

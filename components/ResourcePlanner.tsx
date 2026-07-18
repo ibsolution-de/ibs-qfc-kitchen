@@ -42,6 +42,7 @@ import { assignmentsToCSV, downloadTextFile } from '../utils/export';
 import { useToast } from './ui/Toast';
 import { PlannerRow, RowViewModel } from './planner/PlannerRow';
 import { DayEditModal } from './planner/DayEditModal';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 interface ResourcePlannerProps {
   employees: Employee[];
@@ -276,6 +277,12 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
   // Interaction State
   const [selectedCell, setSelectedCell] = useState<{ empId: string; date: Date } | null>(null);
+  const [focusedCell, setFocusedCell] = useState<{ empId: string; dateStr: string } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; assignmentId: string | null }>({
+    isOpen: false,
+    assignmentId: null,
+  });
+  const cellRefs = useRef(new Map<string, HTMLTableCellElement>());
 
   // Drag and Drop state
   const [draggingAssignmentId, setDraggingAssignmentId] = useState<string | null>(null);
@@ -447,13 +454,9 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     [readOnly, draggingAssignmentId, assignments, absences]
   );
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent, targetEmpId: string, targetDate: Date) => {
+  const moveAssignment = useCallback(
+    (assignmentId: string, targetEmpId: string, targetDate: Date) => {
       if (readOnly) return;
-      e.preventDefault();
-      setDraggingAssignmentId(null);
-
-      const assignmentId = e.dataTransfer.getData('assignmentId');
       const targetDateStr = format(targetDate, 'yyyy-MM-dd');
 
       const hasAbsence = absences.some(
@@ -462,16 +465,16 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       if (hasAbsence) return;
 
       const draggedAssignment = assignments.find((a) => a.id === assignmentId);
-      if (draggedAssignment) {
-        const hasProject = assignments.some(
-          (a) =>
-            a.employeeId === targetEmpId &&
-            a.date === targetDateStr &&
-            a.projectId === draggedAssignment.projectId &&
-            a.id !== assignmentId
-        );
-        if (hasProject) return;
-      }
+      if (!draggedAssignment) return;
+
+      const hasProject = assignments.some(
+        (a) =>
+          a.employeeId === targetEmpId &&
+          a.date === targetDateStr &&
+          a.projectId === draggedAssignment.projectId &&
+          a.id !== assignmentId
+      );
+      if (hasProject) return;
 
       const updatedAssignments = assignments.map((a) => {
         if (a.id === assignmentId) {
@@ -482,7 +485,18 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
       onAssignmentChange(updatedAssignments);
     },
-    [readOnly, assignments, absences, onAssignmentChange]
+    [readOnly, absences, assignments, onAssignmentChange]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetEmpId: string, targetDate: Date) => {
+      if (readOnly) return;
+      e.preventDefault();
+      setDraggingAssignmentId(null);
+      const assignmentId = e.dataTransfer.getData('assignmentId');
+      moveAssignment(assignmentId, targetEmpId, targetDate);
+    },
+    [readOnly, moveAssignment]
   );
 
   const handleRemoveAssignment = useCallback(
@@ -517,6 +531,28 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     downloadTextFile(filename, csv, 'text/csv;charset=utf-8');
     success(t('toast.csvExported'));
   }, [employees, projects, assignments, absences, success, t]);
+
+  // --- Roving tabindex keyboard navigation ---
+
+  const registerCell = useCallback((key: string, el: HTMLTableCellElement | null) => {
+    if (el) {
+      cellRefs.current.set(key, el);
+    } else {
+      cellRefs.current.delete(key);
+    }
+  }, []);
+
+  const handleCellFocus = useCallback((empId: string, dateStr: string) => {
+    setFocusedCell({ empId, dateStr });
+  }, []);
+
+  // Return focus to the active cell when the day modal is closed.
+  useEffect(() => {
+    if (!selectedCell && focusedCell) {
+      const el = cellRefs.current.get(`${focusedCell.empId}|${focusedCell.dateStr}`);
+      el?.focus();
+    }
+  }, [selectedCell, focusedCell]);
 
   // --- Pre-computed grid view model ---
   const gridViewModel = useMemo(() => {
@@ -596,6 +632,208 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     filteredAssignmentIndex,
     readOnly,
   ]);
+
+  const cellPositionMap = useMemo(() => {
+    const map = new Map<string, { monthIdx: number; rowIdx: number; colIdx: number }>();
+    gridViewModel.forEach((month, monthIdx) => {
+      month.rows.forEach((row, rowIdx) => {
+        row.cells.forEach((cell, colIdx) => {
+          map.set(`${row.employee.id}|${cell.dateStr}`, { monthIdx, rowIdx, colIdx });
+        });
+      });
+    });
+    return map;
+  }, [gridViewModel]);
+
+  const firstFocusableCell = useMemo(() => {
+    const month = gridViewModel[0];
+    if (!month) return null;
+    const row = month.rows[0];
+    if (!row) return null;
+    const cell = row.cells[0];
+    if (!cell) return null;
+    return { empId: row.employee.id, dateStr: cell.dateStr };
+  }, [gridViewModel]);
+
+  const focusedCellKey = useMemo(() => {
+    if (focusedCell) {
+      const key = `${focusedCell.empId}|${focusedCell.dateStr}`;
+      if (cellPositionMap.has(key)) return key;
+    }
+    if (firstFocusableCell) return `${firstFocusableCell.empId}|${firstFocusableCell.dateStr}`;
+    return null;
+  }, [focusedCell, firstFocusableCell, cellPositionMap]);
+
+  const handleMoveAssignment = useCallback(
+    (empId: string, dateStr: string, direction: string) => {
+      if (readOnly) return;
+
+      const key = `${empId}|${dateStr}`;
+      const pos = cellPositionMap.get(key);
+      if (!pos) return;
+
+      const { monthIdx, rowIdx, colIdx } = pos;
+      const month = gridViewModel[monthIdx];
+      if (!month) return;
+
+      const cell = month.rows[rowIdx]?.cells[colIdx];
+      if (!cell || cell.entries.length !== 1) return;
+
+      const assignment = cell.entries[0];
+      if (!assignment) return;
+
+      let targetRowIdx = rowIdx;
+      let targetColIdx = colIdx;
+      let targetMonthIdx = monthIdx;
+
+      if (direction === 'ArrowLeft') {
+        if (colIdx - 1 >= 0) {
+          targetColIdx = colIdx - 1;
+        } else if (monthIdx - 1 >= 0) {
+          const prevMonth = gridViewModel[monthIdx - 1];
+          const prevRow = prevMonth?.rows[0];
+          if (prevRow) {
+            targetMonthIdx = monthIdx - 1;
+            targetColIdx = prevRow.cells.length - 1;
+          }
+        }
+      } else if (direction === 'ArrowRight') {
+        const firstRow = month.rows[0];
+        if (firstRow && colIdx + 1 < firstRow.cells.length) {
+          targetColIdx = colIdx + 1;
+        } else if (monthIdx + 1 < gridViewModel.length) {
+          targetMonthIdx = monthIdx + 1;
+          targetColIdx = 0;
+        }
+      } else if (direction === 'ArrowUp') {
+        if (rowIdx - 1 >= 0) {
+          targetRowIdx = rowIdx - 1;
+        }
+      } else if (direction === 'ArrowDown') {
+        if (rowIdx + 1 < month.rows.length) {
+          targetRowIdx = rowIdx + 1;
+        }
+      }
+
+      if (targetRowIdx === rowIdx && targetColIdx === colIdx && targetMonthIdx === monthIdx) {
+        return;
+      }
+
+      const targetMonth = gridViewModel[targetMonthIdx];
+      if (!targetMonth || targetRowIdx >= targetMonth.rows.length) return;
+
+      const targetRow = targetMonth.rows[targetRowIdx];
+      if (!targetRow) return;
+      const targetCell = targetRow.cells[targetColIdx];
+      if (!targetCell) return;
+
+      if (targetCell.isWeekend || targetCell.holiday || targetCell.absence) return;
+
+      moveAssignment(assignment.id, targetRow.employee.id, targetCell.date);
+
+      const targetKey = `${targetRow.employee.id}|${targetCell.dateStr}`;
+      setFocusedCell({ empId: targetRow.employee.id, dateStr: targetCell.dateStr });
+      cellRefs.current.get(targetKey)?.focus();
+    },
+    [readOnly, cellPositionMap, gridViewModel, moveAssignment]
+  );
+
+  const handleCellKeyDown = useCallback(
+    (e: React.KeyboardEvent, empId: string, dateStr: string) => {
+      const key = `${empId}|${dateStr}`;
+      const pos = cellPositionMap.get(key);
+      if (!pos) return;
+
+      const { monthIdx, rowIdx, colIdx } = pos;
+      const month = gridViewModel[monthIdx];
+      if (!month) return;
+
+      const cell = month.rows[rowIdx]?.cells[colIdx];
+      if (!cell) return;
+
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (cell.isClickable) {
+          handleCellClick(empId, cell.date);
+        }
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (readOnly) return;
+        if (cell.entries.length === 1) {
+          const assignment = cell.entries[0];
+          if (assignment) {
+            setConfirmDelete({ isOpen: true, assignmentId: assignment.id });
+          }
+        } else if (cell.entries.length > 1) {
+          handleCellClick(empId, cell.date);
+        }
+        e.preventDefault();
+        return;
+      }
+
+      const isArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
+      if (!isArrow) return;
+
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        handleMoveAssignment(empId, dateStr, e.key);
+        return;
+      }
+
+      let nextRowIdx = rowIdx;
+      let nextColIdx = colIdx;
+      let nextMonthIdx = monthIdx;
+
+      if (e.key === 'ArrowLeft') {
+        if (colIdx - 1 >= 0) {
+          nextColIdx = colIdx - 1;
+        } else if (monthIdx - 1 >= 0) {
+          const prevMonth = gridViewModel[monthIdx - 1];
+          const prevRow = prevMonth?.rows[0];
+          if (prevRow) {
+            nextMonthIdx = monthIdx - 1;
+            nextColIdx = prevRow.cells.length - 1;
+          }
+        }
+      } else if (e.key === 'ArrowRight') {
+        const firstRow = month.rows[0];
+        if (firstRow && colIdx + 1 < firstRow.cells.length) {
+          nextColIdx = colIdx + 1;
+        } else if (monthIdx + 1 < gridViewModel.length) {
+          nextMonthIdx = monthIdx + 1;
+          nextColIdx = 0;
+        }
+      } else if (e.key === 'ArrowUp') {
+        if (rowIdx - 1 >= 0) {
+          nextRowIdx = rowIdx - 1;
+        }
+      } else if (e.key === 'ArrowDown') {
+        if (rowIdx + 1 < month.rows.length) {
+          nextRowIdx = rowIdx + 1;
+        }
+      }
+
+      if (nextRowIdx === rowIdx && nextColIdx === colIdx && nextMonthIdx === monthIdx) {
+        return;
+      }
+
+      const nextMonth = gridViewModel[nextMonthIdx];
+      if (!nextMonth || nextRowIdx >= nextMonth.rows.length) return;
+
+      const nextRow = nextMonth.rows[nextRowIdx];
+      if (!nextRow) return;
+      const nextCell = nextRow.cells[nextColIdx];
+      if (!nextCell) return;
+
+      const nextKey = `${nextRow.employee.id}|${nextCell.dateStr}`;
+      setFocusedCell({ empId: nextRow.employee.id, dateStr: nextCell.dateStr });
+      cellRefs.current.get(nextKey)?.focus();
+      e.preventDefault();
+    },
+    [cellPositionMap, gridViewModel, readOnly, handleCellClick, handleMoveAssignment]
+  );
 
   return (
     <div className="flex flex-col h-full bg-gray-50/50 relative">
@@ -811,7 +1049,11 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
                 {/* Grid */}
                 <div className="overflow-x-auto custom-scrollbar rounded-b-xl">
-                  <table className="w-full border-collapse">
+                  <table
+                    role="grid"
+                    aria-label={t('planner.gridLabel')}
+                    className="w-full border-collapse"
+                  >
                     <thead className="bg-white">
                       <tr className="h-6 border-b border-charcoal-200">
                         <th
@@ -901,10 +1143,11 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {month.rows.map((row) => (
+                      {month.rows.map((row, rowIndex) => (
                         <PlannerRow
                           key={row.employee.id}
                           row={row}
+                          rowIndex={rowIndex}
                           projectMap={projectMap}
                           readOnly={readOnly}
                           draggedProjectId={draggedAssignment?.projectId}
@@ -917,6 +1160,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                           onDrop={handleDrop}
                           onRemoveAssignment={handleRemoveAssignment}
                           onNavigateToEmployee={onNavigateToEmployee}
+                          onCellKeyDown={handleCellKeyDown}
+                          onCellFocus={handleCellFocus}
+                          registerCell={registerCell}
+                          focusedCellKey={focusedCellKey}
                         />
                       ))}
                     </tbody>
@@ -939,6 +1186,22 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         onClose={() => setSelectedCell(null)}
         onSave={handleSaveFromModal}
         onDeleteAbsence={handleDeleteAbsenceFromModal}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDelete.isOpen}
+        title={t('planner.confirmDeleteTitle')}
+        message={t('planner.confirmDeleteMessage')}
+        confirmLabel={t('planner.confirmDeleteConfirm')}
+        cancelLabel={t('planner.cancel')}
+        destructive
+        onConfirm={() => {
+          if (confirmDelete.assignmentId) {
+            handleRemoveAssignment(confirmDelete.assignmentId);
+          }
+          setConfirmDelete({ isOpen: false, assignmentId: null });
+        }}
+        onCancel={() => setConfirmDelete({ isOpen: false, assignmentId: null })}
       />
 
       {/* Legend Modal */}
