@@ -100,3 +100,8 @@ Next up: Step 3.2 — QuarterlyForecast render performance.
 Gates: lint ✅ build ✅ test ✅ (79)
 Notes: CommitNumberInput (draft/blur-commit/Escape-revert) for all inline number inputs — keystrokes no longer re-render the route; ForecastQuarterCard memoized w/ useMemo'd capacity; SimResult drops 2000-element iterations array (percentiles computed inside, +expected mean).
 Next up: Step 3.3 — Bundle splitting (React.lazy routes).
+
+## 2026-07-18 Step 3.3 — Bundle splitting — 7eb5e31
+Gates: lint ✅ build ✅ test ✅ (79)
+Notes: 8 lazy routes + single Suspense (AsciiSpinner + common.loading); rolldown output.codeSplitting groups vendor-react/vendor-ai/vendor-date (orchestrator renamed deprecated advancedChunks→codeSplitting). Main chunk 909.51→97.48 kB; no size warning. Verified in headless CHROME (--dump-dom): planner/strategy/forecast all render incl. lazy chunks. IMPORTANT: Lightpanda CANNOT load nested module graphs (static cross-chunk imports + dynamic import() fail) — all future smoke tests must use headless Chrome. PHASE 3 (P2) COMPLETE.
+Next up: Phase 4 (P3) — decision-gated epics (Gate A backend, Gate B auth, Gate C charts).
