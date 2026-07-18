@@ -26,3 +26,8 @@ Next up: Step 1.2 — Overload semantics honor availability.
 Gates: lint ✅ build ✅ test ✅ (23 tests)
 Notes: dailyCapacityFraction/isOverloaded/allocationToHours in utils/planner.ts used for all overload decisions (cell, month stats, pill now agree). Slider clamped to 8h; types.ts allocation doc updated. Left as-is: hasCriticalConflict counts critical projects (different semantic); day over-booking beyond 8h still possible via multiple projects (capacity bar warns) — P3 UX candidate.
 Next up: Step 1.3 — Kill fake affordances.
+
+## 2026-07-18 Step 1.3 — Kill fake affordances — 46eb22b
+Gates: lint ✅ build ✅ test ✅ (27 tests, +utils/export)
+Notes: planner Export → real CSV; ManageCustomers full CRUD wired via onUpdateCustomers; StrategyModule Add Goal modal; forecast Export PPT→real JSON, SAP button removed, fake AF-id/latency labels replaced with AI_MODEL_FORECAST const; Sidebar build date constant.
+Next up: Step 1.4 — date-fns locale formatting.
