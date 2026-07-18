@@ -56,3 +56,7 @@ Next up: Step 1.8 — i18n leak sweep + language persistence.
 Gates: lint ✅ build ✅ test ✅ (33)
 Notes: 71 new keys (411/411 en/de parity); language persisted to localStorage; t() warns on missing keys; bonus fix: sidebar.manage was German in en section. PHASE 1 (P0) COMPLETE.
 Next up: Phase 2 — Step 2.1 TypeScript strict mode.
+
+## 2026-07-18 Smoke test after Phase 1
+Lightpanda check on fresh preview: app boots, planner renders, CSV Export visible, German locale dates (März/Feb.), translated Latest badge, zero page errors. FALSE ALARM post-mortem: initial blank page was a STALE vite preview process from the previous session holding port 4173 — not a code regression. Bisected 1.1→1.8 before finding it; all builds were fine.
+Next up: Step 2.1 — TypeScript strict mode.
