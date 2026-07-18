@@ -13,6 +13,7 @@ import { uid } from './utils/uid';
 import { useToday } from './hooks/useToday';
 import { useToast } from './components/ui/Toast';
 import { AsciiSpinner } from './components/ui/AsciiSpinner';
+import { persistence } from './services/persistence/localStorageProvider';
 
 const QuarterlyForecast = React.lazy(() => import('./components/QuarterlyForecast').then(m => ({ default: m.QuarterlyForecast })));
 const ManageTeam = React.lazy(() => import('./components/ManageTeam').then(m => ({ default: m.ManageTeam })));
@@ -22,23 +23,6 @@ const FinancialOverview = React.lazy(() => import('./components/FinancialOvervie
 const StrategyModule = React.lazy(() => import('./components/StrategyModule').then(m => ({ default: m.StrategyModule })));
 const MyOverview = React.lazy(() => import('./components/MyOverview').then(m => ({ default: m.MyOverview })));
 const SalesPipeline = React.lazy(() => import('./components/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
-
-const STORAGE_KEYS = {
-  EMPLOYEES: 'ibs_qfc_employees_v3',
-  PROJECTS: 'ibs_qfc_projects_v3',
-  CUSTOMERS: 'ibs_qfc_customers_v3',
-  VERSIONS: 'ibs_qfc_versions_v3'
-};
-
-const loadState = <T,>(key: string, fallback: T): T => {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : fallback;
-  } catch (err) {
-    console.warn(`Error loading state for ${key}`, err);
-    return fallback;
-  }
-};
 
 // Animated Page Wrapper
 const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -57,16 +41,16 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   
   // State for Global Data - Load from LocalStorage or Fallback to Mocks
-  const [employees, setEmployees] = useState<Employee[]>(() => loadState(STORAGE_KEYS.EMPLOYEES, MOCK_EMPLOYEES));
-  const [projects, setProjects] = useState<Project[]>(() => loadState(STORAGE_KEYS.PROJECTS, MOCK_PROJECTS));
-  const [customers, setCustomers] = useState<Customer[]>(() => loadState(STORAGE_KEYS.CUSTOMERS, MOCK_CUSTOMERS));
+  const [employees, setEmployees] = useState<Employee[]>(() => persistence.load('employees', MOCK_EMPLOYEES));
+  const [projects, setProjects] = useState<Project[]>(() => persistence.load('projects', MOCK_PROJECTS));
+  const [customers, setCustomers] = useState<Customer[]>(() => persistence.load('customers', MOCK_CUSTOMERS));
   
   // State for versions
-  const [versions, setVersions] = useState<PlanVersion[]>(() => loadState(STORAGE_KEYS.VERSIONS, MOCK_VERSIONS));
+  const [versions, setVersions] = useState<PlanVersion[]>(() => persistence.load('versions', MOCK_VERSIONS));
   
   // Active Version State - ensure we pick valid ID from loaded versions
   const [activeVersionId, setActiveVersionId] = useState<string>(() => {
-      const loadedVersions = loadState(STORAGE_KEYS.VERSIONS, MOCK_VERSIONS);
+      const loadedVersions = persistence.load('versions', MOCK_VERSIONS);
       return loadedVersions.length > 0 ? loadedVersions[loadedVersions.length - 1]!.id : 'v1';
   });
 
@@ -77,10 +61,10 @@ const AppContent: React.FC = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
   // Persistence Effects
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees)); }, [employees]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects)); }, [projects]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers)); }, [customers]);
-  useEffect(() => { localStorage.setItem(STORAGE_KEYS.VERSIONS, JSON.stringify(versions)); }, [versions]);
+  useEffect(() => { persistence.save('employees', employees); }, [employees]);
+  useEffect(() => { persistence.save('projects', projects); }, [projects]);
+  useEffect(() => { persistence.save('customers', customers); }, [customers]);
+  useEffect(() => { persistence.save('versions', versions); }, [versions]);
 
   const latestVersion = versions[versions.length - 1] ?? MOCK_VERSIONS[MOCK_VERSIONS.length - 1]!;
   const isLatestVersion = activeVersionId === latestVersion.id;
