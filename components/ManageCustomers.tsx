@@ -237,7 +237,7 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                                     <div key={proj.id} className="bg-white border border-charcoal-200 rounded-lg p-4 flex flex-col sm:flex-row items-center gap-4 hover:border-blue-200 transition-colors">
                                         {/* Project Info */}
                                         <div className="flex items-center gap-3 flex-1 w-full">
-                                            <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[proj.color].text}`} />
+                                            <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                             <div>
                                                 <button 
                                                     onClick={() => onNavigateToProject(proj.id)}

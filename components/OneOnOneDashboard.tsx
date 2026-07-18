@@ -6,7 +6,7 @@ import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
 import { uid } from '../utils/uid';
-import { Calendar, CheckCircle, Clock, Smile, Meh, Frown, Bot, Mic, FileText, Sparkles, Save, Archive, BrainCircuit, ArrowRight, Plus, X } from 'lucide-react';
+import { CheckCircle, Smile, Meh, Frown, Bot, Mic, FileText, Sparkles, Archive, BrainCircuit, Plus, X } from 'lucide-react';
 import { generateCoachingAgenda, extractActionItems } from '../services/ai';
 import { Modal } from './ui/Modal';
 import { AsciiSpinner } from './ui/AsciiSpinner';
@@ -33,7 +33,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
             // Filter mocks for this employee or load from storage
             const empSessions = MOCK_1ON1S.filter(s => s.employeeId === employee.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setSessions(empSessions);
-            if (empSessions.length > 0) setSelectedSessionId(empSessions[0].id);
+            if (empSessions.length > 0) setSelectedSessionId(empSessions[0]!.id);
         }
     }, [isOpen, employee.id]);
 

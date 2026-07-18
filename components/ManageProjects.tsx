@@ -17,7 +17,7 @@ interface ManageProjectsProps {
 }
 
 export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpdateProjects, highlightedProjectId }) => {
-  const { t, formatDate } = useLanguage();
+  const { t } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -165,7 +165,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
               </div>
 
               <div className="flex items-start gap-3 pr-12 mb-2">
-                 <Folder className={`w-4 h-4 mt-1 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                 <Folder className={`w-4 h-4 mt-1 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                  <div>
                    <div className="flex items-center gap-2">
                        <h3 className="font-semibold text-charcoal-900 leading-tight">{p.name}</h3>
@@ -281,7 +281,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                     <div>
                         <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.status')}</label>
                         <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
-                            value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})}>
+                            value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as Project['status']})}>
                             <option value="active">{t('status.active')}</option>
                             <option value="opportunity">{t('status.opportunity')}</option>
                             <option value="completed">{t('status.completed')}</option>
@@ -291,7 +291,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                      <div>
                         <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.salesStage')}</label>
                         <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
-                            value={formData.stage || 'lead'} onChange={e => setFormData({...formData, stage: e.target.value as any})}>
+                            value={formData.stage || 'lead'} onChange={e => setFormData({...formData, stage: e.target.value as Project['stage']})}>
                             <option value="lead">{t('sales.stages.lead')}</option>
                             <option value="qualified">{t('sales.stages.qualified')}</option>
                             <option value="proposal">{t('sales.stages.proposal')}</option>
@@ -343,7 +343,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                      <input type="text" className="px-2 py-1 text-sm border border-charcoal-200 rounded outline-none flex-1" placeholder={t('projects.milestoneName')}
                         value={newMilestone.name} onChange={e => setNewMilestone({...newMilestone, name: e.target.value})} />
                      <select className="px-2 py-1 text-sm border border-charcoal-200 rounded outline-none bg-white"
-                        value={newMilestone.phase} onChange={e => setNewMilestone({...newMilestone, phase: e.target.value as any})}>
+                        value={newMilestone.phase} onChange={e => setNewMilestone({...newMilestone, phase: e.target.value as Milestone['phase']})}>
                         <option value="planning">Planning</option>
                         <option value="development">Dev</option>
                         <option value="testing">Test</option>
@@ -389,10 +389,10 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                   key={color}
                   type="button"
                   onClick={() => setFormData({...formData, color})}
-                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-transform ${PASTEL_VARIANTS[color].bg} ${PASTEL_VARIANTS[color].border} ${formData.color === color ? 'ring-2 ring-offset-2 ring-charcoal-400 scale-110' : 'hover:scale-105'}`}
+                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-transform ${(PASTEL_VARIANTS[color] ?? PASTEL_VARIANTS.gray).bg} ${(PASTEL_VARIANTS[color] ?? PASTEL_VARIANTS.gray).border} ${formData.color === color ? 'ring-2 ring-offset-2 ring-charcoal-400 scale-110' : 'hover:scale-105'}`}
                 >
                    {/* Preview Icon Style */}
-                   <Folder className={`w-4 h-4 ${PASTEL_VARIANTS[color].text}`} />
+                   <Folder className={`w-4 h-4 ${(PASTEL_VARIANTS[color] ?? PASTEL_VARIANTS.gray).text}`} />
                 </button>
               ))}
             </div>

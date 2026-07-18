@@ -56,7 +56,7 @@ export const CompetencyRadar: React.FC<CompetencyRadarProps> = ({ competencies }
         ))}
 
         {/* Axes */}
-        {competencies.map((c, i) => {
+        {competencies.map((_, i) => {
           const { x, y } = getCoords(levels, i, competencies.length);
           return (
             <line 

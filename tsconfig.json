@@ -23,6 +23,10 @@
         "./*"
       ]
     },
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedIndexedAccess": true,
     "allowImportingTsExtensions": true,
     "noEmit": true
   }

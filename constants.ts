@@ -366,17 +366,6 @@ export const MOCK_HOLIDAYS: PublicHoliday[] = [
 ];
 
 // --- Quarter Data (Truncated for brevity, logic remains same) ---
-const Q1_2026_OUTLOOK_V1: QuarterData = {
-    id: 'q1-2026-outlook-v1',
-    name: 'Q1 2026',
-    months: ['Jan', 'Feb', 'Mar'],
-    totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p3'), getP('p5')],
-    mustWinOpportunities: [getP('p6'), getP('p13')],
-    alternativeOpportunities: [],
-    notes: 'Outlook: Need to close Rampe 160 to fill capacity in Q1.'
-};
-
 const Q2_2026_OUTLOOK_V1: QuarterData = {
     id: 'q2-2026-outlook-v1',
     name: 'Q2 2026',
@@ -386,17 +375,6 @@ const Q2_2026_OUTLOOK_V1: QuarterData = {
     mustWinOpportunities: [getP('p6'), getP('p13')],
     alternativeOpportunities: [],
     notes: 'Long term outlook: Pipeline building needed.'
-};
-
-const Q1_2026_OUTLOOK_V2: QuarterData = {
-    id: 'q1-2026-outlook-v2',
-    name: 'Q1 2026',
-    months: ['Jan', 'Feb', 'Mar'],
-    totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p3'), getP('p5'), getP('p6')],
-    mustWinOpportunities: [getP('p13')],
-    alternativeOpportunities: [],
-    notes: 'Outlook: Strong start with Rampe secured. Focus on Smart City.'
 };
 
 const Q2_2026_OUTLOOK_V2: QuarterData = {
@@ -470,7 +448,7 @@ const ASSIGNMENTS_Q1_2026_ADJUSTED: Assignment[] = [
 
 // --- Version 3 ---
 const FORECAST_Q2_2026: QuarterData[] = [
-  FORECAST_Q1_2026_ADJUSTED[0],
+  FORECAST_Q1_2026_ADJUSTED[0]!,
   {
     id: 'q2-2026',
     name: 'Q2 2026',

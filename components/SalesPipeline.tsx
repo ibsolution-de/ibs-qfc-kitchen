@@ -8,7 +8,7 @@ import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { PASTEL_VARIANTS } from '../constants';
 import { GoogleGenAI } from "@google/genai";
-import { Plus, Target, DollarSign, TrendingUp, Search, Briefcase, Zap, AlertCircle, Sparkles } from 'lucide-react';
+import { Plus, Target, DollarSign, TrendingUp, Search, Briefcase, AlertCircle, Sparkles } from 'lucide-react';
 import { AsciiSpinner } from './ui/AsciiSpinner';
 import { uid } from '../utils/uid';
 import { parseBudget, formatEuro } from '../utils/money';
@@ -168,7 +168,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
                               .map(project => (
                                   <div key={project.id} className="bg-white p-3 rounded-lg border border-charcoal-200 shadow-sm hover:shadow-md transition-all group">
                                       <div className="flex justify-between items-start mb-2">
-                                          <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${PASTEL_VARIANTS[project.color].bg} ${PASTEL_VARIANTS[project.color].text}`}>
+                                          <div className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(PASTEL_VARIANTS[project.color] ?? PASTEL_VARIANTS.gray).bg} ${(PASTEL_VARIANTS[project.color] ?? PASTEL_VARIANTS.gray).text}`}>
                                               {project.client}
                                           </div>
                                           <div className="text-xs font-bold text-charcoal-400">

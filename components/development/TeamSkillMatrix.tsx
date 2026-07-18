@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Employee } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Search, Zap, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Zap, CheckCircle } from 'lucide-react';
 
 interface TeamSkillMatrixProps {
   employees: Employee[];

@@ -1,9 +1,7 @@
 
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole, Employee } from '../types';
-import { MOCK_EMPLOYEES } from '../constants';
-
+import React, { createContext, useContext, useState } from 'react';
+import { User, UserRole } from '../types';
 interface AuthContextType {
   user: User;
   setUser: (user: User) => void;

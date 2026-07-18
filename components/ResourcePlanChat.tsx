@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bot, Send, Minimize2, Settings, Terminal, Cpu, AlertTriangle, ChevronDown, Sparkles, ArrowRight, X } from 'lucide-react';
+import { Bot, Minimize2, Settings, Cpu, AlertTriangle, ChevronDown, Sparkles, ArrowRight, X } from 'lucide-react';
 import { useSettings } from '../contexts/SettingsContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { chatWithResourceData } from '../services/chatAi';
 import { Assignment, Employee, Project, Absence } from '../types';
-import { AsciiSpinner } from './ui/AsciiSpinner';
 
 interface ResourcePlanChatProps {
   employees: Employee[];

@@ -164,7 +164,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
                  {myProjects.length > 0 ? myProjects.map(p => (
                      <div key={p.id} className="p-4 rounded-lg border border-charcoal-100 flex items-center justify-between hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
                          <div className="flex items-center gap-3">
-                             <Folder className={`w-5 h-5 ${PASTEL_VARIANTS[p.color].text}`} />
+                             <Folder className={`w-5 h-5 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                              <div>
                                  <div className="font-medium text-charcoal-900">{p.name}</div>
                                  <div className="text-xs text-charcoal-500">{p.client} • {p.status}</div>
@@ -219,7 +219,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
                                          const proj = projects.find(p => p.id === a.projectId);
                                          if(!proj) return null;
                                          return (
-                                             <div key={a.id} className={`text-[10px] px-1.5 py-1 rounded truncate border ${PASTEL_VARIANTS[proj.color].bg} ${PASTEL_VARIANTS[proj.color].text} ${PASTEL_VARIANTS[proj.color].border}`}>
+                                             <div key={a.id} className={`text-[10px] px-1.5 py-1 rounded truncate border ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border}`}>
                                                  {proj.name}
                                              </div>
                                          )

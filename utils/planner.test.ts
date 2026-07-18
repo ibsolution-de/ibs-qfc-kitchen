@@ -39,9 +39,9 @@ describe('planner', () => {
       });
 
       expect(result.absences).toHaveLength(1);
-      expect(result.absences[0].id).toBe('abs-1');
+      expect(result.absences[0]!.id).toBe('abs-1');
       expect(result.assignments).toHaveLength(1);
-      expect(result.assignments[0]).toMatchObject({
+      expect(result.assignments[0]!).toMatchObject({
         employeeId,
         projectId,
         date: '2024-06-10',
@@ -63,9 +63,9 @@ describe('planner', () => {
       });
 
       expect(result.assignments).toHaveLength(1);
-      expect(result.assignments[0].id).toBe('a-1');
+      expect(result.assignments[0]!.id).toBe('a-1');
       expect(result.absences).toHaveLength(1);
-      expect(result.absences[0]).toMatchObject({
+      expect(result.absences[0]!).toMatchObject({
         employeeId,
         date: '2024-06-10',
         type: 'vacation',

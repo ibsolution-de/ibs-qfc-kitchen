@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Employee, IkigaiItem, IkigaiZone } from '../../types';
+import { IkigaiItem, IkigaiZone } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Plus, X } from 'lucide-react';
 import { uid } from '../../utils/uid';

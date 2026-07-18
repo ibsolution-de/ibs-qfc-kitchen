@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { Employee, Project, Assignment, IkigaiItem } from '../types';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Trash2, Edit2, Mail, Phone, Upload, User, Star, MapPin, Briefcase, UserPlus, Users, Search, Sparkles, Building2, X, MessageSquare, Target, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Edit2, Upload, Star, MapPin, Briefcase, UserPlus, Users, Sparkles, Building2, X, MessageSquare, Target, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { MOCK_COMPANY_DIRECTORY } from '../constants';
 import { uid } from '../utils/uid';
@@ -474,7 +474,7 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
                  <select 
                     className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm bg-charcoal-50"
                     value={formData.type}
-                    onChange={e => setFormData({...formData, type: e.target.value as any})}
+                    onChange={e => setFormData({...formData, type: e.target.value as Employee['type']})}
                  >
                      <option value="internal">Core Team</option>
                      <option value="external">Extended Team</option>

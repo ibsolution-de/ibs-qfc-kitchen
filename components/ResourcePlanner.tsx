@@ -7,16 +7,14 @@ import {
   endOfMonth, 
   addMonths, 
   isWeekend, 
-  isSameDay, 
   isToday,
   getISOWeek,
   startOfQuarter,
   addQuarters,
   getDay,
-  isSameMonth,
-  addDays
+  isSameMonth
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, X, Info, FileSpreadsheet, Share2, Check, GripVertical, Repeat, ArrowRight, Lock, Search, Filter, Folder, AlertCircle, Sun, Umbrella, BookOpen, PartyPopper, Ban, Flag, ExternalLink, CalendarCheck, Zap, PieChart, Activity, Briefcase, Calendar, Clock, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Info, Share2, Check, Repeat, Lock, Search, Filter, Folder, AlertCircle, Sun, Umbrella, BookOpen, PartyPopper, Flag, ExternalLink, CalendarCheck, Zap, Activity, Calendar, Clock, Trash2 } from 'lucide-react';
 import { Employee, Project, Assignment, TimeScale, Absence } from '../types';
 import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Button } from './ui/Button';
@@ -45,7 +43,13 @@ interface DraftAssignment {
   assignmentId?: string; // If editing existing
 }
 
-export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({ 
+// Discriminated union for the active project filter in the planner grid
+type ProjectFilter =
+  | { kind: 'all' }
+  | { kind: 'status'; status: 'active' | 'opportunity' }
+  | { kind: 'project'; projectId: string };
+
+export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   employees, 
   assignments, 
   absences, 
@@ -63,7 +67,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   // View State
   const [timeScale, setTimeScale] = useState<TimeScale>(TimeScale.MONTH);
   const [showLegend, setShowLegend] = useState(false);
-  const [activeProjectFilter, setActiveProjectFilter] = useState<string>('all');
+  const [activeProjectFilter, setActiveProjectFilter] = useState<ProjectFilter>({ kind: 'all' });
 
   // Interaction State
   const [selectedCell, setSelectedCell] = useState<{empId: string, date: Date} | null>(null);
@@ -84,7 +88,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   const [repeatDays, setRepeatDays] = useState<number[]>([]); // 0=Sun, 1=Mon...
 
   // Drag and Drop state
-  const [draggingEmpId, setDraggingEmpId] = useState<string | null>(null);
   const [draggingAssignmentId, setDraggingAssignmentId] = useState<string | null>(null);
 
   // Initialize date if initialDate prop changes significantly (value change, not just ref)
@@ -172,8 +175,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   const getProject = (id: string) => projects.find(p => p.id === id);
 
   // Get active project details (for milestone display)
-  const filteredProject = useMemo(() => 
-    projects.find(p => p.id === activeProjectFilter),
+  const filteredProject = useMemo(() =>
+    activeProjectFilter.kind === 'project'
+      ? projects.find(p => p.id === activeProjectFilter.projectId)
+      : undefined,
   [activeProjectFilter, projects]);
 
   // --- Statistics Calculation for Any Month ---
@@ -187,7 +192,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     let totalCapacity = 0;
     let totalPlanned = 0;
     let overloadedDaysCount = 0;
-    let workingDaysCount = 0; // Denominator for overload %
     const projectLoadMap = new Map<string, number>();
 
     // 1. Calculate Capacity & Working Days
@@ -204,7 +208,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         const isAbsent = absences.some(a => a.employeeId === emp.id && a.date === dStr);
         if (isAbsent) return;
 
-        workingDaysCount++; // This is a valid working slot
         totalCapacity += dailyCapacityFraction(emp);
 
         // 2. Calculate Overload
@@ -231,9 +234,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     });
 
     // Sort Projects
+    type ProjectStat = { id: string; val: number; project: Project };
     const projectStats = Array.from(projectLoadMap.entries())
         .map(([id, val]) => ({ id, val, project: getProject(id) }))
-        .filter(item => item.project) // Safety check
+        .filter((item): item is ProjectStat => Boolean(item.project))
         .sort((a, b) => b.val - a.val)
         .slice(0, 3); // Top 3 only for compact view
 
@@ -252,12 +256,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     e.dataTransfer.setData('assignmentId', assignment.id);
     e.dataTransfer.setData('empId', assignment.employeeId);
     e.dataTransfer.effectAllowed = "move";
-    setDraggingEmpId(assignment.employeeId);
     setDraggingAssignmentId(assignment.id);
   };
 
   const handleDragEnd = () => {
-    setDraggingEmpId(null);
     setDraggingAssignmentId(null);
   };
 
@@ -302,7 +304,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   const handleDrop = (e: React.DragEvent, targetEmpId: string, targetDate: Date) => {
     if (readOnly) return;
     e.preventDefault();
-    setDraggingEmpId(null);
     setDraggingAssignmentId(null);
     
     const assignmentId = e.dataTransfer.getData('assignmentId');
@@ -343,12 +344,6 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     if (readOnly) return;
     const newAssignments = assignments.filter(a => a.id !== assignmentId);
     onAssignmentChange(newAssignments);
-  };
-
-  const handleRemoveAbsence = (absenceId: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (readOnly) return;
-      onAbsenceChange(absences.filter(a => a.id !== absenceId));
   };
 
   const handleDeleteAbsenceFromModal = () => {
@@ -443,18 +438,13 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
       let cellAssignments = assignments.filter(a => a.employeeId === empId && a.date === dateStr);
       
-      if (activeProjectFilter === 'status:active') {
+      if (activeProjectFilter.kind === 'status') {
          cellAssignments = cellAssignments.filter(a => {
              const p = getProject(a.projectId);
-             return p && p.status === 'active';
+             return p && p.status === activeProjectFilter.status;
          });
-      } else if (activeProjectFilter === 'status:opportunity') {
-         cellAssignments = cellAssignments.filter(a => {
-             const p = getProject(a.projectId);
-             return p && p.status === 'opportunity';
-         });
-      } else if (activeProjectFilter !== 'all') {
-        cellAssignments = cellAssignments.filter(a => a.projectId === activeProjectFilter);
+      } else if (activeProjectFilter.kind === 'project') {
+        cellAssignments = cellAssignments.filter(a => a.projectId === activeProjectFilter.projectId);
       }
       
       return { assignments: cellAssignments, absence, holiday };
@@ -462,8 +452,8 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
   // Stats Calculator - Heatmap Logic
   const getEmployeeStats = (emp: Employee, monthDays: Date[]) => {
-      const monthStartStr = format(monthDays[0], 'yyyy-MM-dd');
-      const monthEndStr = format(monthDays[monthDays.length - 1], 'yyyy-MM-dd');
+      const monthStartStr = format(monthDays[0]!, 'yyyy-MM-dd');
+      const monthEndStr = format(monthDays[monthDays.length - 1]!, 'yyyy-MM-dd');
 
       const workingDays = monthDays.filter(d => {
           if (isWeekend(d)) return false;
@@ -592,8 +582,19 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
           <div className="relative flex items-center">
             <Filter className="absolute left-2.5 w-4 h-4 text-charcoal-400 pointer-events-none" />
             <select
-              value={activeProjectFilter}
-              onChange={(e) => setActiveProjectFilter(e.target.value)}
+              value={activeProjectFilter.kind === 'all' ? 'all' : activeProjectFilter.kind === 'status' ? `status:${activeProjectFilter.status}` : activeProjectFilter.projectId}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === 'all') {
+                  setActiveProjectFilter({ kind: 'all' });
+                } else if (value === 'status:active') {
+                  setActiveProjectFilter({ kind: 'status', status: 'active' });
+                } else if (value === 'status:opportunity') {
+                  setActiveProjectFilter({ kind: 'status', status: 'opportunity' });
+                } else {
+                  setActiveProjectFilter({ kind: 'project', projectId: value });
+                }
+              }}
               className="pl-9 pr-8 py-1.5 h-9 bg-white border border-charcoal-200 rounded-md text-sm font-medium text-charcoal-600 focus:outline-none focus:ring-2 focus:ring-charcoal-400 hover:bg-charcoal-50 appearance-none cursor-pointer min-w-[160px]"
             >
               <option value="all">{t('planner.allProjects')}</option>
@@ -630,8 +631,8 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
              const weeks: { week: number, count: number }[] = [];
              daysInMonth.forEach(day => {
                 const w = getISOWeek(day);
-                if (weeks.length > 0 && weeks[weeks.length - 1].week === w) {
-                    weeks[weeks.length - 1].count++;
+                if (weeks.length > 0 && weeks[weeks.length - 1]!.week === w) {
+                    weeks[weeks.length - 1]!.count++;
                 } else {
                     weeks.push({ week: w, count: 1 });
                 }
@@ -683,7 +684,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                          <div className="flex items-center gap-2">
                             {monthStats.projectStats.map(item => (
                                 <div key={item.id} className="flex items-center gap-1 px-1.5 py-0.5 bg-white border border-charcoal-200 rounded-full shadow-sm" title={`${item.project!.name} (${item.project!.client}): ${item.val}d`}>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${PASTEL_VARIANTS[item.project!.color].text.replace('text-', 'bg-')}`}></div>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${(PASTEL_VARIANTS[item.project!.color] ?? PASTEL_VARIANTS.gray).text.replace('text-', 'bg-')}`}></div>
                                     <span className="text-[10px] font-medium text-charcoal-600 max-w-[80px] truncate">{item.project!.name}</span>
                                 </div>
                             ))}
@@ -902,7 +903,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                       onDragEnd={handleDragEnd}
                                                       className={`
                                                          text-[9px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm select-none
-                                                         ${PASTEL_VARIANTS[proj.color].bg} ${PASTEL_VARIANTS[proj.color].text} ${PASTEL_VARIANTS[proj.color].border}
+                                                         ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border}
                                                          ${!readOnly ? 'cursor-move hover:opacity-90 active:scale-95' : 'cursor-default'}
                                                          transition-transform flex items-center justify-between gap-1
                                                       `}
@@ -1096,11 +1097,11 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                      const hours = allocationToHours(draft.allocation);
                                      
                                      return (
-                                         <div key={draft.projectId} className={`relative p-2.5 rounded-lg border flex flex-col gap-2 transition-all bg-white shadow-sm hover:shadow-md ${PASTEL_VARIANTS[proj.color].border}`}>
+                                         <div key={draft.projectId} className={`relative p-2.5 rounded-lg border flex flex-col gap-2 transition-all bg-white shadow-sm hover:shadow-md ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border}`}>
                                              {/* Header */}
                                              <div className="flex justify-between items-start gap-2">
                                                  <div className="min-w-0 flex items-center gap-2">
-                                                      <div className={`w-2 h-2 rounded-full ${PASTEL_VARIANTS[proj.color].bg} ring-1 ring-inset ring-black/5`} />
+                                                      <div className={`w-2 h-2 rounded-full ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg} ring-1 ring-inset ring-black/5`} />
                                                       <div className="truncate">
                                                          <div className="text-xs font-bold text-charcoal-900 truncate leading-none">{proj.name}</div>
                                                          <div className="text-[10px] text-charcoal-500 truncate leading-tight mt-0.5">{proj.client}</div>
@@ -1235,7 +1236,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                         ${project.isCritical ? 'border-l-4 border-l-red-400' : ''}
                                     `}
                                 >
-                                    <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[project.color].text}`} />
+                                    <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[project.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium text-charcoal-900 truncate">{project.name}</span>
@@ -1292,7 +1293,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                     if (!proj) return null;
                                     const hours = allocationToHours(draft.allocation);
                                     return (
-                                        <div key={draft.projectId} className={`text-[10px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm flex items-center gap-1 ${PASTEL_VARIANTS[proj.color].bg} ${PASTEL_VARIANTS[proj.color].text} ${PASTEL_VARIANTS[proj.color].border} ring-2 ring-amber-400`}>
+                                        <div key={draft.projectId} className={`text-[10px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm flex items-center gap-1 ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text} ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border} ring-2 ring-amber-400`}>
                                             <Folder className="w-2.5 h-2.5 flex-shrink-0" />
                                             <span className="truncate">{proj.name}</span>
                                             <span className="text-[8px] font-bold opacity-70 border border-current px-0.5 rounded whitespace-nowrap">
@@ -1344,7 +1345,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         <div className="space-y-1">
             {projects.map(p => (
                 <div key={p.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-charcoal-50 transition-colors">
-                    <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                    <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                     <div className="flex-1">
                         <div className="flex items-center gap-2">
                              <div className="text-sm font-medium text-charcoal-900">{p.name}</div>

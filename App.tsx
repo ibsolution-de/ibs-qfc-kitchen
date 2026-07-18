@@ -13,7 +13,7 @@ import { StrategyModule } from './components/StrategyModule';
 import { CreateVersionDialog } from './components/CreateVersionDialog';
 import { MyOverview } from './components/MyOverview';
 import { SalesPipeline } from './components/SalesPipeline';
-import { Assignment, PlanVersion, Project, Employee, Customer, Absence, ViewMode } from './types';
+import { Assignment, PlanVersion, Project, Employee, Customer, Absence } from './types';
 import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { uid } from './utils/uid';
@@ -46,7 +46,7 @@ const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 };
 
 const AppContent: React.FC = () => {
-  const { user, isRole } = useAuth();
+  const { isRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -61,7 +61,7 @@ const AppContent: React.FC = () => {
   // Active Version State - ensure we pick valid ID from loaded versions
   const [activeVersionId, setActiveVersionId] = useState<string>(() => {
       const loadedVersions = loadState(STORAGE_KEYS.VERSIONS, MOCK_VERSIONS);
-      return loadedVersions.length > 0 ? loadedVersions[loadedVersions.length - 1].id : 'v1';
+      return loadedVersions.length > 0 ? loadedVersions[loadedVersions.length - 1]!.id : 'v1';
   });
 
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
@@ -76,7 +76,7 @@ const AppContent: React.FC = () => {
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers)); }, [customers]);
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.VERSIONS, JSON.stringify(versions)); }, [versions]);
 
-  const latestVersion = versions[versions.length - 1];
+  const latestVersion = versions[versions.length - 1] ?? MOCK_VERSIONS[MOCK_VERSIONS.length - 1]!;
   const isLatestVersion = activeVersionId === latestVersion.id;
 
   const activeVersion = useMemo(() => {
@@ -99,7 +99,7 @@ const AppContent: React.FC = () => {
         if (vIndex === -1) return prev;
         const newVersions = [...prev];
         newVersions[vIndex] = {
-            ...newVersions[vIndex],
+            ...newVersions[vIndex]!,
             assignments: newAssignments
         };
         return newVersions;
@@ -116,7 +116,7 @@ const AppContent: React.FC = () => {
         if (vIndex === -1) return prev;
         const newVersions = [...prev];
         newVersions[vIndex] = {
-            ...newVersions[vIndex],
+            ...newVersions[vIndex]!,
             absences: newAbsences
         };
         return newVersions;
@@ -144,7 +144,7 @@ const AppContent: React.FC = () => {
         const newVersions = [...prev];
         const vIndex = newVersions.findIndex(v => v.id === activeVersionId);
         if (vIndex === -1) return prev;
-        const version = { ...newVersions[vIndex] };
+        const version = { ...newVersions[vIndex]! };
         const newForecastData = version.forecastData.map(q => {
             if (q.id === quarterId) {
                 return {

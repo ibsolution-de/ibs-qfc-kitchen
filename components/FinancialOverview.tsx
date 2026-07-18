@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Project, Assignment } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { TrendingUp, AlertTriangle, CheckCircle, BarChart3, PieChart, DollarSign, Calendar, TrendingDown, Folder, Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
+import { AlertTriangle, CheckCircle, BarChart3, PieChart, Folder, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { addMonths, startOfQuarter, endOfMonth } from 'date-fns';
 import { PASTEL_VARIANTS } from '../constants';
 import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
@@ -151,7 +151,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
       // Find a project for this client to determine color
       const project = projects.find(p => p.client === clientName);
       const colorKey = project?.color || 'gray';
-      return PASTEL_VARIANTS[colorKey];
+      return PASTEL_VARIANTS[colorKey] ?? PASTEL_VARIANTS.gray;
   };
 
   // Calculate global max revenue for scaling charts, avoid Math.max spread issues on empty array
@@ -369,7 +369,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                              <tr key={p.id} className="hover:bg-charcoal-50/50 transition-colors">
                                  <td className="px-6 py-4 font-medium text-charcoal-900">
                                      <div className="flex items-center gap-3">
-                                         <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                                         <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                          <div>
                                             <div>{p.name}</div>
                                             <div className="text-xs text-charcoal-500 font-normal">{p.client}</div>

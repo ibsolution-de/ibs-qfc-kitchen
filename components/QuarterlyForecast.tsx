@@ -1,10 +1,10 @@
 
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { QuarterData, Project, Assignment, Employee, Absence } from '../types';
 import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Badge } from './ui/Badge';
-import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, FileText, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown, Dices } from 'lucide-react';
+import { TrendingUp, AlertCircle, Calculator, Target, GitBranch, FileText, Trash2, Plus, X, Lock, Sparkles, BrainCircuit, Folder, Cpu, ShieldAlert, Activity, ChevronRight, Settings, CornerLeftDown, Dices, Zap } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useSettings } from '../contexts/SettingsContext';
@@ -235,10 +235,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   const getRealQuarterData = (quarter: QuarterData): QuarterData => {
     // Heuristic to parse QX YYYY from name
     const parts = quarter.name.split(' ');
-    if (parts.length < 2 || !parts[0].startsWith('Q')) return quarter;
+    if (parts.length < 2 || !parts[0]!.startsWith('Q')) return quarter;
     
-    const qIndex = parseInt(parts[0].replace('Q', '')) - 1;
-    const year = parseInt(parts[1]);
+    const qIndex = parseInt(parts[0]!.replace('Q', '')) - 1;
+    const year = parseInt(parts[1]!);
     if (isNaN(qIndex) || isNaN(year)) return quarter;
     
     const startMonth = qIndex * 3;
@@ -311,7 +311,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       if (metrics.totalCap === 0) return q.months.map((m, i) => ({ month: m, total: q.totalCapacity[i], available: 0, optimistic: 0 }));
 
       return q.months.map((month, index) => {
-          const total = q.totalCapacity[index];
+          const total = q.totalCapacity[index] ?? 0;
           const ratio = total / metrics.totalCap;
           const assigned = Math.round(metrics.assignedDays * ratio);
           const opportunities = Math.round(metrics.opportunityDays * ratio);
@@ -343,7 +343,12 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
     
     try {
         // Analyze the first quarter (most relevant), calculating real metrics first
-        const realData = getRealQuarterData(data[0]);
+        const firstQuarter = data[0];
+        if (!firstQuarter) {
+            setAnalysisResult(t('forecast.noData'));
+            return;
+        }
+        const realData = getRealQuarterData(firstQuarter);
         const result = await generateForecastAnalysis(realData, apiKey, language);
         setAnalysisResult(result);
     } catch (error) {
@@ -381,13 +386,13 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       results.sort((a, b) => a - b);
       
       // Calculate Percentiles
-      const p10Vol = results[Math.floor(iterations * 0.1)]; // Low probability of having ONLY this low volume (or less). So 90% chance it is higher. This is actually a "High Load" if we consider revenue, but "Low Load" if we consider work volume. Let's align with "Low Volume" scenario.
-      const p50Vol = results[Math.floor(iterations * 0.5)];
-      const p90Vol = results[Math.floor(iterations * 0.9)]; // 90% of outcomes are lower or equal. High volume scenario.
+      const p10Vol = results[Math.floor(iterations * 0.1)] ?? 0; // Low probability of having ONLY this low volume (or less). So 90% chance it is higher. This is actually a "High Load" if we consider revenue, but "Low Load" if we consider work volume. Let's align with "Low Volume" scenario.
+      const p50Vol = results[Math.floor(iterations * 0.5)] ?? 0;
+      const p90Vol = results[Math.floor(iterations * 0.9)] ?? 0; // 90% of outcomes are lower or equal. High volume scenario.
 
       // Histogram Data Preparation
-      const minVal = results[0];
-      const maxVal = results[results.length - 1];
+      const minVal = results[0] ?? 0;
+      const maxVal = results[results.length - 1] ?? 0;
       const binCount = 30;
       const binSize = (maxVal - minVal) / binCount || 1;
       
@@ -398,7 +403,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
 
       results.forEach(val => {
           const binIndex = Math.min(Math.floor((val - minVal) / binSize), binCount - 1);
-          histogram[binIndex].count++;
+          histogram[binIndex]!.count++;
       });
       
       // Normalize counts for display height (0-100)
@@ -410,9 +415,9 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       const overloadProbability = (overloadCount / iterations) * 100;
 
       setSimResult({
-          p10: p10Vol,
-          p50: p50Vol,
-          p90: p90Vol,
+          p10: p10Vol ?? 0,
+          p50: p50Vol ?? 0,
+          p90: p90Vol ?? 0,
           iterations: results,
           baseCapacity: baseAvailable,
           histogram,
@@ -607,7 +612,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                         {computedQuarter.runningProjects.length > 0 ? computedQuarter.runningProjects.map(p => (
                             <div key={p.id} className="group flex items-center justify-between p-2 rounded-md hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                                    <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                     <div className="truncate">
                                         <div className="text-sm font-medium text-charcoal-800 truncate">{p.name}</div>
                                         <div className="text-xs text-charcoal-500 truncate">{p.client}</div>
@@ -639,7 +644,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                             <div key={p.id} className="group p-3 rounded-lg border border-orange-100 bg-orange-50/30 hover:border-orange-200 transition-colors relative">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-start gap-2.5 flex-1 min-w-0 pr-2">
-                                        <Target className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                                        <Target className={`w-4 h-4 mt-0.5 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                         <div className="min-w-0">
                                             <div className="text-sm font-medium text-charcoal-800 truncate">{p.name}</div>
                                             <div className="text-xs text-charcoal-500">{p.client}</div>
@@ -728,7 +733,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded hover:bg-orange-50 group"
                                             >
                                                 <span className="flex items-center gap-2">
-                                                    <Folder className={`w-3 h-3 ${PASTEL_VARIANTS[p.color].text}`} />
+                                                    <Folder className={`w-3 h-3 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                                     <span className="text-xs text-charcoal-700 font-medium group-hover:text-orange-700">{p.name}</span>
                                                 </span>
                                                 <span className="text-[10px] text-charcoal-400">{p.client}</span>
@@ -754,7 +759,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                             <div key={p.id} className="group p-3 rounded-lg border border-blue-100 bg-blue-50/30 hover:border-blue-200 transition-colors relative">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-start gap-2.5 flex-1 min-w-0 pr-2">
-                                        <Folder className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                                        <Folder className={`w-4 h-4 mt-0.5 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                         <div className="min-w-0">
                                             <div className="text-sm font-medium text-charcoal-800 truncate">{p.name}</div>
                                             <div className="text-xs text-charcoal-500">{p.client}</div>
@@ -842,7 +847,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                                 className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded hover:bg-blue-50 group"
                                             >
                                                 <span className="flex items-center gap-2">
-                                                    <Folder className={`w-3 h-3 ${PASTEL_VARIANTS[p.color].text}`} />
+                                                    <Folder className={`w-3 h-3 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
                                                     <span className="text-xs text-charcoal-700 font-medium group-hover:text-blue-700">{p.name}</span>
                                                 </span>
                                                 <span className="text-[10px] text-charcoal-400">{p.client}</span>

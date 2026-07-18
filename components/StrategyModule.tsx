@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, Assignment, StrategicGoal, NorthStarMetric, StrategyPerspective } from '../types';
+import { Project, Assignment, StrategicGoal, StrategyPerspective } from '../types';
 import { MOCK_GOALS, MOCK_NORTH_STARS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
@@ -227,7 +227,7 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
     const radiusInner = 90;
     const radiusCenter = 50;
 
-    const createSector = (start: number, end: number, rIn: number, rOut: number, color: string) => {
+    const createSector = (start: number, end: number, rIn: number, rOut: number) => {
         const x1 = 150 + rOut * Math.cos(start);
         const y1 = 150 + rOut * Math.sin(start);
         const x2 = 150 + rOut * Math.cos(end);
@@ -265,7 +265,7 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
                     {sectors.map(({ metricSector, projectSectors }) => (
                         <g key={metricSector.id}>
                             <path
-                                d={createSector(metricSector.startAngle, metricSector.endAngle, radiusCenter + 5, radiusInner, metricSector.color)}
+                                d={createSector(metricSector.startAngle, metricSector.endAngle, radiusCenter + 5, radiusInner)}
                                 fill={metricSector.color}
                                 className="stroke-white stroke-2 hover:brightness-110 transition-all cursor-pointer shadow-sm"
                             >
@@ -274,7 +274,7 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
                             {projectSectors.map(s => (
                                 <path
                                     key={s.id}
-                                    d={createSector(s.startAngle, s.endAngle, radiusInner + 5, radiusOuter, s.color)}
+                                    d={createSector(s.startAngle, s.endAngle, radiusInner + 5, radiusOuter)}
                                     fill={s.color}
                                     className="opacity-60 hover:opacity-100 transition-opacity cursor-pointer stroke-white stroke-1"
                                 >

@@ -1,8 +1,8 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Sparkles, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Cpu, Zap, Shield, Activity, Target, Compass } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass } from 'lucide-react';
 import { PlanVersion, UserRole } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -11,7 +11,6 @@ import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
-import { AsciiSpinner } from './ui/AsciiSpinner';
 
 interface SidebarProps {
   versions: PlanVersion[];
