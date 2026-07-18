@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass } from 'lucide-react';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck } from 'lucide-react';
 import { PlanVersion, UserRole } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -279,7 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setIsChangelogOpen(true)}
                 className="text-[10px] text-charcoal-400 font-mono pr-2 opacity-50 hover:opacity-100 hover:text-blue-600 transition-all cursor-pointer"
             >
-                v1.3.0
+                v{__APP_VERSION__}
             </button>
         </div>
         
@@ -456,7 +456,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex gap-4 text-xs text-charcoal-500">
                         <div className="flex items-center gap-1.5">
                             <GitCommit className="w-3 h-3" />
-                            <span>{t('changelog.build')}</span>
+                            <span>{`Build: v${__APP_VERSION__}-stable`}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                             <Clock className="w-3 h-3" />
@@ -475,7 +475,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Terminal Content */}
             <div className="relative z-10 p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                
+                {/* v1.3.1 Stability Block */}
+                <div className="space-y-3 animate-fade-in-up">
+                    <div className="flex items-center gap-2 text-sm font-bold text-blue-700 border-b border-blue-100 pb-1 mb-2">
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>{t('changelog.v131.title')} — v{__APP_VERSION__}</span>
+                    </div>
+                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
+                        {(['dataSafety', 'overload', 'exports', 'performance', 'quality'] as const).map(item => (
+                            <li key={item} className="flex gap-3 items-start group">
+                                <span className="text-blue-600 mt-0.5 group-hover:text-blue-500 transition-colors">➜</span>
+                                <div>
+                                    <strong className="text-charcoal-900 block mb-0.5">{t(`changelog.v131.${item}`)}</strong>
+                                    {t(`changelog.v131.${item}Desc`)}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
                 {/* Sales Feature Block */}
                 <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="flex items-center gap-2 text-sm font-bold text-orange-700 border-b border-orange-100 pb-1 mb-2">
