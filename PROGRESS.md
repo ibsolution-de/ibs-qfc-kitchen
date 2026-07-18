@@ -65,3 +65,8 @@ Next up: Step 2.1 — TypeScript strict mode.
 Gates: lint ✅ build ✅ test ✅ (33)
 Notes: strict + noUnusedLocals/Parameters + noUncheckedIndexedAccess ON. 55 unused-code + 35 indexed-access errors fixed across 21 files. Dead: draggingEmpId, handleRemoveAbsence, workingDaysCount, Q1_OUTLOOK mocks, ~20 dead imports. Type predicates replace filter-narrowing; PASTEL fallback everywhere; 4 as-any select casts typed; ProjectFilter discriminated union in planner; forecast.noData key added.
 Next up: Step 2.2 — build-time Tailwind (replace CDN). RISKY: requires visual screenshot comparison before commit.
+
+## 2026-07-18 Step 2.2 — Build-time Tailwind — 4bd1f1d
+Gates: lint ✅ build ✅ test ✅ (33)
+Notes: tailwindcss v4 + @tailwindcss/vite; index.css @theme ports all colors/fonts/animations; @utility for animate-in/fade-in/zoom-in-95/pattern-diagonal-lines-sm/bg-stripes-gray/custom-scrollbar/markdown-prose; base layer ports scrollbars/glass-panel/hover-card/tech-pattern. Badge ring-ring→charcoal-400; PASTEL_VARIANTS.dot replaces class-string surgery. Verified: all used classes present in dist css (shimmer/scale-in unused→tree-shaken, correct); no CDN refs in dist; boot smoke test renders identical DOM text.
+Next up: Step 2.3 — Shared UI primitives.
