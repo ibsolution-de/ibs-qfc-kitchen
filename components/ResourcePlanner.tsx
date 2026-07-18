@@ -546,9 +546,9 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       <div className="flex-none bg-white border-b border-charcoal-200 px-6 py-4 flex items-center justify-between z-10">
         <div className="flex items-center gap-4">
           <div className="flex items-center bg-white rounded-md shadow-sm border border-charcoal-200 p-0.5">
-            <button onClick={handlePrev} className="p-1.5 hover:bg-charcoal-100 rounded-md text-charcoal-500"><ChevronLeft className="w-5 h-5" /></button>
+            <button onClick={handlePrev} aria-label={t('planner.previousMonth')} className="p-1.5 hover:bg-charcoal-100 rounded-md text-charcoal-500"><ChevronLeft className="w-5 h-5" /></button>
             <div className="px-4 font-semibold text-charcoal-800 min-w-[160px] text-center">{headerTitle}</div>
-            <button onClick={handleNext} className="p-1.5 hover:bg-charcoal-100 rounded-md text-charcoal-500"><ChevronRight className="w-5 h-5" /></button>
+            <button onClick={handleNext} aria-label={t('planner.nextMonth')} className="p-1.5 hover:bg-charcoal-100 rounded-md text-charcoal-500"><ChevronRight className="w-5 h-5" /></button>
           </div>
           
           <Button variant="ghost" size="sm" onClick={handleTodayJump} className="text-charcoal-600 border border-charcoal-200 hover:bg-charcoal-50">
@@ -583,8 +583,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         <div className="flex items-center gap-3">
           {/* Project Filter */}
           <div className="relative flex items-center">
+            <label htmlFor="project-filter" className="sr-only">{t('planner.filterProject')}</label>
             <Filter className="absolute left-2.5 w-4 h-4 text-charcoal-400 pointer-events-none" />
             <select
+              id="project-filter"
               value={activeProjectFilter.kind === 'all' ? 'all' : activeProjectFilter.kind === 'status' ? `status:${activeProjectFilter.status}` : activeProjectFilter.projectId}
               onChange={(e) => {
                 const value = e.target.value;
@@ -612,7 +614,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none border-l-4 border-l-transparent border-r-4 border-r-transparent border-t-4 border-t-charcoal-400"></div>
           </div>
 
-          <button onClick={() => setShowLegend(true)} className={`p-2 rounded-md transition-colors ${showLegend ? 'bg-blue-100 text-blue-700' : 'hover:bg-charcoal-100 text-charcoal-500'}`}>
+          <button onClick={() => setShowLegend(true)} aria-label={t('planner.legend')} className={`p-2 rounded-md transition-colors ${showLegend ? 'bg-blue-100 text-blue-700' : 'hover:bg-charcoal-100 text-charcoal-500'}`}>
             <Info className="w-5 h-5" />
           </button>
           <Button variant="outline" className="gap-2" size="sm" onClick={handleExportCSV}>

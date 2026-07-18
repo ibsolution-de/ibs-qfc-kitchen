@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass } from 'lucide-react';
 import { PlanVersion, UserRole } from '../types';
@@ -32,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const firstRoleItemRef = useRef<HTMLButtonElement>(null);
 
   // Local state for Settings Modal
   const [localLang, setLocalLang] = useState(language);
@@ -46,6 +47,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
         setLocalApiKey(apiKey);
     }
   }, [isSettingsModalOpen, language, isAiEnabled, apiKey]);
+
+  useEffect(() => {
+    if (isRoleSwitcherOpen) {
+      firstRoleItemRef.current?.focus();
+    }
+  }, [isRoleSwitcherOpen]);
+
+  useEffect(() => {
+    if (!isRoleSwitcherOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsRoleSwitcherOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isRoleSwitcherOpen]);
 
   const handleSaveSettings = () => {
       setLanguage(localLang);
@@ -179,6 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <button 
                 onClick={onCreateVersion}
                 className="text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
+                aria-label={t('sidebar.saveNewVersion')}
                 title={t('sidebar.saveNewVersion')}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -265,6 +286,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* User Profile / Role Switcher Trigger */}
         <button 
             onClick={() => setIsRoleSwitcherOpen(!isRoleSwitcherOpen)}
+            aria-expanded={isRoleSwitcherOpen}
+            aria-haspopup="listbox"
             className="mt-4 w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-charcoal-100 transition-all duration-200 text-left hover:shadow-sm border border-transparent hover:border-charcoal-200"
         >
             <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
@@ -285,6 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
                 {['pm', 'employee', 'bl', 'sales'].map((role) => (
                     <button
+                        ref={role === 'pm' ? firstRoleItemRef : undefined}
                         key={role}
                         onClick={() => {
                             loginAs(role as UserRole);

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useId } from 'react';
 import { X } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ModalProps {
   isOpen: boolean;
@@ -11,6 +12,22 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md', variant = 'default' }) => {
+  const titleId = useId();
+  const panelRef = useFocusTrap<HTMLDivElement>(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const sizeClasses = {
@@ -32,15 +49,24 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, 
   const backdropClass = variant === 'dark' ? 'bg-black/60' : 'bg-black/25';
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${backdropClass} backdrop-blur-sm`}>
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${backdropClass} backdrop-blur-sm`}
+      onClick={onClose}
+      role="presentation"
+    >
       <div 
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`${themeClasses} rounded-xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200`}
         onClick={e => e.stopPropagation()}
       >
         <div className={`flex items-center justify-between p-4 border-b ${headerBorder}`}>
-          <h3 className={`text-lg font-semibold ${titleColor}`}>{title}</h3>
+          <h3 id={titleId} className={`text-lg font-semibold ${titleColor}`}>{title}</h3>
           <button 
             onClick={onClose}
+            aria-label="Close"
             className={`p-1 rounded-md transition-colors ${closeBtnClass}`}
           >
             <X className="w-5 h-5" />

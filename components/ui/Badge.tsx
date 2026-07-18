@@ -10,12 +10,18 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ color, children, className = '', onClick }) => {
   const styles = PASTEL_VARIANTS[color] || PASTEL_VARIANTS.gray;
-  
+  const baseClasses = `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-charcoal-400 focus:ring-offset-2 ${styles.bg} ${styles.text} ${styles.border} ${className} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`;
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={baseClasses}>
+        {children}
+      </button>
+    );
+  }
+
   return (
-    <span 
-      onClick={onClick}
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-charcoal-400 focus:ring-offset-2 ${styles.bg} ${styles.text} ${styles.border} ${className} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}
-    >
+    <span className={baseClasses}>
       {children}
     </span>
   );

@@ -100,6 +100,8 @@ export const translations = {
       allProjects: 'All Projects',
       filterActive: 'Active Projects',
       filterOpportunity: 'Opportunities',
+      previousMonth: 'Previous month',
+      nextMonth: 'Next month',
       allocation: 'Allocation',
       assignProject: 'Assign Project',
       markAbsence: 'Mark Absence',
@@ -462,7 +464,14 @@ export const translations = {
       suggestion4: 'Are there any resource conflicts?',
       settings: 'Settings',
       minimize: 'Minimize',
-      close: 'Close'
+      close: 'Close',
+      restore: 'Restore chat',
+      triggerLabel: 'Open resource assistant',
+      send: 'Send message',
+      confirmCloseTitle: 'Close Assistant',
+      confirmCloseMessage: 'Closing the assistant will clear the current conversation. Do you want to continue?',
+      confirmCloseConfirm: 'Close',
+      confirmCloseCancel: 'Cancel'
     },
     status: {
       active: 'Active',
@@ -580,6 +589,8 @@ export const translations = {
       allProjects: 'Alle Projekte',
       filterActive: 'Aktive Projekte',
       filterOpportunity: 'Chancen',
+      previousMonth: 'Vorheriger Monat',
+      nextMonth: 'Nächster Monat',
       allocation: 'Auslastung',
       assignProject: 'Projekt zuweisen',
       markAbsence: 'Abwesenheit',
@@ -942,7 +953,14 @@ export const translations = {
       suggestion4: 'Gibt es Ressourcenkonflikte?',
       settings: 'Einstellungen',
       minimize: 'Minimieren',
-      close: 'Schließen'
+      close: 'Schließen',
+      restore: 'Chat wiederherstellen',
+      triggerLabel: 'Ressourcen-Assistent öffnen',
+      send: 'Nachricht senden',
+      confirmCloseTitle: 'Assistent schließen',
+      confirmCloseMessage: 'Beim Schließen des Assistenten wird die aktuelle Konversation gelöscht. Möchten Sie fortfahren?',
+      confirmCloseConfirm: 'Schließen',
+      confirmCloseCancel: 'Abbrechen'
     },
     status: {
       active: 'Aktiv',
