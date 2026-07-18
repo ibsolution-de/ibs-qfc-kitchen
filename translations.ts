@@ -156,7 +156,11 @@ export const translations = {
       probability: 'Win Probability',
       salesStage: 'Pipeline Stage',
       delete: 'Delete',
-      deleteTitle: 'Delete Project'
+      deleteTitle: 'Delete Project',
+      validation: {
+        dates: 'End date must be on or after the start date.',
+        required: 'Project name and client are required.'
+      }
     },
     sidebar: {
       myOverview: 'My Overview',
@@ -303,7 +307,10 @@ export const translations = {
       skillMatrix: 'Skill Matrix',
       directory: 'Directory',
       delete: 'Delete',
-      deleteTitle: 'Delete Employee'
+      deleteTitle: 'Delete Employee',
+      validation: {
+        required: 'Name and role are required.'
+      }
     },
     development: {
       title: 'Positioning & Development',
@@ -355,7 +362,10 @@ export const translations = {
       onTrack: 'On Track',
       noProjects: 'No active projects for this customer.',
       delete: 'Delete',
-      deleteTitle: 'Delete Customer'
+      deleteTitle: 'Delete Customer',
+      validation: {
+        required: 'Customer name and email are required.'
+      }
     },
     financials: {
         title: 'Financial Overview',
@@ -626,7 +636,11 @@ export const translations = {
       probability: 'Gewinnwahrscheinlichkeit',
       salesStage: 'Pipeline Phase',
       delete: 'Löschen',
-      deleteTitle: 'Projekt löschen'
+      deleteTitle: 'Projekt löschen',
+      validation: {
+        dates: 'Enddatum muss am oder nach dem Startdatum liegen.',
+        required: 'Projektname und Kunde sind Pflichtfelder.'
+      }
     },
     sidebar: {
       myOverview: 'Meine Übersicht',
@@ -773,7 +787,10 @@ export const translations = {
       skillMatrix: 'Skill Matrix',
       directory: 'Verzeichnis',
       delete: 'Löschen',
-      deleteTitle: 'Mitarbeiter löschen'
+      deleteTitle: 'Mitarbeiter löschen',
+      validation: {
+        required: 'Name und Rolle sind Pflichtfelder.'
+      }
     },
     development: {
       title: 'Standortbestimmung & Entwicklung',
@@ -825,7 +842,10 @@ export const translations = {
       onTrack: 'Im Plan',
       noProjects: 'Keine aktiven Projekte für diesen Kunden.',
       delete: 'Löschen',
-      deleteTitle: 'Kunden löschen'
+      deleteTitle: 'Kunden löschen',
+      validation: {
+        required: 'Kundenname und E-Mail sind Pflichtfelder.'
+      }
     },
     financials: {
         title: 'Finanzübersicht',
