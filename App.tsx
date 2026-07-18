@@ -1,18 +1,10 @@
 
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { ResourcePlanner } from './components/ResourcePlanner';
-import { QuarterlyForecast } from './components/QuarterlyForecast';
-import { ManageTeam } from './components/ManageTeam';
-import { ManageProjects } from './components/ManageProjects';
-import { ManageCustomers } from './components/ManageCustomers';
-import { FinancialOverview } from './components/FinancialOverview';
-import { StrategyModule } from './components/StrategyModule';
 import { CreateVersionDialog } from './components/CreateVersionDialog';
-import { MyOverview } from './components/MyOverview';
-import { SalesPipeline } from './components/SalesPipeline';
 import { Assignment, PlanVersion, Project, Employee, Customer, Absence } from './types';
 import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -20,6 +12,16 @@ import { useLanguage } from './contexts/LanguageContext';
 import { uid } from './utils/uid';
 import { useToday } from './hooks/useToday';
 import { useToast } from './components/ui/Toast';
+import { AsciiSpinner } from './components/ui/AsciiSpinner';
+
+const QuarterlyForecast = React.lazy(() => import('./components/QuarterlyForecast').then(m => ({ default: m.QuarterlyForecast })));
+const ManageTeam = React.lazy(() => import('./components/ManageTeam').then(m => ({ default: m.ManageTeam })));
+const ManageProjects = React.lazy(() => import('./components/ManageProjects').then(m => ({ default: m.ManageProjects })));
+const ManageCustomers = React.lazy(() => import('./components/ManageCustomers').then(m => ({ default: m.ManageCustomers })));
+const FinancialOverview = React.lazy(() => import('./components/FinancialOverview').then(m => ({ default: m.FinancialOverview })));
+const StrategyModule = React.lazy(() => import('./components/StrategyModule').then(m => ({ default: m.StrategyModule })));
+const MyOverview = React.lazy(() => import('./components/MyOverview').then(m => ({ default: m.MyOverview })));
+const SalesPipeline = React.lazy(() => import('./components/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'ibs_qfc_employees_v3',
@@ -202,6 +204,14 @@ const AppContent: React.FC = () => {
         {/* Top Fade Gradient for depth */}
         <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-charcoal-50 to-transparent z-10 pointer-events-none" />
         
+        <Suspense
+          fallback={
+            <div className="flex-1 flex flex-col items-center justify-center h-full text-charcoal-600">
+              <AsciiSpinner className="text-2xl mb-2" />
+              <span className="text-sm font-medium">{t('common.loading')}</span>
+            </div>
+          }
+        >
         <Routes>
             <Route path="/" element={<Navigate to={isRole('employee') ? '/my-overview' : (isRole('sales') ? '/sales-pipeline' : '/planner')} replace />} />
             
@@ -323,6 +333,7 @@ const AppContent: React.FC = () => {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
 
       <CreateVersionDialog 

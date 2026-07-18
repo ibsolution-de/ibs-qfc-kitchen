@@ -8,6 +8,9 @@ export const translations = {
       bl: 'Division Manager (BL)',
       sales: 'Sales Manager'
     },
+    common: {
+      loading: 'Loading…'
+    },
     myOverview: {
       title: 'My Overview',
       subtitle: 'Your schedule and tasks',
@@ -496,6 +499,9 @@ export const translations = {
       pm: 'Projektleiter (PM)',
       bl: 'Bereichsleiter (BL)',
       sales: 'Sales Manager'
+    },
+    common: {
+      loading: 'Laden…'
     },
     myOverview: {
       title: 'Meine Übersicht',

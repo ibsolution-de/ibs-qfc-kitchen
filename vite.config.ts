@@ -20,6 +20,31 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rolldownOptions: {
+          output: {
+            codeSplitting: {
+              groups: [
+                {
+                  name: 'vendor-react',
+                  test: /node_modules[\\/](react|react-dom|react-router(?:-dom)?)[\\/]/,
+                  priority: 3
+                },
+                {
+                  name: 'vendor-ai',
+                  test: /node_modules[\\/](@google[\\/]genai)[\\/]/,
+                  priority: 2
+                },
+                {
+                  name: 'vendor-date',
+                  test: /node_modules[\\/](date-fns)[\\/]/,
+                  priority: 1
+                }
+              ]
+            }
+          }
+        }
       }
     };
 });
