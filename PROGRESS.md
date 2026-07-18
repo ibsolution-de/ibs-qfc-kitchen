@@ -32,7 +32,7 @@ Gates: lint ✅ build ✅ test ✅ (27 tests, +utils/export)
 Notes: planner Export → real CSV; ManageCustomers full CRUD wired via onUpdateCustomers; StrategyModule Add Goal modal; forecast Export PPT→real JSON, SAP button removed, fake AF-id/latency labels replaced with AI_MODEL_FORECAST const; Sidebar build date constant.
 Next up: Step 1.4 — date-fns locale formatting.
 
-## 2026-07-18 Step 1.4 — date-fns locale formatting — 6beed4e
+## 2026-07-18 Step 1.4 — date-fns locale formatting — 340aca9
 Gates: lint ✅ build ✅ test ✅ (27)
 Notes: formatDate now fnsFormat with de locale; EEEE/EEE bug + MM gap gone. Minor: German short weekday now locale-standard ("Di." style) instead of custom 2-letter.
 Next up: Step 1.5 — StrategyModule repairs.
