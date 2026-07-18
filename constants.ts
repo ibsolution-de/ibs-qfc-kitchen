@@ -4,12 +4,12 @@ import { Project, Employee, QuarterData, Assignment, PlanVersion, Customer, Abse
 import { eachDayOfInterval, format, getDay, isWeekend, getISOWeek } from 'date-fns';
 
 export const PASTEL_VARIANTS = {
-  blue: { bg: 'bg-pastel-blue', text: 'text-pastel-blueText', border: 'border-blue-200' },
-  green: { bg: 'bg-pastel-green', text: 'text-pastel-greenText', border: 'border-green-200' },
-  purple: { bg: 'bg-pastel-purple', text: 'text-pastel-purpleText', border: 'border-purple-200' },
-  orange: { bg: 'bg-pastel-orange', text: 'text-pastel-orangeText', border: 'border-orange-200' },
-  pink: { bg: 'bg-pastel-pink', text: 'text-pastel-pinkText', border: 'border-pink-200' },
-  gray: { bg: 'bg-pastel-gray', text: 'text-pastel-grayText', border: 'border-gray-200' },
+  blue: { bg: 'bg-pastel-blue', text: 'text-pastel-blueText', border: 'border-blue-200', dot: 'bg-pastel-blueText' },
+  green: { bg: 'bg-pastel-green', text: 'text-pastel-greenText', border: 'border-green-200', dot: 'bg-pastel-greenText' },
+  purple: { bg: 'bg-pastel-purple', text: 'text-pastel-purpleText', border: 'border-purple-200', dot: 'bg-pastel-purpleText' },
+  orange: { bg: 'bg-pastel-orange', text: 'text-pastel-orangeText', border: 'border-orange-200', dot: 'bg-pastel-orangeText' },
+  pink: { bg: 'bg-pastel-pink', text: 'text-pastel-pinkText', border: 'border-pink-200', dot: 'bg-pastel-pinkText' },
+  gray: { bg: 'bg-pastel-gray', text: 'text-pastel-grayText', border: 'border-gray-200', dot: 'bg-pastel-grayText' },
 };
 
 // MOCK 1:1 SESSIONS

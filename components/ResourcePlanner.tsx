@@ -684,7 +684,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                          <div className="flex items-center gap-2">
                             {monthStats.projectStats.map(item => (
                                 <div key={item.id} className="flex items-center gap-1 px-1.5 py-0.5 bg-white border border-charcoal-200 rounded-full shadow-sm" title={`${item.project!.name} (${item.project!.client}): ${item.val}d`}>
-                                    <div className={`w-1.5 h-1.5 rounded-full ${(PASTEL_VARIANTS[item.project!.color] ?? PASTEL_VARIANTS.gray).text.replace('text-', 'bg-')}`}></div>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${(PASTEL_VARIANTS[item.project!.color] ?? PASTEL_VARIANTS.gray).dot}`}></div>
                                     <span className="text-[10px] font-medium text-charcoal-600 max-w-[80px] truncate">{item.project!.name}</span>
                                 </div>
                             ))}

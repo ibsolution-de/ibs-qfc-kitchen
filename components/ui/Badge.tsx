@@ -14,7 +14,7 @@ export const Badge: React.FC<BadgeProps> = ({ color, children, className = '', o
   return (
     <span 
       onClick={onClick}
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${styles.bg} ${styles.text} ${styles.border} ${className} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-charcoal-400 focus:ring-offset-2 ${styles.bg} ${styles.text} ${styles.border} ${className} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}
     >
       {children}
     </span>
