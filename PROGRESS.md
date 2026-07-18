@@ -85,3 +85,8 @@ Next up: Step 2.5 — Modal & focus accessibility.
 Gates: lint ✅ build ✅ test ✅ (57, +8 Modal a11y tests)
 Notes: Modal full a11y (Escape, backdrop, trap, restore, aria); chat conditional render (no focus into hidden UI) + close-confirm + real restore button; sidebar popover aria/Escape; Badge→button when clickable; planner aria-labels + sr-only select label; hooks/useFocusTrap.ts.
 Next up: Step 2.6 — business-math test coverage (utils/forecast extraction). PHASE 2 finale.
+
+## 2026-07-18 Step 2.6 — Business-math test coverage — 4346956
+Gates: lint ✅ build ✅ test ✅ (74, +17 forecast tests)
+Notes: utils/forecast.ts (parseQuarterName/computeQuarterCapacity/computeMonthlyBreakdown/runMonteCarloSimulation w/ injectable rng). Fixes: rawAvailable exposed (red negatives live), histogram raw counts, probability 0/100 honored (was || 50). PHASE 2 (P1) COMPLETE.
+Next up: Phase 3 — Step 3.1 ResourcePlanner render performance.
