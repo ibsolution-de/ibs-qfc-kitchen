@@ -5,11 +5,12 @@ import { MOCK_GOALS, MOCK_NORTH_STARS } from '../constants';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Compass, Target, Map as MapIcon, Bot, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus } from 'lucide-react';
+import { Target, Map as MapIcon, Bot, FileText, Send, Sparkles, AlertCircle, CheckCircle, Info, Plus } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { AI_MODEL_FORECAST } from '../services/ai';
 import { useSettings } from '../contexts/SettingsContext';
 import { uid } from '../utils/uid';
+import { PageHeader } from './ui/PageHeader';
 
 interface StrategyModuleProps {
   projects: Project[];
@@ -464,15 +465,7 @@ export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assign
   return (
     <div className="h-full flex flex-col bg-gray-50/50 overflow-hidden relative tech-pattern">
        <div className="p-6 pb-2">
-           <div className="max-w-7xl mx-auto flex items-end justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight flex items-center gap-3">
-                        <Compass className="w-7 h-7 text-blue-600" />
-                        {t('strategy.title')}
-                    </h1>
-                    <p className="text-charcoal-500 mt-1">{t('strategy.subtitle')}</p>
-                </div>
-           </div>
+           <PageHeader title={t('strategy.title')} subtitle={t('strategy.subtitle')} />
 
            {/* Tabs */}
            <div className="max-w-7xl mx-auto flex gap-1 bg-charcoal-100/50 p-1 rounded-xl w-fit">

@@ -154,7 +154,9 @@ export const translations = {
       milestoneName: 'Milestone Name',
       phase: 'Phase',
       probability: 'Win Probability',
-      salesStage: 'Pipeline Stage'
+      salesStage: 'Pipeline Stage',
+      delete: 'Delete',
+      deleteTitle: 'Delete Project'
     },
     sidebar: {
       myOverview: 'My Overview',
@@ -299,7 +301,9 @@ export const translations = {
       open1on1: 'Open 1:1 Dashboard',
       openDevelopment: 'Development & Positioning',
       skillMatrix: 'Skill Matrix',
-      directory: 'Directory'
+      directory: 'Directory',
+      delete: 'Delete',
+      deleteTitle: 'Delete Employee'
     },
     development: {
       title: 'Positioning & Development',
@@ -349,7 +353,9 @@ export const translations = {
       planned: 'Planned',
       gap: 'Gap',
       onTrack: 'On Track',
-      noProjects: 'No active projects for this customer.'
+      noProjects: 'No active projects for this customer.',
+      delete: 'Delete',
+      deleteTitle: 'Delete Customer'
     },
     financials: {
         title: 'Financial Overview',
@@ -453,6 +459,16 @@ export const translations = {
       opportunity: 'Opportunity',
       completed: 'Completed',
       on_hold: 'On Hold'
+    },
+    toast: {
+      employeeSaved: 'Employee saved successfully.',
+      employeeDeleted: 'Employee deleted successfully.',
+      projectSaved: 'Project saved successfully.',
+      projectDeleted: 'Project deleted successfully.',
+      customerSaved: 'Customer saved successfully.',
+      customerDeleted: 'Customer deleted successfully.',
+      versionCreated: 'New version created successfully.',
+      csvExported: 'CSV exported successfully.'
     }
   },
   de: {
@@ -608,7 +624,9 @@ export const translations = {
       milestoneName: 'Name',
       phase: 'Phase',
       probability: 'Gewinnwahrscheinlichkeit',
-      salesStage: 'Pipeline Phase'
+      salesStage: 'Pipeline Phase',
+      delete: 'Löschen',
+      deleteTitle: 'Projekt löschen'
     },
     sidebar: {
       myOverview: 'Meine Übersicht',
@@ -753,7 +771,9 @@ export const translations = {
       open1on1: '1:1 Dashboard öffnen',
       openDevelopment: 'Entwicklung & Standort',
       skillMatrix: 'Skill Matrix',
-      directory: 'Verzeichnis'
+      directory: 'Verzeichnis',
+      delete: 'Löschen',
+      deleteTitle: 'Mitarbeiter löschen'
     },
     development: {
       title: 'Standortbestimmung & Entwicklung',
@@ -803,7 +823,9 @@ export const translations = {
       planned: 'Geplant',
       gap: 'Lücke',
       onTrack: 'Im Plan',
-      noProjects: 'Keine aktiven Projekte für diesen Kunden.'
+      noProjects: 'Keine aktiven Projekte für diesen Kunden.',
+      delete: 'Löschen',
+      deleteTitle: 'Kunden löschen'
     },
     financials: {
         title: 'Finanzübersicht',
@@ -907,6 +929,16 @@ export const translations = {
       opportunity: 'Chance',
       completed: 'Abgeschlossen',
       on_hold: 'Pausiert'
+    },
+    toast: {
+      employeeSaved: 'Mitarbeiter erfolgreich gespeichert.',
+      employeeDeleted: 'Mitarbeiter erfolgreich gelöscht.',
+      projectSaved: 'Projekt erfolgreich gespeichert.',
+      projectDeleted: 'Projekt erfolgreich gelöscht.',
+      customerSaved: 'Kunde erfolgreich gespeichert.',
+      customerDeleted: 'Kunde erfolgreich gelöscht.',
+      versionCreated: 'Neue Version erfolgreich erstellt.',
+      csvExported: 'CSV erfolgreich exportiert.'
     }
   }
 };

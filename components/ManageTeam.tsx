@@ -13,6 +13,10 @@ import { OneOnOneDashboard } from './OneOnOneDashboard';
 import { CompetencyRadar } from './development/CompetencyRadar';
 import { IkigaiBuilder } from './development/IkigaiBuilder';
 import { TeamSkillMatrix } from './development/TeamSkillMatrix';
+import { PageHeader } from './ui/PageHeader';
+import { FormField, TextInput, SelectInput, inputClass } from './ui/FormField';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
 
 interface ManageTeamProps {
   employees: Employee[];
@@ -126,6 +130,7 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
     assignments = []
 }) => {
   const { t } = useLanguage();
+  const { success } = useToast();
   const [activeTab, setActiveTab] = useState<'directory' | 'matrix'>('directory');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -153,6 +158,7 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
     department: 'Software Engineering'
   });
   const [skillInput, setSkillInput] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Categorize Employees
   const coreTeam = employees.filter(e => e.type === 'internal' || !e.type);
@@ -248,9 +254,14 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm(t('team.confirmDelete'))) {
-      onUpdateEmployees(employees.filter(e => e.id !== id));
-    }
+    setDeleteId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteId) return;
+    onUpdateEmployees(employees.filter(e => e.id !== deleteId));
+    success(t('toast.employeeDeleted'));
+    setDeleteId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -270,6 +281,7 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
       };
       onUpdateEmployees([...employees, newEmp]);
     }
+    success(t('toast.employeeSaved'));
     setIsModalOpen(false);
   };
 
@@ -305,20 +317,20 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('team.title')}</h1>
-            <p className="text-charcoal-500 mt-1">{t('team.subtitle')}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => handleAdd('future')} variant="secondary" className="gap-2 border-dashed border-charcoal-300 text-charcoal-600 hover:text-blue-600 hover:border-blue-300 bg-white">
-                <UserPlus className="w-4 h-4" /> {t('team.addFutureHire')}
-            </Button>
-            <Button onClick={() => handleAdd('internal')} className="gap-2">
-                <Plus className="w-4 h-4" /> {t('team.addEmployee')}
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          title={t('team.title')}
+          subtitle={t('team.subtitle')}
+          actions={
+            <>
+              <Button onClick={() => handleAdd('future')} variant="secondary" className="gap-2 border-dashed border-charcoal-300 text-charcoal-600 hover:text-blue-600 hover:border-blue-300 bg-white">
+                  <UserPlus className="w-4 h-4" /> {t('team.addFutureHire')}
+              </Button>
+              <Button onClick={() => handleAdd('internal')} className="gap-2">
+                  <Plus className="w-4 h-4" /> {t('team.addEmployee')}
+              </Button>
+            </>
+          }
+        />
 
         {/* Tab Switcher */}
         <div className="bg-white p-1 rounded-lg border border-charcoal-200 inline-flex gap-1 shadow-sm">
@@ -469,87 +481,70 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
                 </>
             )}
             
-            <div className="w-full">
-                 <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">Category</label>
-                 <select 
-                    className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm bg-charcoal-50"
+            <FormField label="Category" htmlFor="employeeType" className="w-full">
+                 <SelectInput 
+                    id="employeeType"
+                    className="bg-charcoal-50"
                     value={formData.type}
                     onChange={e => setFormData({...formData, type: e.target.value as Employee['type']})}
                  >
                      <option value="internal">Core Team</option>
                      <option value="external">Extended Team</option>
                      <option value="future">Future Hire</option>
-                 </select>
-            </div>
+                 </SelectInput>
+            </FormField>
           </div>
 
           {/* Right Col - Fields */}
           <div className="md:col-span-2 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{formData.type === 'future' ? 'Position Title' : t('team.name')}</label>
-                <input required className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                  value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder={t('team.placeholderName')} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('team.role')}</label>
-                <input required className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                  value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} placeholder={t('team.placeholderRole')} />
-              </div>
+              <FormField label={formData.type === 'future' ? 'Position Title' : t('team.name')} htmlFor="employeeName">
+                <TextInput id="employeeName" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder={t('team.placeholderName')} />
+              </FormField>
+              <FormField label={t('team.role')} htmlFor="employeeRole">
+                <TextInput id="employeeRole" required value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} placeholder={t('team.placeholderRole')} />
+              </FormField>
             </div>
 
             {formData.type !== 'future' && (
             <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('team.email')}</label>
-                  <input type="email" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                    value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder={t('team.placeholderEmail')} />
-               </div>
-               <div>
-                  <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('team.phone')}</label>
-                  <input type="tel" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                    value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder={t('team.placeholderPhone')} />
-               </div>
+               <FormField label={t('team.email')} htmlFor="employeeEmail">
+                  <TextInput id="employeeEmail" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder={t('team.placeholderEmail')} />
+               </FormField>
+               <FormField label={t('team.phone')} htmlFor="employeePhone">
+                  <TextInput id="employeePhone" type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder={t('team.placeholderPhone')} />
+               </FormField>
             </div>
             )}
 
             <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
-                      {t('team.availability')} ({formData.availability}%)
-                   </label>
-                   <input type="range" min="0" max="100" step="10" className="w-full h-2 bg-charcoal-100 rounded-lg appearance-none cursor-pointer accent-charcoal-800" 
+                <FormField label={`${t('team.availability')} (${formData.availability}%)`} htmlFor="employeeAvailability">
+                   <input id="employeeAvailability" type="range" min="0" max="100" step="10" className="w-full h-2 bg-charcoal-100 rounded-lg appearance-none cursor-pointer accent-charcoal-800" 
                       value={formData.availability} onChange={e => setFormData({...formData, availability: Number(e.target.value)})} />
                    <div className="flex justify-between text-xs text-charcoal-400 mt-1">
                       <span>0%</span><span>50%</span><span>100%</span>
                    </div>
-                </div>
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
-                      {t('team.location')}
-                   </label>
-                   <select 
-                      className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                </FormField>
+                <FormField label={t('team.location')} htmlFor="employeeLocation">
+                   <SelectInput 
+                      id="employeeLocation"
                       value={formData.location}
                       onChange={e => setFormData({...formData, location: e.target.value})}
                    >
                        <option value="DE">Germany (DE)</option>
                        <option value="US">United States (US)</option>
                        <option value="UK">United Kingdom (UK)</option>
-                   </select>
-                </div>
+                   </SelectInput>
+                </FormField>
             </div>
             
             {(formData.type === 'external' || formData.type === 'internal') && (
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">Department</label>
-                   <input className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} placeholder="e.g. Engineering" />
-                </div>
+                <FormField label="Department" htmlFor="employeeDepartment">
+                   <TextInput id="employeeDepartment" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} placeholder="e.g. Engineering" />
+                </FormField>
             )}
 
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('team.skills')}</label>
+            <FormField label={t('team.skills')} htmlFor="employeeSkills">
               <div className="border border-charcoal-200 rounded-lg p-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 bg-white">
                 <div className="flex flex-wrap gap-2 mb-2">
                   {formData.skills?.map(skill => (
@@ -567,13 +562,12 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
                   onKeyDown={handleAddSkill}
                 />
               </div>
-            </div>
+            </FormField>
 
-            <div>
-               <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('team.notes')}</label>
-               <textarea rows={3} className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none" 
+            <FormField label={t('team.notes')} htmlFor="employeeNotes">
+               <textarea id="employeeNotes" rows={3} className={`${inputClass} resize-none`} 
                   value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder={t('team.placeholderNotes')} />
-            </div>
+            </FormField>
 
             <div className="flex justify-end pt-4 gap-3">
               <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>{t('team.cancel')}</Button>
@@ -677,6 +671,17 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
               </div>
           </Modal>
       )}
+
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title={t('team.deleteTitle')}
+        message={t('team.confirmDelete')}
+        confirmLabel={t('team.delete')}
+        cancelLabel={t('team.cancel')}
+        destructive
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 };

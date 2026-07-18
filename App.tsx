@@ -16,8 +16,10 @@ import { SalesPipeline } from './components/SalesPipeline';
 import { Assignment, PlanVersion, Project, Employee, Customer, Absence } from './types';
 import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { useLanguage } from './contexts/LanguageContext';
 import { uid } from './utils/uid';
 import { useToday } from './hooks/useToday';
+import { useToast } from './components/ui/Toast';
 
 const STORAGE_KEYS = {
   EMPLOYEES: 'ibs_qfc_employees_v3',
@@ -47,6 +49,8 @@ const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
 const AppContent: React.FC = () => {
   const { isRole } = useAuth();
+  const { t } = useLanguage();
+  const { success } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -137,6 +141,7 @@ const AppContent: React.FC = () => {
     // We deep clone forecast data to ensure the new version is independent
     setVersions(prev => [...prev, newVersion]);
     setActiveVersionId(newVersion.id);
+    success(t('toast.versionCreated'));
   };
 
   const handleForecastUpdate = (quarterId: string, type: 'mustWin' | 'alternative', updatedProjects: Project[]) => {

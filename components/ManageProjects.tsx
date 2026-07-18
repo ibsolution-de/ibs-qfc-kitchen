@@ -9,6 +9,12 @@ import { Plus, Trash2, Edit2, Calendar, DollarSign, Folder, BarChart2, AlertCirc
 import { useLanguage } from '../contexts/LanguageContext';
 import { parseBudget, MARGIN_THRESHOLDS } from '../utils/money';
 import { uid } from '../utils/uid';
+import { PageHeader } from './ui/PageHeader';
+import { FormField, TextInput, SelectInput, inputClass } from './ui/FormField';
+import { ProgressBar } from './ui/ProgressBar';
+import { StatusBadge } from './ui/StatusBadge';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
 
 interface ManageProjectsProps {
   projects: Project[];
@@ -18,6 +24,7 @@ interface ManageProjectsProps {
 
 export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpdateProjects, highlightedProjectId }) => {
   const { t } = useLanguage();
+  const { success } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -40,6 +47,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
   });
 
   const [newMilestone, setNewMilestone] = useState<Partial<Milestone>>({ name: '', date: '', phase: 'planning' });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   // Scroll to highlighted project
   useEffect(() => {
@@ -80,9 +88,14 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
   };
 
   const handleDelete = (id: string) => {
-    if (confirm(t('projects.confirmDelete'))) {
-      onUpdateProjects(projects.filter(p => p.id !== id));
-    }
+    setDeleteId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteId) return;
+    onUpdateProjects(projects.filter(p => p.id !== deleteId));
+    success(t('toast.projectDeleted'));
+    setDeleteId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -99,6 +112,7 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
       };
       onUpdateProjects([...projects, newProj]);
     }
+    success(t('toast.projectSaved'));
     setIsModalOpen(false);
   };
 
@@ -136,15 +150,15 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('projects.title')}</h1>
-            <p className="text-charcoal-500 mt-1">{t('projects.subtitle')}</p>
-          </div>
-          <Button onClick={handleAdd} className="gap-2">
-            <Plus className="w-4 h-4" /> {t('projects.addProject')}
-          </Button>
-        </div>
+        <PageHeader
+          title={t('projects.title')}
+          subtitle={t('projects.subtitle')}
+          actions={
+            <Button onClick={handleAdd} className="gap-2">
+              <Plus className="w-4 h-4" /> {t('projects.addProject')}
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map(p => {
@@ -175,14 +189,9 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                            </div>
                        )}
                    </div>
-                   <span className={`inline-flex items-center px-1.5 py-0.5 mt-1.5 rounded text-[10px] font-medium capitalize border
-                      ${p.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : ''}
-                      ${p.status === 'opportunity' ? 'bg-orange-50 text-orange-700 border-orange-200' : ''}
-                      ${p.status === 'completed' ? 'bg-charcoal-100 text-charcoal-600 border-charcoal-200' : ''}
-                      ${p.status === 'on_hold' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : ''}
-                    `}>
-                      {t(`status.${p.status}`)}
-                   </span>
+                   <div className="mt-1.5">
+                      <StatusBadge status={p.status}>{t(`status.${p.status}`)}</StatusBadge>
+                   </div>
                  </div>
               </div>
 
@@ -197,13 +206,12 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
                  {/* Margin Health Indicator */}
                  {p.budget && (
                      <div className="mt-3">
-                         <div className="flex justify-between text-[10px] text-charcoal-500 mb-1">
-                             <span>{t('projects.marginHealth')}</span>
-                             <span className={margin.percent < 0 ? 'text-red-600' : 'text-green-600'}>{Math.round(margin.percent)}%</span>
-                         </div>
-                         <div className="w-full bg-charcoal-100 h-1 rounded-full overflow-hidden">
-                             <div className={`h-full rounded-full ${margin.color}`} style={{ width: `${Math.max(0, Math.min(100, margin.percent))}%` }}></div>
-                         </div>
+                         <ProgressBar
+                           value={Math.max(0, Math.min(1, margin.percent / 100))}
+                           status={margin.percent < MARGIN_THRESHOLDS.risk ? 'critical' : margin.percent < MARGIN_THRESHOLDS.healthy ? 'warning' : 'good'}
+                           size="sm"
+                           label={`${t('projects.marginHealth')} (${Math.round(margin.percent)}%)`}
+                         />
                      </div>
                  )}
 
@@ -243,94 +251,73 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-6">
              <div className="space-y-4">
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.projectName')}</label>
-                   <input required className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                     value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                </div>
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.client')}</label>
-                   <input required className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                     value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})} />
-                </div>
-                <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.topic')}</label>
-                   <input className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                     value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} placeholder={t('projects.placeholderTopic')} />
-                </div>
+                <FormField label={t('projects.projectName')} htmlFor="projectName">
+                   <TextInput id="projectName" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                </FormField>
+                <FormField label={t('projects.client')} htmlFor="projectClient">
+                   <TextInput id="projectClient" required value={formData.client} onChange={e => setFormData({...formData, client: e.target.value})} />
+                </FormField>
+                <FormField label={t('projects.topic')} htmlFor="projectTopic">
+                   <TextInput id="projectTopic" value={formData.topic} onChange={e => setFormData({...formData, topic: e.target.value})} placeholder={t('projects.placeholderTopic')} />
+                </FormField>
                 <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.budget')}</label>
-                        <input className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.budget} onChange={e => setFormData({...formData, budget: e.target.value})} placeholder={t('projects.placeholderBudget')} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.hourlyRate')}</label>
-                        <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.hourlyRate} onChange={e => {
+                    <FormField label={t('projects.budget')} htmlFor="projectBudget">
+                        <TextInput id="projectBudget" value={formData.budget} onChange={e => setFormData({...formData, budget: e.target.value})} placeholder={t('projects.placeholderBudget')} />
+                    </FormField>
+                    <FormField label={t('projects.hourlyRate')} htmlFor="projectHourlyRate">
+                        <TextInput id="projectHourlyRate" type="number" value={formData.hourlyRate} onChange={e => {
                           const n = e.target.valueAsNumber;
                           if (Number.isNaN(n)) return;
                           setFormData({...formData, hourlyRate: n});
                         }} placeholder="100" />
-                    </div>
+                    </FormField>
                 </div>
              </div>
 
              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.status')}</label>
-                        <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
-                            value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as Project['status']})}>
+                    <FormField label={t('projects.status')} htmlFor="projectStatus">
+                        <SelectInput id="projectStatus" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as Project['status']})}>
                             <option value="active">{t('status.active')}</option>
                             <option value="opportunity">{t('status.opportunity')}</option>
                             <option value="completed">{t('status.completed')}</option>
                             <option value="on_hold">{t('status.on_hold')}</option>
-                        </select>
-                    </div>
-                     <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.salesStage')}</label>
-                        <select className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
-                            value={formData.stage || 'lead'} onChange={e => setFormData({...formData, stage: e.target.value as Project['stage']})}>
+                        </SelectInput>
+                    </FormField>
+                     <FormField label={t('projects.salesStage')} htmlFor="projectSalesStage">
+                        <SelectInput id="projectSalesStage" value={formData.stage || 'lead'} onChange={e => setFormData({...formData, stage: e.target.value as Project['stage']})}>
                             <option value="lead">{t('sales.stages.lead')}</option>
                             <option value="qualified">{t('sales.stages.qualified')}</option>
                             <option value="proposal">{t('sales.stages.proposal')}</option>
                             <option value="negotiation">{t('sales.stages.negotiation')}</option>
                             <option value="closed">Closed</option>
-                        </select>
-                    </div>
+                        </SelectInput>
+                    </FormField>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.volume')}</label>
-                        <input type="number" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.volume} onChange={e => {
+                    <FormField label={t('projects.volume')} htmlFor="projectVolume">
+                        <TextInput id="projectVolume" type="number" value={formData.volume} onChange={e => {
                           const n = e.target.valueAsNumber;
                           if (Number.isNaN(n) || n < 0) return;
                           setFormData({...formData, volume: n});
                         }} placeholder="80" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.probability')} %</label>
-                        <input type="number" min="0" max="100" className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                        value={formData.probability ?? 0} onChange={e => {
+                    </FormField>
+                    <FormField label={`${t('projects.probability')} %`} htmlFor="projectProbability">
+                        <TextInput id="projectProbability" type="number" min="0" max="100" value={formData.probability ?? 0} onChange={e => {
                           const n = e.target.valueAsNumber;
                           if (Number.isNaN(n)) return;
                           setFormData({...formData, probability: Math.max(0, Math.min(100, n))});
                         }} placeholder="50" />
-                    </div>
+                    </FormField>
                 </div>
 
-                 <div>
-                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.dates')}</label>
+                 <FormField label={t('projects.dates')} htmlFor="projectStartDate">
                    <div className="grid grid-cols-2 gap-2">
-                     <input type="date" className="w-full px-2 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                       value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
-                     <input type="date" className="w-full px-2 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" 
-                       value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} />
+                     <TextInput id="projectStartDate" type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} />
+                     <TextInput type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} />
                    </div>
-                </div>
+                </FormField>
              </div>
           </div>
 
@@ -338,17 +325,14 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
              <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.milestones')}</label>
              <div className="border border-charcoal-200 rounded-lg p-3 bg-charcoal-50/50">
                  <div className="flex gap-2 mb-2">
-                     <input type="date" className="px-2 py-1 text-sm border border-charcoal-200 rounded outline-none w-32" 
-                        value={newMilestone.date} onChange={e => setNewMilestone({...newMilestone, date: e.target.value})} />
-                     <input type="text" className="px-2 py-1 text-sm border border-charcoal-200 rounded outline-none flex-1" placeholder={t('projects.milestoneName')}
-                        value={newMilestone.name} onChange={e => setNewMilestone({...newMilestone, name: e.target.value})} />
-                     <select className="px-2 py-1 text-sm border border-charcoal-200 rounded outline-none bg-white"
-                        value={newMilestone.phase} onChange={e => setNewMilestone({...newMilestone, phase: e.target.value as Milestone['phase']})}>
+                     <TextInput type="date" className="w-32" value={newMilestone.date} onChange={e => setNewMilestone({...newMilestone, date: e.target.value})} />
+                     <TextInput className="flex-1" placeholder={t('projects.milestoneName')} value={newMilestone.name} onChange={e => setNewMilestone({...newMilestone, name: e.target.value})} />
+                     <SelectInput className="w-auto" value={newMilestone.phase} onChange={e => setNewMilestone({...newMilestone, phase: e.target.value as Milestone['phase']})}>
                         <option value="planning">Planning</option>
                         <option value="development">Dev</option>
                         <option value="testing">Test</option>
                         <option value="deployment">Deploy</option>
-                     </select>
+                     </SelectInput>
                      <button type="button" onClick={addMilestone} className="p-1.5 bg-charcoal-800 text-white rounded hover:bg-charcoal-700"><Plus className="w-4 h-4" /></button>
                  </div>
                  <div className="space-y-1">
@@ -398,11 +382,9 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
             </div>
           </div>
 
-          <div>
-             <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('projects.notes')}</label>
-             <textarea rows={3} className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none resize-none" 
-                value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
-          </div>
+          <FormField label={t('projects.notes')} htmlFor="projectNotes">
+             <textarea id="projectNotes" rows={3} className={`${inputClass} resize-none`} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
+          </FormField>
 
           <div className="flex justify-end gap-3 pt-2 border-t border-charcoal-100">
             <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>{t('projects.cancel')}</Button>
@@ -410,6 +392,17 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title={t('projects.deleteTitle')}
+        message={t('projects.confirmDelete')}
+        confirmLabel={t('projects.delete')}
+        cancelLabel={t('projects.cancel')}
+        destructive
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
     </div>
   );
 };

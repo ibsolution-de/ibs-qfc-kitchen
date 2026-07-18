@@ -7,6 +7,7 @@ import { Badge } from './ui/Badge';
 import { TrendingUp, AlertCircle, Calculator, Target, GitBranch, FileText, Trash2, Plus, X, Lock, Sparkles, BrainCircuit, Folder, Cpu, ShieldAlert, Activity, ChevronRight, Settings, CornerLeftDown, Dices, Zap } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
+import { PageHeader } from './ui/PageHeader';
 import { useSettings } from '../contexts/SettingsContext';
 import { generateForecastAnalysis, AI_MODEL_FORECAST } from '../services/ai';
 import { Modal } from './ui/Modal';
@@ -474,29 +475,29 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex justify-between items-end">
-            <div>
-                <div className="flex items-center gap-3">
-                    <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('forecast.title')}</h1>
-                    {readOnly && (
-                        <div className="px-2 py-0.5 rounded text-xs font-bold bg-charcoal-100 text-charcoal-500 flex items-center gap-1 border border-charcoal-200">
-                            <Lock className="w-3 h-3" /> Read Only
-                        </div>
-                    )}
-                </div>
-                <p className="text-charcoal-500 mt-1">{t('forecast.subtitle')}</p>
+        <PageHeader
+          title={t('forecast.title')}
+          subtitle={t('forecast.subtitle')}
+          actions={
+            <>
+              <Button onClick={handleAIAnalysis} variant="secondary" className="gap-2 shadow-sm border border-charcoal-200 text-blue-700 bg-white hover:bg-blue-50 transition-all hover:scale-105">
+                <Sparkles className="w-4 h-4" />
+                {t('forecast.aiAnalysis')}
+              </Button>
+              <Button onClick={handleExportForecastJSON} className="gap-2 shadow-sm">
+                <FileText className="w-4 h-4" />
+                {t('forecast.exportJSON')}
+              </Button>
+            </>
+          }
+        />
+        {readOnly && (
+          <div className="max-w-7xl mx-auto mb-4">
+            <div className="px-2 py-0.5 rounded text-xs font-bold bg-charcoal-100 text-charcoal-500 inline-flex items-center gap-1 border border-charcoal-200">
+              <Lock className="w-3 h-3" /> Read Only
             </div>
-            <div className="flex gap-3">
-                <Button onClick={handleAIAnalysis} variant="secondary" className="gap-2 shadow-sm border border-charcoal-200 text-blue-700 bg-white hover:bg-blue-50 transition-all hover:scale-105">
-                    <Sparkles className="w-4 h-4" />
-                    {t('forecast.aiAnalysis')}
-                </Button>
-                <Button onClick={handleExportForecastJSON} className="gap-2 shadow-sm">
-                    <FileText className="w-4 h-4" />
-                    {t('forecast.exportJSON')}
-                </Button>
-            </div>
-        </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {data.map((quarter, index) => {

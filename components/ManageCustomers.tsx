@@ -8,6 +8,10 @@ import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { parseBudget } from '../utils/money';
 import { uid } from '../utils/uid';
+import { PageHeader } from './ui/PageHeader';
+import { ProgressBar } from './ui/ProgressBar';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { useToast } from './ui/Toast';
 
 interface ManageCustomersProps {
   customers: Customer[];
@@ -19,6 +23,7 @@ interface ManageCustomersProps {
 
 export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, projects, assignments, onNavigateToProject, onUpdateCustomers }) => {
   const { t } = useLanguage();
+  const { success } = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -30,6 +35,7 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
     email: '',
     notes: '',
   });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const getCustomerStats = (customer: Customer) => {
     // 1. Find all projects for this customer (matching by client name)
@@ -96,9 +102,14 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
   };
 
   const handleDelete = (id: string) => {
-    if (confirm(t('customers.confirmDelete'))) {
-      onUpdateCustomers(customers.filter(c => c.id !== id));
-    }
+    setDeleteId(id);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteId) return;
+    onUpdateCustomers(customers.filter(c => c.id !== deleteId));
+    success(t('toast.customerDeleted'));
+    setDeleteId(null);
   };
 
   const generateLogo = (name: string) => {
@@ -125,21 +136,22 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
     } else {
       onUpdateCustomers([...customers, payload]);
     }
+    success(t('toast.customerSaved'));
     setIsModalOpen(false);
   };
 
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-end mb-8">
-            <div>
-                <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('customers.title')}</h1>
-                <p className="text-charcoal-500 mt-1">{t('customers.subtitle')}</p>
-            </div>
+        <PageHeader
+          title={t('customers.title')}
+          subtitle={t('customers.subtitle')}
+          actions={
             <Button className="gap-2" onClick={handleAdd}>
-                <Building2 className="w-4 h-4" /> {t('customers.addCustomer')}
+              <Building2 className="w-4 h-4" /> {t('customers.addCustomer')}
             </Button>
-        </div>
+          }
+        />
 
         <div className="grid grid-cols-1 gap-8">
             {customers.map(customer => {
@@ -196,18 +208,13 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                                         <PieChart className="w-4 h-4 text-blue-600" />
                                         <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider">{t('customers.hrCoverage')}</span>
                                     </div>
-                                    <div className="flex items-end gap-2">
+                                    <div className="flex items-end gap-2 mb-3">
                                         <span className="text-2xl font-bold text-charcoal-900">{Math.round(stats.hrCoverage)}%</span>
                                         <span className="text-xs text-charcoal-500 mb-1">
                                             {stats.totalPlannedDays}/{stats.totalVolume} {t('customers.days')}
                                         </span>
                                     </div>
-                                    <div className="w-full bg-blue-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                                        <div 
-                                            className="bg-blue-600 h-full rounded-full transition-all duration-500" 
-                                            style={{ width: `${Math.min(stats.hrCoverage, 100)}%` }} 
-                                        />
-                                    </div>
+                                    <ProgressBar value={Math.min(stats.hrCoverage, 100) / 100} status="default" size="sm" />
                                 </div>
 
                                 {/* Budget Coverage Card */}
@@ -216,15 +223,10 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                                         <Briefcase className="w-4 h-4 text-green-600" />
                                         <span className="text-xs font-semibold text-green-800 uppercase tracking-wider">{t('customers.budgetCoverage')}</span>
                                     </div>
-                                    <div className="flex items-end gap-2">
+                                    <div className="flex items-end gap-2 mb-3">
                                         <span className="text-2xl font-bold text-charcoal-900">{Math.round(stats.budgetCoverage)}%</span>
                                     </div>
-                                    <div className="w-full bg-green-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                                        <div 
-                                            className="bg-green-600 h-full rounded-full transition-all duration-500" 
-                                            style={{ width: `${Math.min(stats.budgetCoverage, 100)}%` }} 
-                                        />
-                                    </div>
+                                    <ProgressBar value={Math.min(stats.budgetCoverage, 100) / 100} status="good" size="sm" />
                                 </div>
                             </div>
                         </div>
@@ -270,15 +272,14 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="w-full bg-charcoal-100 h-2 rounded-full overflow-hidden">
-                                                <div 
-                                                    className={`h-full rounded-full transition-all duration-500 ${
-                                                        proj.coverageStatus === 'full' ? 'bg-green-500' :
-                                                        proj.coverageStatus === 'good' ? 'bg-blue-500' : 'bg-red-400'
-                                                    }`}
-                                                    style={{ width: `${Math.min(proj.percentComplete, 100)}%` }} 
-                                                />
-                                            </div>
+                                            <ProgressBar
+                                          value={Math.min(proj.percentComplete, 100) / 100}
+                                          status={
+                                            proj.coverageStatus === 'full' ? 'good' :
+                                            proj.coverageStatus === 'good' ? 'default' : 'critical'
+                                          }
+                                          size="md"
+                                        />
                                         </div>
                                     </div>
                                 )) : (
@@ -382,6 +383,17 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={deleteId !== null}
+        title={t('customers.deleteTitle')}
+        message={t('customers.confirmDelete')}
+        confirmLabel={t('customers.delete')}
+        cancelLabel={t('customers.cancel')}
+        destructive
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
       </div>
     </div>
   );

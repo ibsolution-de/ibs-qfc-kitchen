@@ -6,6 +6,7 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { SettingsProvider } from './contexts/SettingsContext';
+import { ToastProvider } from './components/ui/Toast';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -18,7 +19,9 @@ root.render(
     <HashRouter>
       <SettingsProvider>
         <LanguageProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </LanguageProvider>
       </SettingsProvider>
     </HashRouter>

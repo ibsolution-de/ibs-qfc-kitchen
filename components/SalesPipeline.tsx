@@ -8,7 +8,8 @@ import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { PASTEL_VARIANTS } from '../constants';
 import { GoogleGenAI } from "@google/genai";
-import { Plus, Target, DollarSign, TrendingUp, Search, Briefcase, AlertCircle, Sparkles } from 'lucide-react';
+import { Plus, DollarSign, TrendingUp, Search, Briefcase, AlertCircle, Sparkles } from 'lucide-react';
+import { PageHeader } from './ui/PageHeader';
 import { AsciiSpinner } from './ui/AsciiSpinner';
 import { uid } from '../utils/uid';
 import { parseBudget, formatEuro } from '../utils/money';
@@ -101,25 +102,20 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto space-y-8">
-          
-          {/* Header */}
-          <div className="flex justify-between items-end">
-             <div>
-                <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight flex items-center gap-3">
-                    <Target className="w-7 h-7 text-orange-600" />
-                    {t('sales.title')}
-                </h1>
-                <p className="text-charcoal-500 mt-1">{t('sales.subtitle')}</p>
-             </div>
-             <div className="flex gap-3">
-                 <Button onClick={() => setIsAiModalOpen(true)} variant="secondary" className="gap-2 bg-white text-purple-700 border-purple-200 hover:bg-purple-50">
-                     <Sparkles className="w-4 h-4" /> {t('sales.marketTrends')}
-                 </Button>
-                 <Button onClick={() => setIsAddLeadOpen(true)} className="gap-2 bg-orange-600 hover:bg-orange-700 text-white">
-                     <Plus className="w-4 h-4" /> {t('sales.addLead')}
-                 </Button>
-             </div>
-          </div>
+          <PageHeader
+            title={t('sales.title')}
+            subtitle={t('sales.subtitle')}
+            actions={
+              <>
+                <Button onClick={() => setIsAiModalOpen(true)} variant="secondary" className="gap-2 bg-white text-purple-700 border-purple-200 hover:bg-purple-50">
+                  <Sparkles className="w-4 h-4" /> {t('sales.marketTrends')}
+                </Button>
+                <Button onClick={() => setIsAddLeadOpen(true)} className="gap-2 bg-orange-600 hover:bg-orange-700 text-white">
+                  <Plus className="w-4 h-4" /> {t('sales.addLead')}
+                </Button>
+              </>
+            }
+          />
 
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

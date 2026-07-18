@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle, BarChart3, PieChart, Folder, Search, ArrowU
 import { addMonths, startOfQuarter, endOfMonth } from 'date-fns';
 import { PASTEL_VARIANTS } from '../constants';
 import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
+import { PageHeader } from './ui/PageHeader';
 
 interface FinancialOverviewProps {
   projects: Project[];
@@ -174,24 +175,24 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-7xl mx-auto space-y-8">
-        <div className="flex justify-between items-end">
-            <div>
-                <h1 className="text-2xl font-semibold text-charcoal-900 tracking-tight">{t('financials.title')}</h1>
-                <p className="text-charcoal-500 mt-1">{t('financials.subtitle')}</p>
-            </div>
-            <div className="flex gap-4">
-                 <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
-                     <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.totalRevenue')}</div>
-                     <div className="text-lg font-bold text-charcoal-900">€{(totalRevenuePotential / 1000).toFixed(1)}k</div>
-                 </div>
-                 <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
-                     <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.avgMargin')}</div>
-                     <div className={`text-lg font-bold ${averageMargin >= MARGIN_THRESHOLDS.healthy ? 'text-green-600' : averageMargin >= MARGIN_THRESHOLDS.risk ? 'text-yellow-600' : 'text-red-600'}`}>
-                         {averageMargin.toFixed(1)}%
-                     </div>
-                 </div>
-            </div>
-        </div>
+        <PageHeader
+          title={t('financials.title')}
+          subtitle={t('financials.subtitle')}
+          actions={
+            <>
+              <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
+                <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.totalRevenue')}</div>
+                <div className="text-lg font-bold text-charcoal-900">€{(totalRevenuePotential / 1000).toFixed(1)}k</div>
+              </div>
+              <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
+                <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.avgMargin')}</div>
+                <div className={`text-lg font-bold ${averageMargin >= MARGIN_THRESHOLDS.healthy ? 'text-green-600' : averageMargin >= MARGIN_THRESHOLDS.risk ? 'text-yellow-600' : 'text-red-600'}`}>
+                  {averageMargin.toFixed(1)}%
+                </div>
+              </div>
+            </>
+          }
+        />
 
         {/* Revenue Forecast Stacked Chart */}
         <div className="bg-white rounded-xl border border-charcoal-200 shadow-sm p-6">

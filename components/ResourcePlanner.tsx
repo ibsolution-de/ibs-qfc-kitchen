@@ -23,6 +23,7 @@ import { Modal } from './ui/Modal';
 import { ResourcePlanChat } from './ResourcePlanChat';
 import { computeTargetDates, mergeDayEntries, dailyCapacityFraction, isOverloaded, allocationToHours } from '../utils/planner';
 import { assignmentsToCSV, downloadTextFile } from '../utils/export';
+import { useToast } from './ui/Toast';
 
 interface ResourcePlannerProps {
   employees: Employee[];
@@ -61,6 +62,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   readOnly = false
 }) => {
   const { t, formatDate } = useLanguage();
+  const { success } = useToast();
   const [currentDate, setCurrentDate] = useState(initialDate || new Date());
   const lastInitDateRef = useRef(initialDate ? initialDate.getTime() : 0);
   
@@ -383,6 +385,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
       const csv = assignmentsToCSV(employees, projects, assignments, absences);
       const filename = `resource-plan-${format(new Date(), 'yyyy-MM-dd')}.csv`;
       downloadTextFile(filename, csv, 'text/csv;charset=utf-8');
+      success(t('toast.csvExported'));
   };
 
   const toggleRepeatDay = (dayIndex: number) => {
