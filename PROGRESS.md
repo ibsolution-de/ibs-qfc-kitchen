@@ -80,3 +80,8 @@ Next up: Step 2.4 — useCrudForm + Manage* refactor.
 Gates: lint ✅ build ✅ test ✅ (49, +useCrudForm suite)
 Notes: typed hook (openAdd/openEdit/handleSubmit(buildItem)/requestDelete/validate) adopted by all 3 Manage*; single makeDefaults (drift fixed); i18n validation messages (dates, required) for projects/team/customers; no as-T casts remain in CRUD submits.
 Next up: Step 2.5 — Modal & focus accessibility.
+
+## 2026-07-18 Step 2.5 — Modal & focus accessibility — c7ecef4
+Gates: lint ✅ build ✅ test ✅ (57, +8 Modal a11y tests)
+Notes: Modal full a11y (Escape, backdrop, trap, restore, aria); chat conditional render (no focus into hidden UI) + close-confirm + real restore button; sidebar popover aria/Escape; Badge→button when clickable; planner aria-labels + sr-only select label; hooks/useFocusTrap.ts.
+Next up: Step 2.6 — business-math test coverage (utils/forecast extraction). PHASE 2 finale.
