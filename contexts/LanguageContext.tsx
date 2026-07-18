@@ -1,8 +1,10 @@
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { translations, Language } from '../translations';
 import { format as fnsFormat } from 'date-fns';
 import { de } from 'date-fns/locale';
+
+const LANGUAGE_STORAGE_KEY = 'ibs_qfc_language';
 
 interface LanguageContextType {
   language: Language;
@@ -14,7 +16,24 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('de');
+  const [language, setLanguage] = useState<Language>(() => {
+    try {
+      const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY) as Language | null;
+      if (stored && stored in translations) return stored;
+    } catch {
+      // localStorage unavailable (e.g. private mode)
+    }
+    return 'de';
+  });
+
+  // Persist language changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // ignore
+    }
+  }, [language]);
 
   const t = (key: string) => {
     const keys = key.split('.');
@@ -22,7 +41,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     for (const k of keys) {
       value = value?.[k];
     }
-    return value || key;
+    if (typeof value !== 'string') {
+      console.warn(`[i18n] Missing translation key: "${key}" (${language})`);
+      return key;
+    }
+    return value;
   };
 
   const formatDate = (date: Date, formatStr: string) =>

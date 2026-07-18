@@ -92,7 +92,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
           
           setAiResult(response.text ?? null);
       } catch (e) {
-          setAiResult("Error analyzing trends. Check API Key.");
+          setAiResult(t('sales.aiErrorTrends'));
       } finally {
           setIsAnalyzing(false);
       }
@@ -210,11 +210,11 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
           <form onSubmit={handleAddLead} className="space-y-4">
               <div>
                   <label className="block text-xs font-bold text-charcoal-500 uppercase tracking-wider mb-1">{t('projects.projectName')}</label>
-                  <input name="name" required className="w-full border border-charcoal-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none" placeholder="e.g. Website Relaunch" />
+                  <input name="name" required className="w-full border border-charcoal-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none" placeholder={t('sales.placeholderProjectName')} />
               </div>
               <div>
                   <label className="block text-xs font-bold text-charcoal-500 uppercase tracking-wider mb-1">{t('projects.client')}</label>
-                  <input name="client" required className="w-full border border-charcoal-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none" placeholder="Client Name" />
+                  <input name="client" required className="w-full border border-charcoal-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-orange-500/20 outline-none" placeholder={t('sales.placeholderClient')} />
               </div>
               <div>
                   <label className="block text-xs font-bold text-charcoal-500 uppercase tracking-wider mb-1">{t('projects.budget')}</label>
@@ -233,7 +233,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
               {!isAiEnabled ? (
                   <div className="bg-red-50 text-red-600 p-3 rounded border border-red-200 text-sm flex items-center gap-2">
                       <AlertCircle className="w-4 h-4" />
-                      AI Not Configured. Check Settings.
+                      {t('sales.aiNotConfigured')}
                   </div>
               ) : (
                   <>

@@ -565,7 +565,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
           {readOnly && (
             <div className="px-2 py-0.5 rounded text-xs font-bold bg-charcoal-100 text-charcoal-500 flex items-center gap-1 border border-charcoal-200">
-                <Lock className="w-3 h-3" /> Read Only
+                <Lock className="w-3 h-3" /> {t('planner.readOnly')}
             </div>
           )}
           
@@ -705,7 +705,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                         colSpan={week.count} 
                                         className="sticky top-0 z-20 bg-charcoal-50/50 border-r border-charcoal-200 text-[10px] text-charcoal-500 font-medium text-center uppercase tracking-wider"
                                     >
-                                        KW {week.week}
+                                        {t('planner.week')} {week.week}
                                     </th>
                                 ))}
                            </tr>
@@ -764,7 +764,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                  <td 
                                     className="sticky left-0 z-10 bg-white group-hover:bg-charcoal-50/30 border-r border-charcoal-200 p-3 shadow-[2px_0_5px_rgba(0,0,0,0.05)] cursor-pointer hover:bg-blue-50/20 align-top"
                                     onClick={() => onNavigateToEmployee && onNavigateToEmployee(emp.id)}
-                                    title="View Employee Overview"
+                                    title={t('planner.viewEmployeeOverview')}
                                  >
                                     <div className="flex flex-col gap-2">
                                         <div className="flex items-center gap-3">
@@ -925,7 +925,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                                   handleRemoveAssignment(a.id);
                                                               }}
                                                               className="opacity-0 group-hover/cell:opacity-100 hover:bg-black/10 p-0.5 rounded transition-opacity flex-shrink-0 ml-1"
-                                                              title="Remove"
+                                                              title={t('planner.remove')}
                                                           >
                                                               <X className="w-2.5 h-2.5" />
                                                           </button>
@@ -1044,7 +1044,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                     <div className="flex items-center justify-between pt-3 border-t border-charcoal-200">
                         <label className="text-sm text-charcoal-700 flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-charcoal-500" />
-                            Days count:
+                            {t('planner.daysCount')}
                         </label>
                         <div className="flex items-center gap-1">
                             <button 
@@ -1083,7 +1083,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                 {/* 1. Daily Schedule List with Sliders */}
                 <div className="space-y-2">
                     <h4 className="text-[10px] font-bold text-charcoal-500 flex items-center gap-1.5 uppercase tracking-wider">
-                        <Clock className="w-3 h-3" /> Daily Schedule
+                        <Clock className="w-3 h-3" /> {t('planner.dailySchedule')}
                     </h4>
                     
                     {draftAssignments.length > 0 ? (
@@ -1110,7 +1110,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                                  <button 
                                                     onClick={() => removeDraftAssignment(draft.projectId)}
                                                     className="text-charcoal-300 hover:text-red-500 transition-colors -mt-0.5 -mr-0.5 p-0.5"
-                                                    title="Remove"
+                                                    title={t('planner.remove')}
                                                  >
                                                     <X className="w-3.5 h-3.5" />
                                                  </button>
@@ -1148,7 +1148,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                                  const isOver = totalHours > 8;
                                  return (
                                      <div className="bg-charcoal-50 p-3 rounded-lg border border-charcoal-100 flex items-center gap-4">
-                                         <span className="text-[10px] font-bold text-charcoal-500 uppercase tracking-wider w-12">Total</span>
+                                         <span className="text-[10px] font-bold text-charcoal-500 uppercase tracking-wider w-12">{t('planner.total')}</span>
                                          <div className="flex-1 h-2.5 bg-charcoal-200 rounded-full overflow-hidden relative">
                                              <div 
                                                  className={`absolute top-0 left-0 h-full transition-all duration-300 ${isOver ? 'bg-red-500' : 'bg-green-500'}`} 
@@ -1164,7 +1164,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                         </div>
                     ) : (
                         <div className="text-xs text-charcoal-400 italic text-center py-6 border border-dashed border-charcoal-200 rounded-lg bg-charcoal-50/50">
-                            No projects assigned. Select below to add.
+                            {t('planner.noProjectsAssigned')}
                         </div>
                     )}
                 </div>

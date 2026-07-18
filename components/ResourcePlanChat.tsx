@@ -175,13 +175,13 @@ export const ResourcePlanChat: React.FC<ResourcePlanChatProps> = ({
                 <span className="text-xs font-mono font-bold text-blue-400 tracking-widest uppercase">{t('chat.resourceAssistant')}</span>
               </div>
               <div className="flex items-center gap-1">
-                 <button onClick={handleOpenSettings} className="p-1.5 text-charcoal-400 hover:text-blue-400 rounded-md transition-colors" title="Settings">
+                 <button onClick={handleOpenSettings} className="p-1.5 text-charcoal-400 hover:text-blue-400 rounded-md transition-colors" title={t('chat.settings')}>
                     <Settings className="w-3.5 h-3.5" />
                  </button>
-                 <button onClick={() => setIsMinimized(true)} className="p-1.5 text-charcoal-400 hover:text-blue-400 rounded-md transition-colors" title="Minimize">
+                 <button onClick={() => setIsMinimized(true)} className="p-1.5 text-charcoal-400 hover:text-blue-400 rounded-md transition-colors" title={t('chat.minimize')}>
                     <Minimize2 className="w-3.5 h-3.5" />
                  </button>
-                 <button onClick={handleClose} className="p-1.5 text-charcoal-400 hover:text-red-400 rounded-md transition-colors" title="Close">
+                 <button onClick={handleClose} className="p-1.5 text-charcoal-400 hover:text-red-400 rounded-md transition-colors" title={t('chat.close')}>
                     <X className="w-4 h-4" />
                  </button>
               </div>

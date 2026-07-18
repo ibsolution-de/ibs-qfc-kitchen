@@ -26,7 +26,13 @@ export const translations = {
       bored: 'Bored',
       pulseCheck: 'Pulse Check',
       pulseCheckTitle: 'Pre-1:1 Pulse Check',
-      pulseCheckDesc: 'Help your lead prepare for your upcoming 1:1 on'
+      pulseCheckDesc: 'Help your lead prepare for your upcoming 1:1 on',
+      publicHoliday: 'Public Holiday',
+      noProjectsAssigned: 'No projects assigned currently.',
+      achievedPlaceholder: 'What did you achieve this week?',
+      employeeOverview: "{{name}}'s Overview",
+      assignedDays: '{{count}}d assigned',
+      reportSent: 'Report Sent!'
     },
     oneOnOne: {
         title: 'Smart 1:1 & Feedback',
@@ -52,7 +58,16 @@ export const translations = {
         actionItems: 'Extracted Commitments',
         emptyState: 'Select a session to view details or schedule a new one.',
         scheduleNew: 'Schedule New 1:1',
-        markComplete: 'Mark as Completed'
+        markComplete: 'Mark as Completed',
+        newSession: 'New Session',
+        nextCheckIn: 'Next Check-in',
+        inTwoWeeks: 'In 2 weeks',
+        draft: 'Draft',
+        noAgendaItems: 'No agenda items yet. Add topics to discuss.',
+        addAgendaItem: 'Add agenda item...',
+        addActionItem: 'Add action item...',
+        voiceDictation: 'Voice Dictation (Simulated)',
+        agendaItemsCount: '{{count}} agenda items'
     },
     planner: {
       month: 'Month',
@@ -104,6 +119,12 @@ export const translations = {
       conflictAssignments: 'This day already has project assignments — they will be kept.',
       readOnly: 'Read Only',
       deleteAbsence: 'Delete absence',
+      daysCount: 'Days count:',
+      dailySchedule: 'Daily Schedule',
+      total: 'Total',
+      noProjectsAssigned: 'No projects assigned. Select below to add.',
+      viewEmployeeOverview: 'View Employee Overview',
+      remove: 'Remove',
     },
     projects: {
       title: 'Projects',
@@ -146,7 +167,7 @@ export const translations = {
       strategy: 'Strategy & Vision',
       salesPipeline: 'Sales Pipeline',
       planning: 'PLANNING',
-      manage: 'VERWALTUNG',
+      manage: 'MANAGE',
       versions: 'Versions',
       settings: 'Settings',
       language: 'Language',
@@ -157,7 +178,23 @@ export const translations = {
       getKey: 'Get API Key',
       close: 'Close',
       saveSettings: 'Save Settings',
-      switchRole: 'Switch Role'
+      switchRole: 'Switch Role',
+      saveNewVersion: 'Save new version',
+      clearApiKey: 'Clear API Key',
+      latest: 'Latest',
+      changelogTitle: 'System Record'
+    },
+    changelog: {
+      title: 'CHANGELOG.SYS',
+      build: 'Build: v1.3.0-stable',
+      systemOnline: 'SYSTEM ONLINE',
+      id: 'ID: QFC-KITCHEN-CORE',
+      salesModuleActivated: 'SALES MODULE ACTIVATED',
+      salesPipelineDashboard: 'Sales Pipeline Dashboard',
+      salesPipelineDesc: 'Kanban-style workflow for managing Leads, Opportunities, and Negotiations. Integrated probability tracking.',
+      marketTrendsScout: 'Market Trends Scout (AI)',
+      marketTrendsDesc: 'New AI capability to scan for industry trends and generate potential leads.',
+      rootPrompt: 'root@ibs-qfc:~$'
     },
     forecast: {
       title: 'Quarterly Forecast',
@@ -328,7 +365,10 @@ export const translations = {
         healthy: 'Healthy',
         low: 'Low',
         lowMargin: 'Low Margin',
-        risk: 'Risk'
+        risk: 'Risk',
+        totalRevenue: 'Total Revenue',
+        avgMargin: 'Avg Margin',
+        noProjectsFound: 'No projects found matching your criteria.'
     },
     strategy: {
         title: 'Strategy & Vision',
@@ -359,7 +399,9 @@ export const translations = {
         interviewMode: 'INTERVIEW MODE',
         docMode: 'DOCUMENT MODE',
         aiDisabled: 'Please enable AI in settings and provide an API Key.',
-        aiError: 'Error connecting to AI Consultant.'
+        aiError: 'Error connecting to AI Consultant.',
+        greeting: 'I will help you draft your strategy document. Start Strategy Interview?',
+        configureAi: 'Configure AI'
     },
     sales: {
         title: 'Sales Pipeline',
@@ -380,6 +422,10 @@ export const translations = {
         trendsPrompt: 'What industry or client should we analyze?',
         analyze: 'Analyze Trends',
         analyzing: 'Scouting market data...',
+        aiNotConfigured: 'AI Not Configured. Check Settings.',
+        aiErrorTrends: 'Error analyzing trends. Check API Key.',
+        placeholderProjectName: 'e.g. Website Relaunch',
+        placeholderClient: 'Client Name'
     },
     chat: {
       assistantReady: 'ASSISTANT_READY',
@@ -396,7 +442,10 @@ export const translations = {
       suggestion1: 'Show overallocated employees',
       suggestion2: 'List projects ending in Q4',
       suggestion3: 'Who has free capacity next month?',
-      suggestion4: 'Are there any resource conflicts?'
+      suggestion4: 'Are there any resource conflicts?',
+      settings: 'Settings',
+      minimize: 'Minimize',
+      close: 'Close'
     },
     status: {
       active: 'Active',
@@ -430,7 +479,13 @@ export const translations = {
       bored: 'Gelangweilt',
       pulseCheck: 'Stimmungscheck',
       pulseCheckTitle: '1:1 Vorbereitung',
-      pulseCheckDesc: 'Hilf deinem Lead bei der Vorbereitung auf das 1:1 am'
+      pulseCheckDesc: 'Hilf deinem Lead bei der Vorbereitung auf das 1:1 am',
+      publicHoliday: 'Feiertag',
+      noProjectsAssigned: 'Derzeit keine Projekte zugewiesen.',
+      achievedPlaceholder: 'Was hast du diese Woche erreicht?',
+      employeeOverview: 'Übersicht von {{name}}',
+      assignedDays: '{{count}}d zugewiesen',
+      reportSent: 'Bericht gesendet!'
     },
     oneOnOne: {
         title: 'Smart 1:1 & Feedback',
@@ -456,7 +511,16 @@ export const translations = {
         actionItems: 'Extrahierte Zusagen',
         emptyState: 'Wähle eine Sitzung aus oder plane eine neue.',
         scheduleNew: 'Neues 1:1 planen',
-        markComplete: 'Als erledigt markieren'
+        markComplete: 'Als erledigt markieren',
+        newSession: 'Neue Sitzung',
+        nextCheckIn: 'Nächstes Check-in',
+        inTwoWeeks: 'In 2 Wochen',
+        draft: 'Entwurf',
+        noAgendaItems: 'Noch keine Agenda-Punkte. Fügen Sie Themen hinzu.',
+        addAgendaItem: 'Agenda-Punkt hinzufügen...',
+        addActionItem: 'Aufgabe hinzufügen...',
+        voiceDictation: 'Spracheingabe (Simuliert)',
+        agendaItemsCount: '{{count}} Agenda-Punkte'
     },
     planner: {
       month: 'Monat',
@@ -508,6 +572,12 @@ export const translations = {
       conflictAssignments: 'An diesem Tag sind bereits Projekte zugewiesen — sie bleiben erhalten.',
       readOnly: 'Nur Lesen',
       deleteAbsence: 'Abwesenheit löschen',
+      daysCount: 'Anzahl Tage:',
+      dailySchedule: 'Tagesplanung',
+      total: 'Gesamt',
+      noProjectsAssigned: 'Keine Projekte zugewiesen. Wählen Sie unten aus.',
+      viewEmployeeOverview: 'Mitarbeiterübersicht anzeigen',
+      remove: 'Entfernen',
     },
     projects: {
       title: 'Projektverwaltung',
@@ -561,7 +631,23 @@ export const translations = {
       getKey: 'Key anfordern',
       close: 'Schließen',
       saveSettings: 'Einstellungen speichern',
-      switchRole: 'Rolle wechseln'
+      switchRole: 'Rolle wechseln',
+      saveNewVersion: 'Neue Version speichern',
+      clearApiKey: 'API-Key löschen',
+      latest: 'Neueste',
+      changelogTitle: 'Systemprotokoll'
+    },
+    changelog: {
+      title: 'CHANGELOG.SYS',
+      build: 'Build: v1.3.0-stable',
+      systemOnline: 'SYSTEM ONLINE',
+      id: 'ID: QFC-KITCHEN-CORE',
+      salesModuleActivated: 'SALES MODUL AKTIVIERT',
+      salesPipelineDashboard: 'Sales Pipeline Dashboard',
+      salesPipelineDesc: 'Kanban-Workflow für Leads, Chancen und Verhandlungen. Integrierte Wahrscheinlichkeitsverfolgung.',
+      marketTrendsScout: 'Market Trends Scout (KI)',
+      marketTrendsDesc: 'Neue KI-Funktion zur Branchentrenderkennung und Lead-Generierung.',
+      rootPrompt: 'root@ibs-qfc:~$'
     },
     forecast: {
       title: 'Quartalsvorschau',
@@ -732,7 +818,10 @@ export const translations = {
         healthy: 'Gesund',
         low: 'Gering',
         lowMargin: 'Geringe Marge',
-        risk: 'Risiko'
+        risk: 'Risiko',
+        totalRevenue: 'Gesamtumsatz',
+        avgMargin: 'Ø Marge',
+        noProjectsFound: 'Keine Projekte entsprechen Ihren Kriterien.'
     },
     strategy: {
         title: 'Strategie & Vision',
@@ -763,7 +852,9 @@ export const translations = {
         interviewMode: 'INTERVIEW MODUS',
         docMode: 'DOKUMENTEN MODUS',
         aiDisabled: 'Bitte aktivieren Sie KI in den Einstellungen und geben Sie einen API-Key ein.',
-        aiError: 'Fehler bei der Verbindung zum KI-Strategieberater.'
+        aiError: 'Fehler bei der Verbindung zum KI-Strategieberater.',
+        greeting: 'Ich helfe Ihnen, Ihr Strategiedokument zu entwerfen. Strategie-Interview starten?',
+        configureAi: 'KI konfigurieren'
     },
     sales: {
         title: 'Sales Pipeline',
@@ -784,6 +875,10 @@ export const translations = {
         trendsPrompt: 'Welche Branche oder Kunde soll analysiert werden?',
         analyze: 'Trends analysieren',
         analyzing: 'Suche Marktdaten...',
+        aiNotConfigured: 'KI nicht konfiguriert. Prüfen Sie die Einstellungen.',
+        aiErrorTrends: 'Fehler bei der Trendanalyse. Prüfen Sie den API-Key.',
+        placeholderProjectName: 'z.B. Website Relaunch',
+        placeholderClient: 'Kundenname'
     },
     chat: {
       assistantReady: 'ASSISTENT_BEREIT',
@@ -800,7 +895,10 @@ export const translations = {
       suggestion1: 'Zeige überlastete Mitarbeiter',
       suggestion2: 'Projekte, die in Q4 enden',
       suggestion3: 'Wer hat nächsten Monat Kapazität?',
-      suggestion4: 'Gibt es Ressourcenkonflikte?'
+      suggestion4: 'Gibt es Ressourcenkonflikte?',
+      settings: 'Einstellungen',
+      minimize: 'Minimieren',
+      close: 'Schließen'
     },
     status: {
       active: 'Aktiv',

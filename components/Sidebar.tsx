@@ -180,7 +180,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <button 
                 onClick={onCreateVersion}
                 className="text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
-                title="Save new version"
+                title={t('sidebar.saveNewVersion')}
               >
                 <Plus className="w-3.5 h-3.5" />
              </button>
@@ -226,7 +226,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                       </div>
                                       {isLatest && (
                                           <span className="text-[8px] font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-full border border-blue-100/50 uppercase tracking-wide ml-auto">
-                                            Latest
+                                            {t('sidebar.latest')}
                                           </span>
                                       )}
                                   </div>
@@ -390,7 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                      <button 
                                         onClick={() => setLocalApiKey('')}
                                         className="p-2 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded-lg border border-charcoal-200 hover:border-red-200 transition-colors"
-                                        title="Clear API Key"
+                                        title={t('sidebar.clearApiKey')}
                                      >
                                          <Trash2 className="w-4 h-4" />
                                      </button>
@@ -417,7 +417,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </Modal>
 
     {/* Changelog Modal */}
-    <Modal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} title="System Record" size="lg">
+    <Modal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} title={t('sidebar.changelogTitle')} size="lg">
         <div className="relative bg-white rounded-lg overflow-hidden border border-charcoal-200 text-charcoal-800 font-mono shadow-[0_0_50px_rgba(0,0,0,0.05)]">
             {/* Background Effects */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
@@ -428,12 +428,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <BookMarked className="w-6 h-6 text-emerald-600" />
-                        <h2 className="text-xl font-bold tracking-widest text-emerald-900">CHANGELOG.SYS</h2>
+                        <h2 className="text-xl font-bold tracking-widest text-emerald-900">{t('changelog.title')}</h2>
                     </div>
                     <div className="flex gap-4 text-xs text-charcoal-500">
                         <div className="flex items-center gap-1.5">
                             <GitCommit className="w-3 h-3" />
-                            <span>Build: v1.3.0-stable</span>
+                            <span>{t('changelog.build')}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                             <Clock className="w-3 h-3" />
@@ -444,9 +444,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded text-xs font-bold text-emerald-700">
                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                        SYSTEM ONLINE
+                        {t('changelog.systemOnline')}
                     </div>
-                    <span className="text-[10px] text-charcoal-400">ID: QFC-KITCHEN-CORE</span>
+                    <span className="text-[10px] text-charcoal-400">{t('changelog.id')}</span>
                 </div>
             </div>
 
@@ -457,21 +457,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="flex items-center gap-2 text-sm font-bold text-orange-700 border-b border-orange-100 pb-1 mb-2">
                         <Target className="w-4 h-4" />
-                        <span>SALES MODULE ACTIVATED</span>
+                        <span>{t('changelog.salesModuleActivated')}</span>
                     </div>
                     <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
                          <li className="flex gap-3 items-start group">
                             <span className="text-orange-600 mt-0.5 group-hover:text-orange-500 transition-colors">➜</span>
                             <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Sales Pipeline Dashboard</strong>
-                                Kanban-style workflow for managing Leads, Opportunities, and Negotiations. Integrated probability tracking.
+                                <strong className="text-charcoal-900 block mb-0.5">{t('changelog.salesPipelineDashboard')}</strong>
+                                {t('changelog.salesPipelineDesc')}
                             </div>
                         </li>
                         <li className="flex gap-3 items-start group">
                             <span className="text-orange-600 mt-0.5 group-hover:text-orange-500 transition-colors">➜</span>
                             <div>
-                                <strong className="text-charcoal-900 block mb-0.5">Market Trends Scout (AI)</strong>
-                                New AI capability to scan for industry trends and generate potential leads.
+                                <strong className="text-charcoal-900 block mb-0.5">{t('changelog.marketTrendsScout')}</strong>
+                                {t('changelog.marketTrendsDesc')}
                             </div>
                         </li>
                     </ul>
@@ -480,7 +480,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {/* Footer Command Line */}
                 <div className="pt-4 border-t border-charcoal-100 flex items-center gap-2 text-xs font-mono opacity-80 bg-charcoal-50 -mx-6 px-6 -mb-6 py-3">
                     <Terminal className="w-3 h-3 text-emerald-600" />
-                    <span className="text-charcoal-500">root@ibs-qfc:~$</span>
+                    <span className="text-charcoal-500">{t('changelog.rootPrompt')}</span>
                     <span className="text-emerald-600 animate-pulse">_</span>
                 </div>
 

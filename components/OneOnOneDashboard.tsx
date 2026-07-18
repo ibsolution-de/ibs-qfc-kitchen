@@ -122,11 +122,11 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="text-right">
-                            <div className="text-[10px] font-bold text-charcoal-400 uppercase tracking-wider">Next Check-in</div>
-                            <div className="text-sm font-medium text-charcoal-700">In 2 weeks</div>
+                            <div className="text-[10px] font-bold text-charcoal-400 uppercase tracking-wider">{t('oneOnOne.nextCheckIn')}</div>
+                            <div className="text-sm font-medium text-charcoal-700">{t('oneOnOne.inTwoWeeks')}</div>
                         </div>
                         <Button onClick={handleCreateSession} size="sm" className="gap-1">
-                            <Plus className="w-4 h-4" /> New Session
+                            <Plus className="w-4 h-4" /> {t('oneOnOne.newSession')}
                         </Button>
                     </div>
                 </div>
@@ -156,7 +156,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                         <SentimentIcon sentiment={s.sentiment} className="w-4 h-4" />
                                     </div>
                                     <div className="text-sm font-bold text-charcoal-800">{formatDate(new Date(s.date), 'MMM d, yyyy')}</div>
-                                    {s.agenda.length > 0 && <div className="text-xs text-charcoal-500 mt-1 truncate">{s.agenda.length} agenda items</div>}
+                                    {s.agenda.length > 0 && <div className="text-xs text-charcoal-500 mt-1 truncate">{t('oneOnOne.agendaItemsCount').replace('{{count}}', String(s.agenda.length))}</div>}
                                 </button>
                             ))}
                         </div>
@@ -171,7 +171,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                     <div>
                                         <h2 className="text-xl font-bold text-charcoal-900 flex items-center gap-2">
                                             {formatDate(new Date(activeSession.date), 'EEEE, MMMM d, yyyy')}
-                                            {activeSession.status === 'scheduled' && <span className="text-xs font-normal bg-white px-2 py-0.5 rounded-full border border-blue-200 text-blue-600">Draft</span>}
+                                            {activeSession.status === 'scheduled' && <span className="text-xs font-normal bg-white px-2 py-0.5 rounded-full border border-blue-200 text-blue-600">{t('oneOnOne.draft')}</span>}
                                         </h2>
                                         <div className="flex items-center gap-2 mt-1 text-sm text-charcoal-600">
                                             <span className="font-semibold">{t('oneOnOne.pulse')}:</span>
@@ -232,14 +232,14 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                                     </ul>
                                                 ) : (
                                                     <div className="p-6 text-center text-charcoal-400 text-sm italic bg-charcoal-50/50 rounded-lg border border-dashed border-charcoal-200 mb-3">
-                                                        No agenda items yet. Add topics to discuss.
+                                                        {t('oneOnOne.noAgendaItems')}
                                                     </div>
                                                 )}
                                                 <div className="flex gap-2 items-center bg-white border border-charcoal-200 rounded-lg p-1 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-400">
                                                      <Plus className="w-4 h-4 text-charcoal-400 ml-2" />
                                                      <input 
                                                         type="text" 
-                                                        placeholder="Add agenda item..." 
+                                                        placeholder={t('oneOnOne.addAgendaItem')} 
                                                         className="flex-1 text-sm bg-transparent outline-none py-1.5 px-1"
                                                         onKeyDown={(e) => {
                                                             if (e.key === 'Enter') {
@@ -276,7 +276,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                                     onChange={(e) => handleUpdateSession({ notes: e.target.value })}
                                                 />
                                                 <div className="absolute bottom-3 right-3">
-                                                    <button className="p-2 text-charcoal-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors shadow-sm bg-white border border-charcoal-100" title="Voice Dictation (Simulated)">
+                                                    <button className="p-2 text-charcoal-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors shadow-sm bg-white border border-charcoal-100" title={t('oneOnOne.voiceDictation')}>
                                                         <Mic className="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -312,7 +312,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                                     <Plus className="w-4 h-4 text-charcoal-400 ml-1" />
                                                      <input 
                                                         type="text" 
-                                                        placeholder="Add action item..." 
+                                                        placeholder={t('oneOnOne.addActionItem')} 
                                                         className="flex-1 text-xs bg-transparent outline-none py-1.5 px-1"
                                                         onKeyDown={(e) => {
                                                             if (e.key === 'Enter') {

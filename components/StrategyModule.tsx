@@ -303,7 +303,7 @@ const StrategyCoPilot: React.FC = () => {
     const { t, language } = useLanguage();
     const { apiKey, isAiEnabled, openSettings } = useSettings();
     const [messages, setMessages] = useState<{role: 'user'|'model'|'system', text: string}[]>([
-        { role: 'model', text: t('strategy.coPilotSubtitle') + " " + t('strategy.startInterview') + "?" }
+        { role: 'model', text: t('strategy.greeting') }
     ]);
     const [input, setInput] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -382,7 +382,7 @@ const StrategyCoPilot: React.FC = () => {
                 </div>
                 {!isAiEnabled && (
                     <button onClick={openSettings} className="text-xs text-red-400 border border-red-900 bg-red-900/20 px-2 py-1 rounded hover:bg-red-900/40">
-                        Configure AI
+                        {t('strategy.configureAi')}
                     </button>
                 )}
             </div>

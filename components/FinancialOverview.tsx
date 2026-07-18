@@ -181,11 +181,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
             </div>
             <div className="flex gap-4">
                  <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
-                     <div className="text-xs text-charcoal-500 uppercase font-semibold">Total Revenue</div>
+                     <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.totalRevenue')}</div>
                      <div className="text-lg font-bold text-charcoal-900">€{(totalRevenuePotential / 1000).toFixed(1)}k</div>
                  </div>
                  <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
-                     <div className="text-xs text-charcoal-500 uppercase font-semibold">Avg Margin</div>
+                     <div className="text-xs text-charcoal-500 uppercase font-semibold">{t('financials.avgMargin')}</div>
                      <div className={`text-lg font-bold ${averageMargin >= MARGIN_THRESHOLDS.healthy ? 'text-green-600' : averageMargin >= MARGIN_THRESHOLDS.risk ? 'text-yellow-600' : 'text-red-600'}`}>
                          {averageMargin.toFixed(1)}%
                      </div>
@@ -404,7 +404,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                          {projectFinancials.length === 0 && (
                              <tr>
                                  <td colSpan={5} className="px-6 py-8 text-center text-charcoal-400 italic">
-                                     No projects found matching your criteria.
+                                     {t('financials.noProjectsFound')}
                                  </td>
                              </tr>
                          )}

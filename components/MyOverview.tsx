@@ -35,7 +35,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
 
   // Data needed for display
   const displayId = isSelf ? user.employeeId : targetEmployeeId;
-  const displayName = isSelf ? t('myOverview.title') : `${targetEmployee?.name}'s Overview`; // Fallback title logic
+  const displayName = isSelf ? t('myOverview.title') : t('myOverview.employeeOverview').replace('{{name}}', targetEmployee?.name || '');
   const displayAvatar = isSelf ? user.avatar : targetEmployee?.avatar;
   const displayRole = isSelf ? user.role : targetEmployee?.role;
 
@@ -171,11 +171,11 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
                              </div>
                          </div>
                          <div className="text-xs font-mono text-charcoal-400 bg-charcoal-50 px-2 py-1 rounded">
-                             {assignments.filter(a => a.projectId === p.id && a.employeeId === displayId).length}d assigned
+                             {t('myOverview.assignedDays').replace('{{count}}', String(assignments.filter(a => a.projectId === p.id && a.employeeId === displayId).length))}
                          </div>
                      </div>
                  )) : (
-                    <div className="text-charcoal-400 text-sm italic col-span-2 text-center py-4">No projects assigned currently.</div>
+                    <div className="text-charcoal-400 text-sm italic col-span-2 text-center py-4">{t('myOverview.noProjectsAssigned')}</div>
                  )}
              </div>
         </div>
@@ -207,7 +207,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
                                  <div className="flex flex-col gap-1 flex-1">
                                      {isHoliday && (
                                          <div className="text-[10px] bg-red-50 text-red-600 px-1 py-0.5 rounded text-center border border-red-100">
-                                             Public Holiday
+                                             {t('myOverview.publicHoliday')}
                                          </div>
                                      )}
                                      {dayAbsence && (
@@ -258,17 +258,17 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
 
                   <div>
                       <label className="block text-sm font-medium text-charcoal-700 mb-2">{t('projects.notes')}</label>
-                      <textarea className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" rows={3} placeholder="What did you achieve this week?" />
+                      <textarea className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" rows={3} placeholder={t('myOverview.achievedPlaceholder')} />
                   </div>
                   
                   <div>
                       <label className="block text-sm font-medium text-charcoal-700 mb-2">{t('myOverview.blockers')}</label>
-                      <textarea className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" rows={2} placeholder="Any blockers?" />
+                      <textarea className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500" rows={2} placeholder={t('myOverview.blockers')} />
                   </div>
 
                   <div className="flex justify-end pt-4 gap-3">
                       <Button variant="ghost" onClick={() => setIsStatusModalOpen(false)}>{t('planner.cancel')}</Button>
-                      <Button onClick={() => { alert("Report Sent!"); setIsStatusModalOpen(false); }}>{t('myOverview.submit')}</Button>
+                      <Button onClick={() => { alert(t('myOverview.reportSent')); setIsStatusModalOpen(false); }}>{t('myOverview.submit')}</Button>
                   </div>
               </div>
           </Modal>
