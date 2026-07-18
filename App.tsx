@@ -264,7 +264,6 @@ const AppContent: React.FC = () => {
                           <FinancialOverview
                               projects={projects}
                               assignments={plannerAssignments}
-                              customers={customers}
                               currentDate={versionStartDate}
                           />
                         </AnimatedPage>

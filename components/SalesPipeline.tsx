@@ -10,6 +10,7 @@ import { PASTEL_VARIANTS } from '../constants';
 import { GoogleGenAI } from "@google/genai";
 import { Plus, Target, DollarSign, TrendingUp, Search, Briefcase, Zap, AlertCircle, Sparkles } from 'lucide-react';
 import { AsciiSpinner } from './ui/AsciiSpinner';
+import { parseBudget, formatEuro } from '../utils/money';
 
 interface SalesPipelineProps {
   projects: Project[];
@@ -28,11 +29,9 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Stats
-  const parseBudget = (b?: string) => parseFloat(b?.replace(/[^0-9.]/g, '') || '0') * (b?.includes('k') ? 1000 : b?.includes('m') ? 1000000 : 1);
-  
   const pipelineProjects = projects.filter(p => p.status === 'opportunity' || p.status === 'active');
-  const totalValue = pipelineProjects.reduce((sum, p) => sum + parseBudget(p.budget), 0);
-  const weightedValue = pipelineProjects.reduce((sum, p) => sum + (parseBudget(p.budget) * ((p.probability || 0) / 100)), 0);
+  const totalValue = pipelineProjects.reduce((sum, p) => sum + (parseBudget(p.budget) ?? 0), 0);
+  const weightedValue = pipelineProjects.reduce((sum, p) => sum + ((parseBudget(p.budget) ?? 0) * ((p.probability || 0) / 100)), 0);
   const activeLeadsCount = pipelineProjects.filter(p => p.status === 'opportunity').length;
 
   // Group by Stage
@@ -177,7 +176,10 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ projects, onUpdate
                                       </div>
                                       <h4 className="font-bold text-charcoal-900 mb-1">{project.name}</h4>
                                       <div className="flex justify-between items-center text-xs text-charcoal-500 mb-3">
-                                          <span>{project.budget || 'TBD'}</span>
+                                          <span>{(() => {
+                                              const budgetNum = parseBudget(project.budget);
+                                              return budgetNum != null ? formatEuro(budgetNum) : (project.budget || 'TBD');
+                                          })()}</span>
                                           <span>{project.volume || 0}d</span>
                                       </div>
                                       

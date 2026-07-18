@@ -6,6 +6,7 @@ import { Briefcase, Mail, Building2, UserCircle, PieChart, AlertTriangle, CheckC
 import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { parseBudget } from '../utils/money';
 
 interface ManageCustomersProps {
   customers: Customer[];
@@ -29,15 +30,6 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
     notes: '',
   });
 
-  const parseBudget = (budgetStr?: string): number => {
-    if (!budgetStr) return 0;
-    const num = parseFloat(budgetStr.replace(/[^0-9.]/g, ''));
-    if (isNaN(num)) return 0;
-    if (budgetStr.toLowerCase().includes('k')) return num * 1000;
-    if (budgetStr.toLowerCase().includes('m')) return num * 1000000;
-    return num;
-  };
-
   const getCustomerStats = (customer: Customer) => {
     // 1. Find all projects for this customer (matching by client name)
     const custProjects = projects.filter(p => p.client === customer.name && p.status !== 'completed');
@@ -56,7 +48,7 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
         const volume = p.volume || 1; // Avoid divide by zero
         
         // Calculate Budget
-        const budget = parseBudget(p.budget);
+        const budget = parseBudget(p.budget) ?? 0;
         
         // Estimate value consumed based on % complete of volume
         // Formula: (Planned Days / Volume) * Budget

@@ -1,3 +1,5 @@
+export const MARGIN_THRESHOLDS = { risk: 10, healthy: 25 } as const;
+
 export function parseBudget(input: string | null | undefined): number | null {
   if (input == null) return null;
 
@@ -25,6 +27,12 @@ export function parseBudget(input: string | null | undefined): number | null {
 
   const result = parsed * multiplier;
   return Number.isFinite(result) ? result : null;
+}
+
+export function compareBudgets(a: string | undefined, b: string | undefined): number {
+  const valA = parseBudget(a) ?? -1;
+  const valB = parseBudget(b) ?? -1;
+  return valA - valB;
 }
 
 export function formatEuro(n: number): string {

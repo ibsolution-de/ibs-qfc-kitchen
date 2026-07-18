@@ -7,6 +7,7 @@ import { Modal } from './ui/Modal';
 import { PASTEL_VARIANTS } from '../constants';
 import { Plus, Trash2, Edit2, Calendar, DollarSign, Folder, BarChart2, AlertCircle, Flag, X } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { parseBudget, MARGIN_THRESHOLDS } from '../utils/money';
 
 interface ManageProjectsProps {
   projects: Project[];
@@ -118,15 +119,15 @@ export const ManageProjects: React.FC<ManageProjectsProps> = ({ projects, onUpda
   };
 
   const calculateMargin = (project: Project) => {
-      if(!project.budget || !project.volume || !project.hourlyRate) return { percent: 0, color: 'bg-gray-200' };
-      const budget = parseFloat(project.budget.replace(/[^0-9.]/g, '')) * (project.budget.includes('k') ? 1000 : 1);
+      const budget = parseBudget(project.budget) ?? 0;
+      if(!project.volume || !project.hourlyRate) return { percent: 0, color: 'bg-gray-200' };
       const estimatedCost = (project.volume * 8 * project.hourlyRate);
       const margin = budget - estimatedCost;
       const percent = budget > 0 ? (margin / budget) * 100 : 0;
       
       let color = 'bg-green-500';
-      if(percent < 10) color = 'bg-red-500';
-      else if(percent < 25) color = 'bg-yellow-500';
+      if(percent < MARGIN_THRESHOLDS.risk) color = 'bg-red-500';
+      else if(percent < MARGIN_THRESHOLDS.healthy) color = 'bg-yellow-500';
       
       return { percent, color, margin };
   };

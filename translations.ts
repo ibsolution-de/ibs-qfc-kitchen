@@ -323,9 +323,12 @@ export const translations = {
         plannedCost: 'Planned Cost',
         margin: 'Margin',
         status: 'Status',
+        all: 'All',
         highRisk: 'High Risk',
         healthy: 'Healthy',
-        lowMargin: 'Low Margin'
+        low: 'Low',
+        lowMargin: 'Low Margin',
+        risk: 'Risk'
     },
     strategy: {
         title: 'Strategy & Vision',
@@ -724,9 +727,12 @@ export const translations = {
         plannedCost: 'Geplante Kosten',
         margin: 'Marge',
         status: 'Status',
+        all: 'Alle',
         highRisk: 'Hohes Risiko',
         healthy: 'Gesund',
-        lowMargin: 'Geringe Marge'
+        low: 'Gering',
+        lowMargin: 'Geringe Marge',
+        risk: 'Risiko'
     },
     strategy: {
         title: 'Strategie & Vision',

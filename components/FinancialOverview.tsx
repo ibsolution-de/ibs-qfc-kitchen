@@ -1,21 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { Project, Assignment, Customer } from '../types';
+import { Project, Assignment } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { TrendingUp, AlertTriangle, CheckCircle, BarChart3, PieChart, DollarSign, Calendar, TrendingDown, Folder, Search, Filter, ArrowUp, ArrowDown } from 'lucide-react';
 import { addMonths, startOfQuarter, endOfMonth } from 'date-fns';
 import { PASTEL_VARIANTS } from '../constants';
+import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
 
 interface FinancialOverviewProps {
   projects: Project[];
   assignments: Assignment[];
-  customers: Customer[];
   currentDate?: Date;
 }
 
-type SortField = 'name' | 'budget' | 'plannedCost' | 'margin' | 'marginPercent';
+type SortField = 'name' | 'budget' | 'plannedCost' | 'marginPercent';
 type SortDirection = 'asc' | 'desc';
 
-export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, assignments, customers, currentDate = new Date() }) => {
+export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, assignments, currentDate = new Date() }) => {
   const { t } = useLanguage();
   
   // Local State for Table Controls
@@ -23,19 +23,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
   const [marginFilter, setMarginFilter] = useState<'all' | 'healthy' | 'low' | 'highrisk'>('all');
   const [sortConfig, setSortConfig] = useState<{ field: SortField, direction: SortDirection }>({ field: 'marginPercent', direction: 'asc' });
 
-  const parseBudget = (budgetStr?: string): number => {
-    if (!budgetStr) return 0;
-    const num = parseFloat(budgetStr.replace(/[^0-9.]/g, ''));
-    if (isNaN(num)) return 0;
-    if (budgetStr.toLowerCase().includes('k')) return num * 1000;
-    if (budgetStr.toLowerCase().includes('m')) return num * 1000000;
-    return num;
-  };
-
-  // 1. Calculate Project Profitability / Margins
-  const projectFinancials = useMemo(() => {
-    let data = projects.map(p => {
-        const budget = parseBudget(p.budget);
+  // 1. Calculate Project Profitability / Margins (unfiltered, for KPIs and forecast)
+  const allProjectFinancials = useMemo(() => {
+    return projects.map(p => {
+        const budget = parseBudget(p.budget) ?? 0;
         const hourlyRate = p.hourlyRate || 100;
         
         // Calculate total planned days (all time) for this project
@@ -53,6 +44,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
             marginPercent
         };
     }).filter(p => p.budgetNum > 0);
+  }, [projects, assignments]);
+
+  // 2. Table data: filter + sort the unfiltered financials
+  const projectFinancials = useMemo(() => {
+    let data = [...allProjectFinancials];
 
     // Filter
     if (searchQuery) {
@@ -62,9 +58,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
 
     if (marginFilter !== 'all') {
         data = data.filter(p => {
-            if (marginFilter === 'highrisk') return p.marginPercent < 10;
-            if (marginFilter === 'low') return p.marginPercent >= 10 && p.marginPercent < 25;
-            if (marginFilter === 'healthy') return p.marginPercent >= 25;
+            if (marginFilter === 'highrisk') return p.marginPercent < MARGIN_THRESHOLDS.risk;
+            if (marginFilter === 'low') return p.marginPercent >= MARGIN_THRESHOLDS.risk && p.marginPercent < MARGIN_THRESHOLDS.healthy;
+            if (marginFilter === 'healthy') return p.marginPercent >= MARGIN_THRESHOLDS.healthy;
             return true;
         });
     }
@@ -72,35 +68,35 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
     // Sort
     data.sort((a, b) => {
         const field = sortConfig.field;
-        let valA: any = a[field as keyof typeof a];
-        let valB: any = b[field as keyof typeof b];
 
         // Handle string comparison for names
         if (field === 'name') {
-            valA = a.name.toLowerCase();
-            valB = b.name.toLowerCase();
+            const valA = a.name.toLowerCase();
+            const valB = b.name.toLowerCase();
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
         }
 
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
+        // Handle budget comparison by parsed numeric value
+        if (field === 'budget') {
+            return compareBudgets(a.budget, b.budget) * (sortConfig.direction === 'asc' ? 1 : -1);
+        }
+
+        const valA = a[field] as number;
+        const valB = b[field] as number;
+        return (valA - valB) * (sortConfig.direction === 'asc' ? 1 : -1);
     });
 
     return data;
-  }, [projects, assignments, searchQuery, marginFilter, sortConfig]);
+  }, [allProjectFinancials, searchQuery, marginFilter, sortConfig]);
 
-  const totalRevenuePotential = projectFinancials.reduce((sum, p) => sum + p.budgetNum, 0);
-  const averageMargin = projectFinancials.length > 0 
-    ? projectFinancials.reduce((sum, p) => sum + p.marginPercent, 0) / projectFinancials.length 
+  const totalRevenuePotential = allProjectFinancials.reduce((sum, p) => sum + p.budgetNum, 0);
+  const averageMargin = allProjectFinancials.length > 0 
+    ? allProjectFinancials.reduce((sum, p) => sum + p.marginPercent, 0) / allProjectFinancials.length 
     : 0;
 
-  // 2. Revenue Forecast (Next 4 Quarters)
-  // Note: We use the *unfiltered* list for the top charts to maintain the big picture view
-  const allProjectFinancials = useMemo(() => projects.map(p => {
-      const budget = parseBudget(p.budget);
-      return { ...p, budgetNum: budget };
-  }).filter(p => p.budgetNum > 0), [projects]);
-
+  // 3. Revenue Forecast (Next 4 Quarters) — uses the unfiltered financial list
   const quarters = useMemo(() => {
     const startQ = startOfQuarter(currentDate);
     
@@ -190,7 +186,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                  </div>
                  <div className="bg-white px-4 py-2 rounded-lg border border-charcoal-200 shadow-sm">
                      <div className="text-xs text-charcoal-500 uppercase font-semibold">Avg Margin</div>
-                     <div className={`text-lg font-bold ${averageMargin >= 20 ? 'text-green-600' : 'text-yellow-600'}`}>
+                     <div className={`text-lg font-bold ${averageMargin >= MARGIN_THRESHOLDS.healthy ? 'text-green-600' : averageMargin >= MARGIN_THRESHOLDS.risk ? 'text-yellow-600' : 'text-red-600'}`}>
                          {averageMargin.toFixed(1)}%
                      </div>
                  </div>
@@ -301,19 +297,25 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                             onClick={() => setMarginFilter('all')}
                             className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${marginFilter === 'all' ? 'bg-white text-charcoal-900 shadow-sm' : 'text-charcoal-500 hover:text-charcoal-700'}`}
                         >
-                            All
+                            {t('financials.all')}
                         </button>
                         <button 
                             onClick={() => setMarginFilter('healthy')}
                             className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${marginFilter === 'healthy' ? 'bg-white text-green-700 shadow-sm' : 'text-charcoal-500 hover:text-charcoal-700'}`}
                         >
-                            Healthy
+                            {t('financials.healthy')}
+                        </button>
+                        <button 
+                            onClick={() => setMarginFilter('low')}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${marginFilter === 'low' ? 'bg-white text-yellow-700 shadow-sm' : 'text-charcoal-500 hover:text-charcoal-700'}`}
+                        >
+                            {t('financials.low')}
                         </button>
                         <button 
                             onClick={() => setMarginFilter('highrisk')}
                             className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${marginFilter === 'highrisk' ? 'bg-white text-red-700 shadow-sm' : 'text-charcoal-500 hover:text-charcoal-700'}`}
                         >
-                            Risk
+                            {t('financials.risk')}
                         </button>
                     </div>
                 </div>
@@ -383,11 +385,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                                      <div className="text-xs text-charcoal-400 font-normal">€{p.margin.toLocaleString()}</div>
                                  </td>
                                  <td className="px-6 py-4 text-center">
-                                     {p.marginPercent < 10 ? (
+                                     {p.marginPercent < MARGIN_THRESHOLDS.risk ? (
                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
                                              <AlertTriangle className="w-3 h-3" /> {t('financials.highRisk')}
                                          </span>
-                                     ) : p.marginPercent < 25 ? (
+                                     ) : p.marginPercent < MARGIN_THRESHOLDS.healthy ? (
                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
                                              {t('financials.lowMargin')}
                                          </span>
