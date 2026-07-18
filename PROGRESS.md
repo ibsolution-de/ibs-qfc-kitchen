@@ -117,3 +117,8 @@ Next up: user pushes main → CI deploys gh-pages. Optional standalone epics 4.3
 Gates: lint ✅ build ✅ test ✅ (84)
 Notes: package.json 0.0.0→1.3.1; __APP_VERSION__ injected via vite define (single source); Sidebar version button + changelog build line dynamic; new v1.3.1 changelog section (en+de, 11/11 key parity): data safety, overloads, exports, performance, quality. Verified rendering via headless Chrome dump-dom.
 Next up: epic 4.3 — AI service layer + streaming.
+
+## 2026-07-18 Epic 4.3 — AI service layer + streaming — c5a8df1
+Gates: lint ✅ build ✅ test ✅ (93, +client suite)
+Notes: services/ai/client.ts (createClient, AI_MODELS registry, AiNotConfiguredError, thinkingBudget in registry); strategyChat.ts persistent session; both chats stream via sendMessageStream w/ incremental render + AbortController (new msg/close/unmount aborts); fake CONNECTION_FAILED string deleted → real errors + translated bubbles + error toast; 5 inline GoogleGenAI call sites migrated.
+Next up: epic 4.4 — Recharts migration (Gate C: approved by owner via "start remaining options").
