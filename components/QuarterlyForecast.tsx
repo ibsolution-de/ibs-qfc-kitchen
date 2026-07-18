@@ -13,7 +13,14 @@ import { generateForecastAnalysis, AI_MODEL_FORECAST } from '../services/ai';
 import { Modal } from './ui/Modal';
 import { AsciiSpinner } from './ui/AsciiSpinner';
 import { forecastToJSON, downloadTextFile } from '../utils/export';
-import { format, eachDayOfInterval, endOfMonth, isWeekend } from 'date-fns';
+import { format } from 'date-fns';
+import {
+  computeQuarterCapacity,
+  computeMonthlyBreakdown,
+  runMonteCarloSimulation,
+  calculateCapacityMetrics,
+  type SimResult,
+} from '../utils/forecast';
 
 interface QuarterlyForecastProps {
   data: QuarterData[];
@@ -23,18 +30,6 @@ interface QuarterlyForecastProps {
   absences: Absence[];
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
   readOnly?: boolean;
-}
-
-interface SimResult {
-  p10: number; // Low load (Aggressive)
-  p50: number; // Median
-  p90: number; // High load (Conservative)
-  iterations: number[];
-  baseCapacity: number;
-  histogram: { binStart: number, count: number }[];
-  overloadProbability: number;
-  maxVol: number;
-  minVol: number;
 }
 
 // --- Sci-Fi UI Helpers ---
@@ -232,105 +227,14 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   const [simResult, setSimResult] = useState<SimResult | null>(null);
   const [isSimModalOpen, setIsSimModalOpen] = useState(false);
 
-  // Dynamic Calculation of Real Data
-  const getRealQuarterData = (quarter: QuarterData): QuarterData => {
-    // Heuristic to parse QX YYYY from name
-    const parts = quarter.name.split(' ');
-    if (parts.length < 2 || !parts[0]!.startsWith('Q')) return quarter;
-    
-    const qIndex = parseInt(parts[0]!.replace('Q', '')) - 1;
-    const year = parseInt(parts[1]!);
-    if (isNaN(qIndex) || isNaN(year)) return quarter;
-    
-    const startMonth = qIndex * 3;
-    const qStart = new Date(year, startMonth, 1);
-    const qEnd = endOfMonth(new Date(year, startMonth + 2, 1));
-    const qStartStr = format(qStart, 'yyyy-MM-dd');
-    const qEndStr = format(qEnd, 'yyyy-MM-dd');
-
-    // 1. Calculate Monthly Capacity based on employees
-    const newTotalCapacity = [0, 0, 0];
-    for(let i=0; i<3; i++) {
-        const mStart = new Date(year, startMonth + i, 1);
-        const mEnd = endOfMonth(mStart);
-        const days = eachDayOfInterval({ start: mStart, end: mEnd });
-        
-        let cap = 0;
-        employees.forEach(emp => {
-             const empHolidays = MOCK_HOLIDAYS.filter(h => h.location === 'ALL' || h.location === emp.location);
-             const empAbsences = absences.filter(a => a.employeeId === emp.id);
-
-             days.forEach(d => {
-                 if(isWeekend(d)) return;
-                 const dStr = format(d, 'yyyy-MM-dd');
-                 if(empHolidays.some(h => h.date === dStr)) return;
-                 if(empAbsences.some(a => a.date === dStr)) return;
-                 
-                 cap += (emp.availability / 100);
-             });
-        });
-        newTotalCapacity[i] = Math.round(cap);
-    }
-
-    // 2. Calculate Running Projects from Assignments
-    const relevantAssignments = assignments.filter(a => a.date >= qStartStr && a.date <= qEndStr);
-    const projMap = new Map<string, number>();
-    relevantAssignments.forEach(a => {
-         const val = a.allocation || 1;
-         projMap.set(a.projectId, (projMap.get(a.projectId) || 0) + val);
-    });
-    
-    const runningProjects = Array.from(projMap.entries()).map(([pid, volume]) => {
-         const p = allProjects.find(px => px.id === pid);
-         if(!p) return null;
-         return { ...p, volume: Math.round(volume * 10) / 10 };
-    }).filter(Boolean) as Project[];
-
-    return {
-        ...quarter,
-        totalCapacity: newTotalCapacity,
-        runningProjects: runningProjects
-    };
-  };
-
-  const calculateCapacity = (q: QuarterData) => {
-    const totalCap = q.totalCapacity.reduce((a, b) => a + b, 0);
-    const assignedDays = q.runningProjects.reduce((acc, p) => acc + (p.volume || 60), 0);
-    
-    const rawAvailable = totalCap - assignedDays;
-    // Ensure Available is non-negative for display
-    const availableAfterRunning = Math.max(0, rawAvailable);
-    
-    const opportunityDays = q.mustWinOpportunities.reduce((acc, p) => acc + (p.volume || 0), 0);
-    // Final/Net capacity uses raw values to reflect true over/under capacity
-    const finalAvailable = rawAvailable - opportunityDays;
-
-    return { totalCap, assignedDays, availableAfterRunning, opportunityDays, finalAvailable };
-  };
-
-  const getMonthlyBreakdown = (q: QuarterData, metrics: any) => {
-      if (metrics.totalCap === 0) return q.months.map((m, i) => ({ month: m, total: q.totalCapacity[i], available: 0, optimistic: 0 }));
-
-      return q.months.map((month, index) => {
-          const total = q.totalCapacity[index] ?? 0;
-          const ratio = total / metrics.totalCap;
-          const assigned = Math.round(metrics.assignedDays * ratio);
-          const opportunities = Math.round(metrics.opportunityDays * ratio);
-          
-          const rawAvailable = total - assigned;
-          const available = Math.max(0, rawAvailable); // Display as 0 if negative
-          const optimistic = rawAvailable - opportunities; // Keep true net value
-          
-          return { month, total, available, optimistic };
-      });
-  };
+  // Dynamic calculation helpers live in utils/forecast.ts.
 
   const handleExportForecastJSON = () => {
     const json = forecastToJSON(data);
     const filename = `forecast-${format(new Date(), 'yyyy-MM-dd')}.json`;
     downloadTextFile(filename, json, 'application/json');
   };
-  
+
   const handleAIAnalysis = async () => {
     // Always open modal, regardless of setting status to show motivation if needed
     setIsAnalysisModalOpen(true);
@@ -341,7 +245,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
 
     setAnalyzing(true);
     setAnalysisResult(null);
-    
+
     try {
         // Analyze the first quarter (most relevant), calculating real metrics first
         const firstQuarter = data[0];
@@ -349,7 +253,14 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
             setAnalysisResult(t('forecast.noData'));
             return;
         }
-        const realData = getRealQuarterData(firstQuarter);
+        const realData = computeQuarterCapacity({
+          quarter: firstQuarter,
+          employees,
+          absences,
+          holidays: MOCK_HOLIDAYS,
+          assignments,
+          allProjects,
+        });
         const result = await generateForecastAnalysis(realData, apiKey, language);
         setAnalysisResult(result);
     } catch (error) {
@@ -359,73 +270,9 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
     }
   };
 
-  const runMonteCarloSimulation = (quarter: QuarterData) => {
-      const q = getRealQuarterData(quarter);
-      const metrics = calculateCapacity(q);
-      const baseAvailable = metrics.availableAfterRunning;
-      
-      const opportunities = [
-          ...q.mustWinOpportunities.map(p => ({ ...p, probability: p.probability ?? 70 })),
-          ...q.alternativeOpportunities.map(p => ({ ...p, probability: p.probability ?? 30 }))
-      ];
-
-      const iterations = 2000;
-      const results: number[] = [];
-
-      // Run Simulation
-      for(let i = 0; i < iterations; i++) {
-          let oppVolume = 0;
-          opportunities.forEach(opp => {
-              const rand = Math.random() * 100;
-              if (rand < (opp.probability || 50)) {
-                  oppVolume += (opp.volume || 0);
-              }
-          });
-          results.push(oppVolume);
-      }
-
-      results.sort((a, b) => a - b);
-      
-      // Calculate Percentiles
-      const p10Vol = results[Math.floor(iterations * 0.1)] ?? 0; // Low probability of having ONLY this low volume (or less). So 90% chance it is higher. This is actually a "High Load" if we consider revenue, but "Low Load" if we consider work volume. Let's align with "Low Volume" scenario.
-      const p50Vol = results[Math.floor(iterations * 0.5)] ?? 0;
-      const p90Vol = results[Math.floor(iterations * 0.9)] ?? 0; // 90% of outcomes are lower or equal. High volume scenario.
-
-      // Histogram Data Preparation
-      const minVal = results[0] ?? 0;
-      const maxVal = results[results.length - 1] ?? 0;
-      const binCount = 30;
-      const binSize = (maxVal - minVal) / binCount || 1;
-      
-      const histogram = new Array(binCount).fill(0).map((_, i) => ({ 
-          binStart: Math.floor(minVal + (i * binSize)), 
-          count: 0 
-      }));
-
-      results.forEach(val => {
-          const binIndex = Math.min(Math.floor((val - minVal) / binSize), binCount - 1);
-          histogram[binIndex]!.count++;
-      });
-      
-      // Normalize counts for display height (0-100)
-      const maxCount = Math.max(...histogram.map(h => h.count));
-      histogram.forEach(h => h.count = (h.count / maxCount) * 100);
-
-      // Overload Probability: How many times did demand exceed supply?
-      const overloadCount = results.filter(v => v > baseAvailable).length;
-      const overloadProbability = (overloadCount / iterations) * 100;
-
-      setSimResult({
-          p10: p10Vol ?? 0,
-          p50: p50Vol ?? 0,
-          p90: p90Vol ?? 0,
-          iterations: results,
-          baseCapacity: baseAvailable,
-          histogram,
-          overloadProbability,
-          minVol: minVal,
-          maxVol: maxVal
-      });
+  const handleRunMonteCarlo = (quarter: QuarterData) => {
+      const result = runMonteCarloSimulation(quarter);
+      setSimResult(result);
       setIsSimModalOpen(true);
   };
 
@@ -501,10 +348,17 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {data.map((quarter, index) => {
-            const computedQuarter = getRealQuarterData(quarter);
-            const metrics = calculateCapacity(computedQuarter);
+            const computedQuarter = computeQuarterCapacity({
+              quarter,
+              employees,
+              absences,
+              holidays: MOCK_HOLIDAYS,
+              assignments,
+              allProjects,
+            });
+            const metrics = calculateCapacityMetrics(computedQuarter);
             const isCurrent = index === 0;
-            const monthlyData = getMonthlyBreakdown(computedQuarter, metrics);
+            const monthlyData = computeMonthlyBreakdown(computedQuarter, metrics);
             const isAddingMustWin = addingTo?.qId === quarter.id && addingTo?.type === 'mustWin';
             const isAddingAlt = addingTo?.qId === quarter.id && addingTo?.type === 'alternative';
 
@@ -534,7 +388,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                   </div>
                   {!readOnly && (
                       <button 
-                        onClick={() => runMonteCarloSimulation(quarter)}
+                        onClick={() => handleRunMonteCarlo(computedQuarter)}
                         className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 hover:bg-indigo-100 transition-colors"
                         title={t('forecast.monteCarlo')}
                       >
@@ -588,8 +442,8 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                                     <tr>
                                         <td className="px-3 py-2 font-medium text-blue-600">{t('forecast.available')}</td>
                                         {monthlyData.map(d => (
-                                            <td key={d.month} className={`px-3 py-2 text-right font-mono font-bold ${d.available < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                                                {d.available}
+                                            <td key={d.month} className={`px-3 py-2 text-right font-mono font-bold ${d.rawAvailable < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                                {d.rawAvailable}
                                             </td>
                                         ))}
                                     </tr>
@@ -1087,25 +941,29 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                          )}
 
                          {/* Histogram Bars */}
-                         {simResult.histogram.map((bin, i) => {
-                             const isOverload = bin.binStart > simResult.baseCapacity;
-                             return (
-                                 <div 
-                                    key={i} 
-                                    className={`flex-1 rounded-t-sm transition-all duration-500 relative group/bar
-                                        ${isOverload ? 'bg-red-500' : 'bg-blue-500'}
-                                    `}
-                                    style={{ 
-                                        height: `${Math.max(2, bin.count)}%`, 
-                                        opacity: 0.3 + (bin.count/150) 
-                                    }}
-                                 >
-                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/bar:opacity-100 bg-charcoal-950 text-white text-[9px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-20 border border-charcoal-700">
-                                         {bin.binStart}d
+                         {(() => {
+                             const maxHistogramCount = Math.max(...simResult.histogram.map(h => h.count), 1);
+                             return simResult.histogram.map((bin, i) => {
+                                 const isOverload = bin.binStart > simResult.baseCapacity;
+                                 const displayPercentage = (bin.count / maxHistogramCount) * 100;
+                                 return (
+                                     <div 
+                                        key={i} 
+                                        className={`flex-1 rounded-t-sm transition-all duration-500 relative group/bar
+                                            ${isOverload ? 'bg-red-500' : 'bg-blue-500'}
+                                        `}
+                                        style={{ 
+                                            height: `${Math.max(2, displayPercentage)}%`, 
+                                            opacity: 0.3 + (displayPercentage/150) 
+                                        }}
+                                     >
+                                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 opacity-0 group-hover/bar:opacity-100 bg-charcoal-950 text-white text-[9px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-20 border border-charcoal-700">
+                                             {bin.binStart}d
+                                         </div>
                                      </div>
-                                 </div>
-                             )
-                         })}
+                                 )
+                             });
+                         })()}
                      </div>
                      <div className="flex justify-between mt-1 text-[10px] text-charcoal-600 font-mono">
                          <span>{simResult.minVol}d</span>
