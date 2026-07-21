@@ -108,22 +108,19 @@ jobs:
   # dev-Overlay, damit ArgoCD (targetRevision main) den Stand automatisch synct.
   # Immutable Tags statt "latest": ArgoCD erkennt Manifest-Änderungen, Nodes
   # cachen nie einen veralteten Stand, und der Registry-User braucht keine
-  # Overwrite-Rechte. Release-/Dispatch-Läufe bumpen bewusst nicht (manueller
-  # Flow laut deploy/argocd/README.md).
+  # Overwrite-Rechte. Nur Push bumpt — es gibt aktuell nur ein dev-Overlay,
+  # kein prod-Overlay; Release-/Dispatch-Läufe bumpen bewusst nicht.
   bump-overlay:
     needs: [params, build]
-    # Push auf main → dev-Overlay; veröffentlichtes Release → prod-Overlay.
-    # Dispatch bumpt bewusst nicht (manueller Flow laut deploy/argocd/README.md).
-    if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
-      OVERLAY: ${{ github.event_name == 'release' && 'prod' || 'dev' }}
+      OVERLAY: dev
       TAG: ${{ needs.params.outputs.tag }}
       RELEASE: ${{ needs.params.outputs.release }}
     steps:
-      # Release-Läufe starten auf dem Tag-Ref — der Bump gehört trotzdem auf main.
       - uses: actions/checkout@v7
         with:
           ref: main
@@ -135,22 +132,14 @@ jobs:
           TAG_FULL="${TAG}${RELEASE:+-r${RELEASE}}"
           echo "TAG_FULL=${TAG_FULL}" >> "$GITHUB_ENV"
           cd "deploy/argocd/overlays/${OVERLAY}"
-          for svc in portal mcp librarian worker; do
-            kustomize edit set image \
-              "ibs-wissensdatenbank-${svc}=registry.apps.ibsolution.cloud/ibs/ib-wissensdatenbank/${svc}:${TAG_FULL}"
-          done
-
-      - name: README-Badge auf neuen Tag setzen
-        run: |
-          # Shields.io-Static-Badge: "-" im Text muss zu "--" escaped werden.
-          BADGE_TAG="${TAG_FULL//-/--}"
-          sed -i -E "s|(img\.shields\.io/badge/${OVERLAY}-)[^)]*\)|\1${BADGE_TAG}-$([ "$OVERLAY" = prod ] && echo 2ea44f || echo orange))|" README.md
+          kustomize edit set image \
+            "ibs-qfc-kitchen-web=registry.apps.ibsolution.cloud/ibs/ibs-qfc-kitchen/web:${TAG_FULL}"
 
       - name: Bump committen und pushen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "deploy/argocd/overlays/${OVERLAY}/kustomization.yaml" README.md
+          git add "deploy/argocd/overlays/${OVERLAY}/kustomization.yaml"
           if git diff --cached --quiet; then
             echo "Keine Änderung im Overlay — nichts zu committen."
             exit 0

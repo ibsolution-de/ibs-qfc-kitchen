@@ -6,17 +6,10 @@ namespace: ibs-dev-qfc-kitchen
 resources:
 - ../../base
 
-commonLabels:
-  app.kubernetes.io/part-of: ibs-dev-qfc-kitchen
-
-patches:
-- patch: |-
-    - op: replace
-      path: /data/HUB_ENVIRONMENT
-      value: staging
-  target:
-    kind: ConfigMap
-    name: ibs-qfc-kitchen-config
+labels:
+- pairs:
+    app.kubernetes.io/part-of: ibs-dev-qfc-kitchen
+  includeSelectors: true
 
 images:
 - name: ibs-qfc-kitchen-web

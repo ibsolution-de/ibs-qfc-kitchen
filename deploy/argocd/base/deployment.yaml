@@ -19,31 +19,37 @@ spec:
         app.kubernetes.io/part-of: ibs-qfc-kitchen
     spec:
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
       imagePullSecrets:
         - name: ibs-registry
       containers:
         - name: web
           image: ibs-qfc-kitchen-web
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           ports:
-            - { name: http-portal, containerPort: 8080 }
+            - { name: http, containerPort: 8080 }
           readinessProbe:
-            httpGet: { path: /healthz, port: http-portal }
+            httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 5
             periodSeconds: 15
           livenessProbe:
-            httpGet: { path: /healthz, port: http-portal }
+            httpGet: { path: /healthz, port: http }
             initialDelaySeconds: 10
             periodSeconds: 30
           resources:
             requests: { cpu: 50m, memory: 128Mi }
             limits: { memory: 512Mi }
           volumeMounts:
-            - { name: data, subPath: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+            - { name: nginx-cache, mountPath: /var/cache/nginx }
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: ibs-qfc-kitchen-data
+        - { name: tmp, emptyDir: {} }
+        - { name: nginx-cache, emptyDir: {} }
