@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ibs-qfc-kitchen
+  labels:
+    app.kubernetes.io/name: ibs-qfc-kitchen
+    app.kubernetes.io/part-of: ibs-qfc-kitchen
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ibs-qfc-kitchen
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ibs-qfc-kitchen
+        app.kubernetes.io/part-of: ibs-qfc-kitchen
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      imagePullSecrets:
+        - name: ibs-registry
+      containers:
+        - name: web
+          image: ibs-qfc-kitchen-web
+          ports:
+            - { name: http-portal, containerPort: 8080 }
+          readinessProbe:
+            httpGet: { path: /healthz, port: http-portal }
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: { path: /healthz, port: http-portal }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+          volumeMounts:
+            - { name: data, subPath: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ibs-qfc-kitchen-data

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ibs-dev-qfc-kitchen
+
+resources:
+- ../../base
+
+commonLabels:
+  app.kubernetes.io/part-of: ibs-dev-qfc-kitchen
+
+patches:
+- patch: |-
+    - op: replace
+      path: /data/HUB_ENVIRONMENT
+      value: staging
+  target:
+    kind: ConfigMap
+    name: ibs-qfc-kitchen-config
+
+images:
+- name: ibs-qfc-kitchen-web
+  newName: registry.apps.ibsolution.cloud/ibs/ibs-qfc-kitchen/web
+  newTag: 1.3.1-dev.e742497

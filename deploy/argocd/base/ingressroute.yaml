@@ -1,0 +1,27 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ibs-qfc-kitchen
+  labels:
+    app.kubernetes.io/part-of: ibs-qfc-kitchen
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    #- kind: Rule
+    #  match: Host(`qfc-kitchen.dev.apps.ibsolution.cloud`) && PathPrefix(`/api`)
+    #  services:
+    #    - name: ibs-qfc-kitchen
+    #      port: 8080
+    - kind: Rule
+      match: Host(`qfc-kitchen.dev.apps.ibsolution.cloud`)
+      middlewares:
+        - name: oauth2-errors
+          namespace: ibs-id
+        - name: oauth2-auth
+          namespace: ibs-id
+      services:
+        - name: ibs-qfc-kitchen
+          port: 8080
+  tls:
+    certResolver: letsencrypt
