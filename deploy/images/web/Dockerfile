@@ -8,8 +8,8 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
-# ---- Runtime-Stage: nginx liefert statische Files ----
-FROM nginx:1.30-alpine AS runtime
+# ---- Runtime-Stage: nginx (unprivileged) liefert statische Files ----
+FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
 LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.authors="nazar.kulyk@ibsolution.de" \
     org.opencontainers.image.url="https://github.com/ibsolution-de/ibs-qfc-kitchen" \
@@ -18,7 +18,7 @@ LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.title="ibs-qfc-kitchen/web"
 COPY deploy/images/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- "http://localhost/healthz" >/dev/null 2>&1 || exit 1
+  CMD wget -qO- "http://localhost:8080/healthz" >/dev/null 2>&1 || exit 1
 # CMD/ENTRYPOINT vom nginx-Base übernommen (nginx -g 'daemon off;')
