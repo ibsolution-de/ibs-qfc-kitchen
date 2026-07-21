@@ -17,7 +17,7 @@ LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.vendor="ibsolution" \
     org.opencontainers.image.title="ibs-qfc-kitchen/web"
 COPY deploy/images/web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html/ibs-qfc-kitchen
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- "http://localhost/healthz" >/dev/null 2>&1 || exit 1
