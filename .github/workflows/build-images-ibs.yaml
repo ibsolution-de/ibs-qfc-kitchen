@@ -1,0 +1,162 @@
+name: build-images-ibs
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "image tag"
+        required: true
+        default: "1.3.1"
+      release:
+        description: "release number"
+        required: true
+        default: "1"
+      base-ver:
+        description: "base image version (ibs/nodejs tag)"
+        required: true
+        default: "24.18.0-r1"
+      dry:
+        description: "dry run without publishing to registry"
+        required: true
+        type: boolean
+        default: true
+  release:
+    types: [published]
+  # Push auf main baut Dev-Images (<version>-dev.<sha>) und bumpt danach das
+  # dev-Overlay — paths-ignore verhindert, dass der Bump-Commit selbst wieder
+  # einen Lauf auslöst (zusätzlich: [skip ci] + GITHUB_TOKEN-Pushes triggern nie).
+  push:
+    branches: [main]
+    paths-ignore:
+      - "deploy/argocd/**"
+      - "docs/**"
+      - "**.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-images-ibs-${{ github.ref }}
+  # Bei schnellen Push-Folgen auf main veraltete Dev-Builds verwerfen;
+  # Dispatch-/Release-Läufe laufen wie bisher zu Ende.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  # Vereinheitlicht die Parameter aller Trigger: bei workflow_dispatch kommen sie aus den
+  # inputs; bei einem veröffentlichten Release wird TAG aus dem Release-Tag abgeleitet
+  # ("v0.9.1" -> "0.9.1"); bei einem Push auf main entsteht ein immutabler Dev-Tag
+  # "<letzter Git-Tag>-dev.<shortsha>" (z. B. "0.9.2-dev.25ce796") ohne RELEASE-Suffix —
+  # Compose und Helper behandeln leeres RELEASE bereits (${RELEASE:+-r$RELEASE}).
+  params:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.p.outputs.tag }}
+      release: ${{ steps.p.outputs.release }}
+      base-ver: ${{ steps.p.outputs.base-ver }}
+      dry: ${{ steps.p.outputs.dry }}
+    steps:
+      # Nur der Push-Fall braucht die Historie (git describe für den letzten Tag).
+      - uses: actions/checkout@v7
+        if: ${{ github.event_name == 'push' }}
+        with:
+          fetch-depth: 0
+      - id: p
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "tag=${{ inputs.tag }}"
+              echo "release=${{ inputs.release }}"
+              echo "base-ver=${{ inputs.base-ver }}"
+              echo "dry=${{ inputs.dry }}"
+            } >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            # Nur Semver-Tags (v0.9.3) zählen — Streuner-Tags wie "release-prod"
+            # würden sonst den Dev-Tag kaputt machen (release-prod-dev.<sha>).
+            VERSION="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v0.0.0)"
+            {
+              echo "tag=${VERSION#v}-dev.${GITHUB_SHA::7}"
+              echo "release="
+              echo "base-ver=${{ vars.NODEJS_BASE_VER || '24.18.0-r1' }}"
+              echo "dry=false"
+            } >> "$GITHUB_OUTPUT"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+            {
+              echo "tag=${TAG#v}"
+              echo "release=1"
+              echo "base-ver=${{ vars.NODEJS_BASE_VER || '24.18.0-r1' }}"
+              echo "dry=false"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: params
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { dir: deploy/images/web,    image: ibs-qfc-kitchen/web,    service: web }
+    uses: ./.github/workflows/build-image-helper.yaml
+    secrets: inherit
+    with:
+      working-directory: ${{ matrix.dir }}
+      services: ${{ matrix.service }}
+      inputs-json: '{"TAG":"${{ needs.params.outputs.tag }}","IMAGE":"${{ matrix.image }}","RELEASE":"${{ needs.params.outputs.release }}","BASE":"${{ needs.params.outputs.base-ver }}"}'
+      dry: ${{ fromJSON(needs.params.outputs.dry) }}
+
+  # GitOps-Bump nur für Push-Builds: schreibt den frischen Dev-Tag in das
+  # dev-Overlay, damit ArgoCD (targetRevision main) den Stand automatisch synct.
+  # Immutable Tags statt "latest": ArgoCD erkennt Manifest-Änderungen, Nodes
+  # cachen nie einen veralteten Stand, und der Registry-User braucht keine
+  # Overwrite-Rechte. Release-/Dispatch-Läufe bumpen bewusst nicht (manueller
+  # Flow laut deploy/argocd/README.md).
+  bump-overlay:
+    needs: [params, build]
+    # Push auf main → dev-Overlay; veröffentlichtes Release → prod-Overlay.
+    # Dispatch bumpt bewusst nicht (manueller Flow laut deploy/argocd/README.md).
+    if: ${{ github.event_name == 'push' || github.event_name == 'release' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      OVERLAY: ${{ github.event_name == 'release' && 'prod' || 'dev' }}
+      TAG: ${{ needs.params.outputs.tag }}
+      RELEASE: ${{ needs.params.outputs.release }}
+    steps:
+      # Release-Läufe starten auf dem Tag-Ref — der Bump gehört trotzdem auf main.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Overlay auf neuen Tag setzen
+        run: |
+          # Gleiche Ableitung wie im Build-Helper: Release-Suffix nur wenn gesetzt
+          # (Release: "0.9.3-r1"; Push: "0.9.2-dev.<sha>", RELEASE leer).
+          TAG_FULL="${TAG}${RELEASE:+-r${RELEASE}}"
+          echo "TAG_FULL=${TAG_FULL}" >> "$GITHUB_ENV"
+          cd "deploy/argocd/overlays/${OVERLAY}"
+          for svc in portal mcp librarian worker; do
+            kustomize edit set image \
+              "ibs-wissensdatenbank-${svc}=registry.apps.ibsolution.cloud/ibs/ib-wissensdatenbank/${svc}:${TAG_FULL}"
+          done
+
+      - name: README-Badge auf neuen Tag setzen
+        run: |
+          # Shields.io-Static-Badge: "-" im Text muss zu "--" escaped werden.
+          BADGE_TAG="${TAG_FULL//-/--}"
+          sed -i -E "s|(img\.shields\.io/badge/${OVERLAY}-)[^)]*\)|\1${BADGE_TAG}-$([ "$OVERLAY" = prod ] && echo 2ea44f || echo orange))|" README.md
+
+      - name: Bump committen und pushen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "deploy/argocd/overlays/${OVERLAY}/kustomization.yaml" README.md
+          if git diff --cached --quiet; then
+            echo "Keine Änderung im Overlay — nichts zu committen."
+            exit 0
+          fi
+          git commit -m "chore(deploy): ${OVERLAY} auf ${TAG_FULL} [skip ci]"
+          # main kann seit dem Checkout weitergelaufen sein — vor dem Push rebasen.
+          git pull --rebase origin main
+          git push origin main
+          echo "### :arrow_up: ${OVERLAY}-Overlay auf ${TAG_FULL} gebumpt" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,13 @@
+{
+  "variable": {
+    "IMAGE": { "default": "" },
+    "ARCH_SUFFIX": { "default": "" }
+  },
+  "target": {
+    "web": {
+      "cache-from": ["type=gha,scope=${IMAGE}${ARCH_SUFFIX}"],
+      "cache-to": ["type=gha,mode=max,scope=${IMAGE}${ARCH_SUFFIX}"],
+      "output": ["type=docker"]
+    }
+  }
+}

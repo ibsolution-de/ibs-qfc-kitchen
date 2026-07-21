@@ -1,0 +1,6 @@
+services:
+  web:
+    build:
+      context: ../../..
+      dockerfile: deploy/images/web/Dockerfile
+    image: ${REGISTRY}/${REG_REPO}/${IMAGE}:${TAG}${RELEASE:+-r$RELEASE}${ARCH_SUFFIX:-}

@@ -1,0 +1,215 @@
+name: Build Image Helper
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing compose.yaml"
+        required: true
+        type: string
+      services:
+        description: "Space-separated compose service names"
+        required: true
+        type: string
+      inputs-json:
+        description: "JSON blob of inputs forwarded as env vars"
+        required: false
+        type: string
+        default: "{}"
+      dry:
+        description: "Dry run (skip push)"
+        required: false
+        type: boolean
+        default: true
+      pre-build-services:
+        description: "Space-separated services to build first (for dependency ordering)"
+        required: false
+        type: string
+        default: ""
+      source-repo:
+        description: "Optional private source repository to checkout into the build context (format: owner/repo)"
+        required: false
+        type: string
+        default: ""
+      source-repo-ref:
+        description: "Optional ref to checkout from source-repo"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-docker-build
+        with:
+          registry: ${{ vars.DOCKER_REGISTRY_URI }}
+          username: ${{ vars.DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.DOCKER_REGISTRY_KEY }}
+          cache-key-prefix: docker-${{ inputs.services }}-${{ matrix.arch }}
+          checkout: "false"
+
+      - name: Checkout source repo
+        if: ${{ inputs.source-repo != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.source-repo }}
+          ref: ${{ inputs.source-repo-ref }}
+          path: ./${{ inputs.working-directory }}/src
+
+      - name: Map inputs to environment
+        run: |
+          echo "REG_REPO=ibs" >> $GITHUB_ENV
+          echo "REGISTRY=${{ vars.DOCKER_REGISTRY_URI }}" >> $GITHUB_ENV
+          echo "ARCH_SUFFIX=-${{ matrix.arch }}" >> $GITHUB_ENV
+          echo '${{ inputs.inputs-json }}' | node -e '
+          const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+          const map = {
+            "tag": "TAG", "release": "RELEASE",
+            "source-ver": "SOURCE_VER", "original-tag": "SOURCE_VER",
+            "image": "IMAGE", "original-image": "IMAGE",
+            "base-ver": "BASE"
+          };
+          for (const [k, v] of Object.entries(d)) {
+            const envKey = map[k] || k.toUpperCase().replace(/-/g, "_");
+            console.log(envKey + "=" + v);
+          }
+          ' >> $GITHUB_ENV
+
+      - name: Pre-build dependencies
+        if: ${{ inputs.pre-build-services != '' }}
+        env:
+          BUILDKIT_PROGRESS: plain
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        working-directory: ./${{ inputs.working-directory }}
+        run: |
+          for svc in ${{ inputs.pre-build-services }}; do
+            docker buildx bake --allow=fs.read="$GITHUB_WORKSPACE" \
+              --file compose.yaml --file compose-cache.json \
+              --set "*.platform=${{ matrix.platform }}" --load "$svc"
+          done
+
+      # BuildKit/Bake fordert für Cross-Directory-Build-Kontexte (App-Images, die
+      # auf Dateien außerhalb des working-directory zugreifen) eine fs.read-Erlaubnis.
+      # --allow=fs.read="$GITHUB_WORKSPACE" deckt beide Fälle ab: für nodejs (Context .)
+      # ist es wirkungslos, aber unschädlich; ein einziges Flag vereinfacht den Helper.
+      - name: Build images
+        env:
+          BUILDKIT_PROGRESS: plain
+          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+        working-directory: ./${{ inputs.working-directory }}
+        run: |
+          docker buildx bake --allow=fs.read="$GITHUB_WORKSPACE" \
+            --file compose.yaml --file compose-cache.json \
+            --set "*.platform=${{ matrix.platform }}" \
+            ${{ inputs.dry && '--load' || '--set "*.output=type=registry,oci-mediatypes=true"' }} \
+            ${{ inputs.services }}
+
+  manifest:
+    runs-on: ubuntu-24.04
+    needs: build
+    if: ${{ !inputs.dry }}
+    # "secrets" ist im "if:" von Steps nicht erlaubt (GitHub-Context-Tabelle) — deshalb hier
+    # in ein job-level Env-Flag übersetzen, das die Cosign-Steps stattdessen abfragen.
+    # Ohne gesetztes COSIGN_PRIVATE_KEY-Secret werden Sign + Verify übersprungen.
+    env:
+      COSIGN_ENABLED: ${{ secrets.COSIGN_PRIVATE_KEY != '' }}
+    steps:
+      - name: Map inputs to environment
+        run: |
+          echo "REG_REPO=ibs" >> $GITHUB_ENV
+          echo "REGISTRY=${{ vars.DOCKER_REGISTRY_URI }}" >> $GITHUB_ENV
+          echo '${{ inputs.inputs-json }}' | node -e '
+          const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+          const map = {
+            "tag": "TAG", "release": "RELEASE",
+            "source-ver": "SOURCE_VER", "original-tag": "SOURCE_VER",
+            "image": "IMAGE", "original-image": "IMAGE",
+            "base-ver": "BASE"
+          };
+          for (const [k, v] of Object.entries(d)) {
+            const envKey = map[k] || k.toUpperCase().replace(/-/g, "_");
+            console.log(envKey + "=" + v);
+          }
+          ' >> $GITHUB_ENV
+
+      # Einmal zentral berechnen — Manifest-Merge, Sign, Verify und Summary nutzen
+      # danach nur noch $IMAGE_NAME/$IMAGE_REF. (Eigener Step, weil TAG/RELEASE erst
+      # nach dem Map-Step als Env verfügbar sind.)
+      - name: Compute image ref
+        run: |
+          TAG_FULL="${TAG}${RELEASE:+-r${RELEASE}}"
+          {
+            echo "IMAGE_NAME=${REGISTRY}/${REG_REPO}/${IMAGE}"
+            echo "IMAGE_REF=${REGISTRY}/${REG_REPO}/${IMAGE}:${TAG_FULL}"
+          } >> "$GITHUB_ENV"
+
+      - name: Login to Docker Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ vars.DOCKER_REGISTRY_URI }}
+          username: ${{ vars.DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.DOCKER_REGISTRY_KEY }}
+
+      - name: Create multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE_REF}" \
+            "${IMAGE_REF}-amd64" \
+            "${IMAGE_REF}-arm64"
+
+      # Cosign installieren (signiert den frisch gepushten Multi-Arch-Digest).
+      - name: Install cosign
+        if: ${{ env.COSIGN_ENABLED == 'true' }}
+        uses: sigstore/cosign-installer@v4.1.2
+
+      # Signatur auf den Index-Digest (nicht den Tag — Tags sind beweglich); --recursive
+      # signiert auch die per-Arch-Child-Manifeste. Zwei Spezial-Flags, beide nötig:
+      #   --tlog-upload=false        interne Registry — nichts ins öffentliche Rekor-Log
+      #   --use-signing-config=false cosign 3.x verbietet sonst --tlog-upload=false
+      - name: Sign image (cosign)
+        if: ${{ env.COSIGN_ENABLED == 'true' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          DIGEST="$(docker buildx imagetools inspect "${IMAGE_REF}" --format '{{.Manifest.Digest}}')"
+          cosign sign --yes --recursive --new-bundle-format=false \
+            --tlog-upload=false --use-signing-config=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            "${IMAGE_NAME}@${DIGEST}"
+          echo "COSIGN_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
+
+      # Gate: Signatur sofort gegenprüfen — der Public Key wird aus dem Private Key
+      # abgeleitet (kein separates COSIGN_PUBLIC_KEY-Secret nötig). Schlägt der Verify
+      # fehl, scheitert der Lauf, bevor jemand das Image konsumiert.
+      - name: Verify signature (cosign)
+        if: ${{ env.COSIGN_ENABLED == 'true' }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign public-key --key env://COSIGN_PRIVATE_KEY --outfile "$RUNNER_TEMP/cosign.pub"
+          cosign verify --key "$RUNNER_TEMP/cosign.pub" \
+            --insecure-ignore-tlog=true \
+            "${IMAGE_NAME}@${COSIGN_DIGEST}"
+
+      - name: Finish message
+        run: |
+          SUMMARY="### :rocket: generated image ${IMAGE_REF} (amd64, arm64)"
+          if [ -n "${COSIGN_DIGEST:-}" ]; then
+            SUMMARY="${SUMMARY} — signed, digest ${COSIGN_DIGEST}"
+          fi
+          echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
