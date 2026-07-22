@@ -210,6 +210,15 @@ export const translations = {
       title: 'CHANGELOG.SYS',
       systemOnline: 'SYSTEM ONLINE',
       id: 'ID: QFC-KITCHEN-CORE',
+      v132: {
+        title: 'DEPLOYMENT & INFRASTRUCTURE',
+        containerized: 'Containerized Delivery',
+        containerizedDesc: 'The app now ships as a self-contained static nginx image, built automatically from source.',
+        hardened: 'Hardened Kubernetes Runtime',
+        hardenedDesc: 'Runs non-root with a read-only filesystem under restricted Pod Security — production-ready by default.',
+        gitops: 'Automated GitOps Deploy',
+        gitopsDesc: 'Every push builds an immutable image and ArgoCD syncs the cluster to match — no manual steps.'
+      },
       v131: {
         title: 'STABILITY & PERFORMANCE UPDATE',
         dataSafety: 'Planner Data Safety',
@@ -742,6 +751,15 @@ export const translations = {
       title: 'CHANGELOG.SYS',
       systemOnline: 'SYSTEM ONLINE',
       id: 'ID: QFC-KITCHEN-CORE',
+      v132: {
+        title: 'DEPLOYMENT & INFRASTRUKTUR',
+        containerized: 'Containerisierte Auslieferung',
+        containerizedDesc: 'Die App wird jetzt als eigenständiges statisches nginx-Image ausgeliefert, automatisch aus dem Quellcode gebaut.',
+        hardened: 'Gehärtete Kubernetes-Laufzeit',
+        hardenedDesc: 'Läuft non-root mit read-only Dateisystem unter restricted Pod Security — standardmäßig produktionsbereit.',
+        gitops: 'Automatisiertes GitOps-Deploy',
+        gitopsDesc: 'Jeder Push baut ein unveränderliches Image, ArgoCD synchronisiert den Cluster automatisch — keine manuellen Schritte.'
+      },
       v131: {
         title: 'STABILITÄTS- & PERFORMANCE-UPDATE',
         dataSafety: 'Planer-Datensicherheit',
