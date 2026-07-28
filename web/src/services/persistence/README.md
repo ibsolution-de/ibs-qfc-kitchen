@@ -7,6 +7,9 @@ future backend attaches.
 
 ## Target architecture (future, separate implementation run)
 
+See `../../../../api/README.md` for the backend's current status and this
+same architecture from the backend's perspective.
+
 ```
 ┌─────────────┐   protobuf / HTTP3 (WebTransport, QUIC)   ┌──────────────────┐
 │  React SPA  │ ◄──────────────────────────────────────► │  Rust worker      │

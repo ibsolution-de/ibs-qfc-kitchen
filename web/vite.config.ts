@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 import pkg from './package.json';
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+    const env = loadEnv(mode, __dirname, '');
     return {
       base: '/',
       server: {
@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': path.resolve(__dirname, 'src'),
         }
       },
       build: {

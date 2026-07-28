@@ -23,5 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
-# pi subagent artifacts
+# Agent artifacts (pi subagents)
 .pi-subagents/
+
+# Claude Code — agents/ and CLAUDE.md are shared project config and stay tracked
+.claude/settings.local.json
+
+# Rust (api/) — api/.gitignore covers it too; this catches nested crates
+target/
+*.rs.bk
