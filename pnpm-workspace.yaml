@@ -6,3 +6,7 @@ allowBuilds:
   protobufjs: true
 minimumReleaseAgeExclude:
   - lucide-react@1.25.0
+  - '@google/genai@2.14.0'
+  - jsdom@30.0.1
+  - react-router-dom@7.18.2
+  - react-router@7.18.2
