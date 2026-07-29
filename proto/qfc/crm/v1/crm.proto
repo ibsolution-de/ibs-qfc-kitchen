@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package qfc.crm.v1;
+
+message Customer {
+  string id = 1;
+  string name = 2;
+  string logo = 3;
+  string industry = 4;
+  string contact_name = 5;
+  string email = 6;
+  optional string notes = 7;
+}
+
+message ListCustomersRequest {}
+
+message ListCustomersResponse {
+  repeated Customer customers = 1;
+}
+
+message UpsertCustomerRequest {
+  Customer customer = 1;
+}
+
+message UpsertCustomerResponse {
+  Customer customer = 1;
+}
+
+message DeleteCustomerRequest {
+  string id = 1;
+}
+
+message DeleteCustomerResponse {}
+
+service CustomerService {
+  rpc ListCustomers(ListCustomersRequest) returns (ListCustomersResponse);
+  rpc UpsertCustomer(UpsertCustomerRequest) returns (UpsertCustomerResponse);
+  rpc DeleteCustomer(DeleteCustomerRequest) returns (DeleteCustomerResponse);
+}

@@ -1,18 +1,19 @@
 # ibs-qfc-kitchen — Project Rules
 
 Monorepo: `web/` (React 19 + TypeScript + Vite 8 + Tailwind 4 SPA, tests with
-Vitest), `api/` (Rust backend, currently a skeleton), `deploy/` (container
-image + ArgoCD manifests).
+Vitest), `api/` (Rust backend: axum + Connect RPC over protobuf + SQLite),
+`deploy/` (container image + ArgoCD manifests).
 Root scripts delegate into `web/`: `pnpm dev`, `pnpm build`, `pnpm lint`
 (`tsc --noEmit`), `pnpm test`. Backend scripts: `pnpm api:dev`, `pnpm api:lint`,
-`pnpm api:test`.
+`pnpm api:test`. Proto/seed scripts: `pnpm proto:gen`, `pnpm proto:lint`,
+`pnpm seed:gen`.
 
 ## Structure
 
 ```
 ibs-qfc-kitchen/
 ├── web/      # React 19 + TS + Vite 8 + Tailwind 4 SPA
-├── api/      # Rust backend (axum + tokio) — skeleton
+├── api/      # Rust backend: axum + Connect RPC (protobuf) + SQLite
 └── deploy/   # container image + ArgoCD manifests
 ```
 

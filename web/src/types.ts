@@ -118,12 +118,12 @@ export interface PlanVersion {
   forecastData: QuarterData[];
 }
 
-export type UserRole = 'employee' | 'pm' | 'bl' | 'sales';
+export type UserRole = 'employee' | 'pm' | 'bl' | 'sales' | 'admin';
 
 export interface User {
   id: string;
   name: string;
-  role: UserRole;
+  roles: UserRole[]; // A user holds a set of roles, never exactly one - never empty.
   avatar: string;
   employeeId?: string; // Links to an employee record if applicable
 }

@@ -6,10 +6,13 @@ export const translations = {
       employee: 'Employee',
       pm: 'Project Manager',
       bl: 'Division Manager (BL)',
-      sales: 'Sales Manager'
+      sales: 'Sales Manager',
+      admin: 'Administrator'
     },
     common: {
-      loading: 'Loading…'
+      loading: 'Loading…',
+      loadError: 'Failed to load data from the server. Please try again later.',
+      saveError: 'Failed to save your change. Please try again.'
     },
     accessibility: {
       chartData: 'Chart data',
@@ -201,10 +204,13 @@ export const translations = {
       close: 'Close',
       saveSettings: 'Save Settings',
       switchRole: 'Switch Role',
+      clearRoleOverride: 'Reset to my real roles',
       saveNewVersion: 'Save new version',
       clearApiKey: 'Clear API Key',
       latest: 'Latest',
-      changelogTitle: 'System Record'
+      changelogTitle: 'System Record',
+      administration: 'Administration',
+      userAdministration: 'Users'
     },
     changelog: {
       title: 'CHANGELOG.SYS',
@@ -364,6 +370,33 @@ export const translations = {
       validation: {
         required: 'Name and role are required.'
       }
+    },
+    admin: {
+      title: 'User Administration',
+      subtitle: 'Manage accounts and role assignments',
+      addUser: 'Add User',
+      editUser: 'Edit User',
+      deleteUser: 'Delete User',
+      email: 'Email',
+      emailPlaceholder: 'name@company.com',
+      roles: 'Roles',
+      linkedEmployee: 'Linked Employee',
+      noEmployeeLink: 'No employee link',
+      cancel: 'Cancel',
+      saveUser: 'Save User',
+      deleteTitle: 'Delete User',
+      confirmDelete: 'Are you sure you want to delete this user? This cannot be undone.',
+      delete: 'Delete',
+      noUsers: 'No users yet.',
+      retry: 'Retry',
+      validation: {
+        emailRequired: 'Email is required.',
+        roleRequired: 'At least one role is required.'
+      },
+      errorInvalidRoles: 'This user needs at least one role.',
+      errorDeleteGuard: 'Cannot delete the last admin or your own account.',
+      errorUserNotFound: 'This user no longer exists.',
+      errorPermissionDenied: 'You do not have permission to manage users.'
     },
     development: {
       title: 'Positioning & Development',
@@ -539,7 +572,9 @@ export const translations = {
       customerSaved: 'Customer saved successfully.',
       customerDeleted: 'Customer deleted successfully.',
       versionCreated: 'New version created successfully.',
-      csvExported: 'CSV exported successfully.'
+      csvExported: 'CSV exported successfully.',
+      userSaved: 'User saved successfully.',
+      userDeleted: 'User deleted successfully.'
     }
   },
   de: {
@@ -547,10 +582,13 @@ export const translations = {
       employee: 'Mitarbeiter',
       pm: 'Projektleiter (PM)',
       bl: 'Bereichsleiter (BL)',
-      sales: 'Sales Manager'
+      sales: 'Sales Manager',
+      admin: 'Administrator'
     },
     common: {
-      loading: 'Laden…'
+      loading: 'Laden…',
+      loadError: 'Daten konnten nicht vom Server geladen werden. Bitte später erneut versuchen.',
+      saveError: 'Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.'
     },
     accessibility: {
       chartData: 'Diagrammdaten',
@@ -742,10 +780,13 @@ export const translations = {
       close: 'Schließen',
       saveSettings: 'Einstellungen speichern',
       switchRole: 'Rolle wechseln',
+      clearRoleOverride: 'Auf meine echten Rollen zurücksetzen',
       saveNewVersion: 'Neue Version speichern',
       clearApiKey: 'API-Key löschen',
       latest: 'Neueste',
-      changelogTitle: 'Systemprotokoll'
+      changelogTitle: 'Systemprotokoll',
+      administration: 'Verwaltung',
+      userAdministration: 'Benutzer'
     },
     changelog: {
       title: 'CHANGELOG.SYS',
@@ -905,6 +946,33 @@ export const translations = {
       validation: {
         required: 'Name und Rolle sind Pflichtfelder.'
       }
+    },
+    admin: {
+      title: 'Benutzerverwaltung',
+      subtitle: 'Konten und Rollenzuweisungen verwalten',
+      addUser: 'Benutzer hinzufügen',
+      editUser: 'Benutzer bearbeiten',
+      deleteUser: 'Benutzer löschen',
+      email: 'E-Mail',
+      emailPlaceholder: 'name@firma.de',
+      roles: 'Rollen',
+      linkedEmployee: 'Verknüpfter Mitarbeiter',
+      noEmployeeLink: 'Keine Mitarbeiterverknüpfung',
+      cancel: 'Abbrechen',
+      saveUser: 'Benutzer speichern',
+      deleteTitle: 'Benutzer löschen',
+      confirmDelete: 'Möchten Sie diesen Benutzer wirklich löschen? Dies kann nicht rückgängig gemacht werden.',
+      delete: 'Löschen',
+      noUsers: 'Noch keine Benutzer.',
+      retry: 'Erneut versuchen',
+      validation: {
+        emailRequired: 'E-Mail ist erforderlich.',
+        roleRequired: 'Mindestens eine Rolle ist erforderlich.'
+      },
+      errorInvalidRoles: 'Dieser Benutzer benötigt mindestens eine Rolle.',
+      errorDeleteGuard: 'Der letzte Administrator oder das eigene Konto kann nicht gelöscht werden.',
+      errorUserNotFound: 'Dieser Benutzer existiert nicht mehr.',
+      errorPermissionDenied: 'Sie haben keine Berechtigung, Benutzer zu verwalten.'
     },
     development: {
       title: 'Standortbestimmung & Entwicklung',
@@ -1080,7 +1148,9 @@ export const translations = {
       customerSaved: 'Kunde erfolgreich gespeichert.',
       customerDeleted: 'Kunde erfolgreich gelöscht.',
       versionCreated: 'Neue Version erfolgreich erstellt.',
-      csvExported: 'CSV erfolgreich exportiert.'
+      csvExported: 'CSV erfolgreich exportiert.',
+      userSaved: 'Benutzer erfolgreich gespeichert.',
+      userDeleted: 'Benutzer erfolgreich gelöscht.'
     }
   }
 };

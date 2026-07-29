@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package qfc.session.v1;
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_EMPLOYEE = 1;
+  USER_ROLE_PM = 2;
+  USER_ROLE_BL = 3;
+  USER_ROLE_SALES = 4;
+  // Administers accounts and role assignments. Grants no planning access on
+  // its own -- combine with pm/bl for that.
+  USER_ROLE_ADMIN = 5;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+  // A user holds a set of roles, never exactly one. Never empty: a user with
+  // no roles could do nothing.
+  repeated UserRole roles = 3;
+  string avatar = 4;
+  // Links to an employee record if applicable.
+  optional string employee_id = 5;
+  string email = 6;
+}
+
+message GetSessionRequest {}
+
+message GetSessionResponse {
+  User user = 1;
+}
+
+// Identity of the current caller, derived from proxy headers.
+service SessionService {
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+}

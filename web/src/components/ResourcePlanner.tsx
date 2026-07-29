@@ -28,8 +28,8 @@ import {
   Lock,
   Flag,
 } from 'lucide-react';
-import { Employee, Project, Assignment, TimeScale, Absence } from '../types';
-import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
+import { Employee, Project, Assignment, TimeScale, Absence, PublicHoliday } from '../types';
+import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Modal } from './ui/Modal';
@@ -49,6 +49,7 @@ interface ResourcePlannerProps {
   assignments: Assignment[];
   absences: Absence[];
   projects: Project[];
+  holidays?: PublicHoliday[];
   onAssignmentChange: (assignments: Assignment[]) => void;
   onAbsenceChange: (absences: Absence[]) => void;
   onNavigateToEmployee?: (employeeId: string) => void;
@@ -97,7 +98,8 @@ function getCellData(
   date: Date,
   filteredAssignmentIndex: Map<string, Assignment[]>,
   absenceIndex: Map<string, Absence[]>,
-  employees: Employee[]
+  employees: Employee[],
+  holidays: PublicHoliday[]
 ) {
   const dateStr = format(date, 'yyyy-MM-dd');
   const key = `${empId}|${dateStr}`;
@@ -105,7 +107,7 @@ function getCellData(
   const cellAssignments = filteredAssignmentIndex.get(key) || [];
   const absence = absenceIndex.get(key)?.[0];
   const employee = employees.find((e) => e.id === empId);
-  const holiday = MOCK_HOLIDAYS.find(
+  const holiday = holidays.find(
     (h) => h.date === dateStr && (h.location === 'ALL' || h.location === employee?.location)
   );
 
@@ -128,7 +130,8 @@ function getMonthStats(
   absenceIndex: Map<string, Absence[]>,
   projectMap: Map<string, Project>,
   employees: Employee[],
-  assignments: Assignment[]
+  assignments: Assignment[],
+  holidays: PublicHoliday[]
 ) {
   const start = startOfMonth(monthStart);
   const end = endOfMonth(monthStart);
@@ -146,7 +149,7 @@ function getMonthStats(
       if (isWeekend(day)) return;
       const dStr = format(day, 'yyyy-MM-dd');
 
-      const isHoliday = MOCK_HOLIDAYS.some(
+      const isHoliday = holidays.some(
         (h) => h.date === dStr && (h.location === 'ALL' || h.location === emp.location)
       );
       if (isHoliday) return;
@@ -195,12 +198,13 @@ function getEmployeeStats(
   emp: Employee,
   monthDays: Date[],
   assignmentIndex: Map<string, Assignment[]>,
-  absenceIndex: Map<string, Absence[]>
+  absenceIndex: Map<string, Absence[]>,
+  holidays: PublicHoliday[]
 ) {
   const workingDays = monthDays.filter((d) => {
     if (isWeekend(d)) return false;
     const dStr = format(d, 'yyyy-MM-dd');
-    const isHoliday = MOCK_HOLIDAYS.some(
+    const isHoliday = holidays.some(
       (h) => h.date === dStr && (h.location === 'ALL' || h.location === emp.location)
     );
     return !isHoliday;
@@ -212,7 +216,7 @@ function getEmployeeStats(
   monthDays.forEach((d) => {
     if (isWeekend(d)) return;
     const dStr = format(d, 'yyyy-MM-dd');
-    const isHoliday = MOCK_HOLIDAYS.some(
+    const isHoliday = holidays.some(
       (h) => h.date === dStr && (h.location === 'ALL' || h.location === emp.location)
     );
     if (isHoliday) return;
@@ -256,6 +260,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   assignments,
   absences,
   projects,
+  holidays = [],
   onAssignmentChange,
   onAbsenceChange,
   onNavigateToEmployee,
@@ -579,18 +584,20 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
         absenceIndex,
         projectMap,
         employees,
-        assignments
+        assignments,
+        holidays
       );
 
       const rows: RowViewModel[] = employees.map((emp) => {
-        const stats = getEmployeeStats(emp, daysInMonth, assignmentIndex, absenceIndex);
+        const stats = getEmployeeStats(emp, daysInMonth, assignmentIndex, absenceIndex, holidays);
         const cells = daysInMonth.map((day) => {
           const { assignments: dayAssignments, absence, holiday } = getCellData(
             emp.id,
             day,
             filteredAssignmentIndex,
             absenceIndex,
-            employees
+            employees,
+            holidays
           );
           const isWknd = isWeekend(day);
           const isMonday = getDay(day) === 1;
@@ -631,6 +638,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     assignments,
     filteredAssignmentIndex,
     readOnly,
+    holidays,
   ]);
 
   const cellPositionMap = useMemo(() => {
@@ -1081,7 +1089,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
                           const isTodayCell = isToday(day);
                           const dateStr = format(day, 'yyyy-MM-dd');
 
-                          const isGlobalHoliday = MOCK_HOLIDAYS.some(
+                          const isGlobalHoliday = holidays.some(
                             (h) => h.date === dateStr && h.location === 'DE'
                           );
                           const milestone = filteredProject?.milestones?.find(

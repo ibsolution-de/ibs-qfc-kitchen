@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package qfc.events.v1;
+
+import "qfc/team/v1/team.proto";
+import "qfc/crm/v1/crm.proto";
+import "qfc/portfolio/v1/portfolio.proto";
+import "qfc/planning/v1/planning.proto";
+import "qfc/strategy/v1/strategy.proto";
+import "qfc/growth/v1/growth.proto";
+
+enum ChangeOp {
+  CHANGE_OP_UNSPECIFIED = 0;
+  CHANGE_OP_UPSERT = 1;
+  CHANGE_OP_DELETE = 2;
+}
+
+enum EntityKind {
+  ENTITY_KIND_UNSPECIFIED = 0;
+  ENTITY_KIND_EMPLOYEE = 1;
+  ENTITY_KIND_CUSTOMER = 2;
+  ENTITY_KIND_PROJECT = 3;
+  ENTITY_KIND_PLAN_VERSION = 4;
+  ENTITY_KIND_ASSIGNMENT = 5;
+  ENTITY_KIND_ABSENCE = 6;
+  ENTITY_KIND_QUARTER_DATA = 7;
+  ENTITY_KIND_STRATEGIC_GOAL = 8;
+  ENTITY_KIND_NORTH_STAR_METRIC = 9;
+  ENTITY_KIND_ONE_ON_ONE_SESSION = 10;
+}
+
+message ChangeEvent {
+  int64 seq = 1;
+  EntityKind kind = 2;
+  ChangeOp op = 3;
+  string entity_id = 4;
+  optional string version_id = 5;
+  string actor_email = 6;
+  int64 ts_millis = 7;
+  // Carries the full new entity on UPSERT; absent on DELETE, where kind + entity_id identify what to drop.
+  oneof body {
+    qfc.team.v1.Employee employee = 10;
+    qfc.crm.v1.Customer customer = 11;
+    qfc.portfolio.v1.Project project = 12;
+    qfc.planning.v1.PlanVersionMeta plan_version = 13;
+    qfc.planning.v1.Assignment assignment = 14;
+    qfc.planning.v1.Absence absence = 15;
+    qfc.planning.v1.QuarterData quarter_data = 16;
+    qfc.strategy.v1.StrategicGoal strategic_goal = 17;
+    qfc.strategy.v1.NorthStarMetric north_star_metric = 18;
+    qfc.growth.v1.OneOnOneSession one_on_one_session = 19;
+  }
+}
+
+message WatchRequest {
+  int64 since_seq = 1;
+}
+
+// The live-sync spine. The server replays the change log above since_seq, then streams live, so a reconnecting client loses nothing.
+service EventService {
+  rpc Watch(WatchRequest) returns (stream ChangeEvent);
+}

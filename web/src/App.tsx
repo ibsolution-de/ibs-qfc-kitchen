@@ -2,18 +2,19 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Code, ConnectError } from '@connectrpc/connect';
 import { Sidebar } from './components/Sidebar';
 import { ResourcePlanner } from './components/ResourcePlanner';
 import { CreateVersionDialog } from './components/CreateVersionDialog';
-import { Assignment, PlanVersion, Project, Employee, Customer, Absence } from './types';
-import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
+import { Assignment, Project, Employee, Customer, Absence, QuarterData, StrategicGoal, OneOnOneSession } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useLanguage } from './contexts/LanguageContext';
-import { uid } from './utils/uid';
 import { useToday } from './hooks/useToday';
 import { useToast } from './components/ui/Toast';
 import { AsciiSpinner } from './components/ui/AsciiSpinner';
-import { persistence } from './services/persistence/localStorageProvider';
+import { LiveStoreProvider, useLiveStore } from './api/liveStore';
+import { computeDelta } from './api/delta';
+import { hasPlanningAccess, getLandingRoute } from './utils/access';
 
 const QuarterlyForecast = React.lazy(() => import('./components/QuarterlyForecast').then(m => ({ default: m.QuarterlyForecast })));
 const ManageTeam = React.lazy(() => import('./components/ManageTeam').then(m => ({ default: m.ManageTeam })));
@@ -23,6 +24,7 @@ const FinancialOverview = React.lazy(() => import('./components/FinancialOvervie
 const StrategyModule = React.lazy(() => import('./components/StrategyModule').then(m => ({ default: m.StrategyModule })));
 const MyOverview = React.lazy(() => import('./components/MyOverview').then(m => ({ default: m.MyOverview })));
 const SalesPipeline = React.lazy(() => import('./components/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
+const ManageUsers = React.lazy(() => import('./components/ManageUsers').then(m => ({ default: m.ManageUsers })));
 
 // Animated Page Wrapper
 const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -33,67 +35,100 @@ const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   );
 };
 
+const FullScreenMessage: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="flex h-screen w-screen flex-col items-center justify-center bg-charcoal-50 text-charcoal-600 gap-2">
+    {children}
+  </div>
+);
+
 const AppContent: React.FC = () => {
   const { isRole } = useAuth();
   const { t } = useLanguage();
   const { success, error } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // State for Global Data - Load from LocalStorage or Fallback to Mocks
-  const [employees, setEmployees] = useState<Employee[]>(() => persistence.load('employees', MOCK_EMPLOYEES));
-  const [projects, setProjects] = useState<Project[]>(() => persistence.load('projects', MOCK_PROJECTS));
-  const [customers, setCustomers] = useState<Customer[]>(() => persistence.load('customers', MOCK_CUSTOMERS));
-  
-  // State for versions
-  const [versions, setVersions] = useState<PlanVersion[]>(() => persistence.load('versions', MOCK_VERSIONS));
-  
-  // Active Version State - ensure we pick valid ID from loaded versions
-  const [activeVersionId, setActiveVersionId] = useState<string>(() => {
-      const loadedVersions = persistence.load('versions', MOCK_VERSIONS);
-      return loadedVersions.length > 0 ? loadedVersions[loadedVersions.length - 1]!.id : 'v1';
-  });
+  const store = useLiveStore();
+  const { employees, projects, customers, versions, holidays, goals, northStars, oneOnOnes } = store;
 
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
-  
+
   // New state for viewing specific employee overview
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
-  // Persistence Effects
-  useEffect(() => { persistence.save('employees', employees); }, [employees]);
-  useEffect(() => { persistence.save('projects', projects); }, [projects]);
-  useEffect(() => { persistence.save('customers', customers); }, [customers]);
-  useEffect(() => { persistence.save('versions', versions); }, [versions]);
+  // Active Version State - the server seeds at least one version, so `versions`
+  // is non-empty by the time AppContent mounts (see the LiveStore gate below).
+  const [activeVersionId, setActiveVersionId] = useState<string>(
+    () => versions[versions.length - 1]?.id ?? ''
+  );
 
-  const latestVersion = versions[versions.length - 1] ?? MOCK_VERSIONS[MOCK_VERSIONS.length - 1]!;
-  const isLatestVersion = activeVersionId === latestVersion.id;
+  const latestVersion = versions[versions.length - 1];
+  const isLatestVersion = activeVersionId === latestVersion?.id;
 
-  const activeVersion = useMemo(() => {
-    return versions.find(v => v.id === activeVersionId) || latestVersion;
-  }, [versions, activeVersionId, latestVersion]);
+  const activeVersion = useMemo(
+    () => versions.find(v => v.id === activeVersionId) ?? latestVersion,
+    [versions, activeVersionId, latestVersion]
+  );
 
-  const plannerAssignments = activeVersion.assignments;
-  const plannerAbsences = activeVersion.absences || [];
-  const forecastData = activeVersion.forecastData;
+  const plannerAssignments = activeVersion?.assignments ?? [];
+  const plannerAbsences = activeVersion?.absences ?? [];
+  const forecastData = activeVersion?.forecastData ?? [];
 
   const versionStartDate = useToday();
+
+  const handleUpdateEmployees = (nextEmployees: Employee[]) => {
+    const { upserts, deleteIds } = computeDelta(employees, nextEmployees);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    Promise.all([
+      ...upserts.map(employee => store.saveEmployee(employee)),
+      ...deleteIds.map(id => store.deleteEmployee(id)),
+    ]).catch(() => error(t('common.saveError')));
+  };
+
+  const handleUpdateProjects = (nextProjects: Project[]) => {
+    const { upserts, deleteIds } = computeDelta(projects, nextProjects);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    Promise.all([
+      ...upserts.map(project => store.saveProject(project)),
+      ...deleteIds.map(id => store.deleteProject(id)),
+    ]).catch(() => error(t('common.saveError')));
+  };
+
+  const handleUpdateCustomers = (nextCustomers: Customer[]) => {
+    const { upserts, deleteIds } = computeDelta(customers, nextCustomers);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    Promise.all([
+      ...upserts.map(customer => store.saveCustomer(customer)),
+      ...deleteIds.map(id => store.deleteCustomer(id)),
+    ]).catch(() => error(t('common.saveError')));
+  };
+
+  const handleUpdateGoals = (nextGoals: StrategicGoal[]) => {
+    const { upserts, deleteIds } = computeDelta(goals, nextGoals);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    Promise.all([
+      ...upserts.map(goal => store.saveGoal(goal)),
+      ...deleteIds.map(id => store.deleteGoal(id)),
+    ]).catch(() => error(t('common.saveError')));
+  };
+
+  const handleUpdateOneOnOnes = (nextOneOnOnes: OneOnOneSession[]) => {
+    const { upserts, deleteIds } = computeDelta(oneOnOnes, nextOneOnOnes);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    Promise.all([
+      ...upserts.map(session => store.saveOneOnOne(session)),
+      ...deleteIds.map(id => store.deleteOneOnOne(id)),
+    ]).catch(() => error(t('common.saveError')));
+  };
 
   const handleAssignmentChange = (newAssignments: Assignment[]) => {
     if (!isLatestVersion) {
       console.warn('handleAssignmentChange: active version is read-only, ignoring update');
       return;
     }
-    setVersions(prev => {
-        const vIndex = prev.findIndex(v => v.id === activeVersionId);
-        if (vIndex === -1) return prev;
-        const newVersions = [...prev];
-        newVersions[vIndex] = {
-            ...newVersions[vIndex]!,
-            assignments: newAssignments
-        };
-        return newVersions;
-    });
+    const { upserts, deleteIds } = computeDelta(plannerAssignments, newAssignments);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    store.applyAssignments(activeVersionId, upserts, deleteIds).catch(() => error(t('common.saveError')));
   };
 
   const handleAbsenceChange = (newAbsences: Absence[]) => {
@@ -101,84 +136,57 @@ const AppContent: React.FC = () => {
       console.warn('handleAbsenceChange: active version is read-only, ignoring update');
       return;
     }
-    setVersions(prev => {
-        const vIndex = prev.findIndex(v => v.id === activeVersionId);
-        if (vIndex === -1) return prev;
-        const newVersions = [...prev];
-        newVersions[vIndex] = {
-            ...newVersions[vIndex]!,
-            absences: newAbsences
-        };
-        return newVersions;
-    });
+    const { upserts, deleteIds } = computeDelta(plannerAbsences, newAbsences);
+    if (upserts.length === 0 && deleteIds.length === 0) return;
+    store.applyAbsences(activeVersionId, upserts, deleteIds).catch(() => error(t('common.saveError')));
   };
 
   const handleCreateVersion = (name: string, description: string) => {
-    const newVersion: PlanVersion = {
-        id: uid(),
-        name: name,
-        description: description,
-        createdAt: new Date().toISOString(),
-        assignments: [...plannerAssignments],
-        absences: [...plannerAbsences],
-        forecastData: JSON.parse(JSON.stringify(forecastData))
-    };
-    
-    // We deep clone forecast data to ensure the new version is independent
-    setVersions(prev => [...prev, newVersion]);
-    setActiveVersionId(newVersion.id);
-    success(t('toast.versionCreated'));
+    store
+      .createVersion(name, description || undefined, activeVersionId)
+      .then(newVersion => {
+        setActiveVersionId(newVersion.id);
+        success(t('toast.versionCreated'));
+      })
+      .catch(() => error(t('common.saveError')));
   };
 
   const handleRenameVersion = (id: string, name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
-    const version = versions.find(v => v.id === id);
-    if (!version || version.name === trimmed) return;
-
-    setVersions(prev => prev.map(v => v.id === id ? { ...v, name: trimmed } : v));
-    success(t('versions.toastRenamed'));
+    store
+      .updateVersionMeta(id, name)
+      .then(() => success(t('versions.toastRenamed')))
+      .catch(() => error(t('common.saveError')));
   };
 
   const handleDeleteVersion = (id: string) => {
-    if (versions.length <= 1) {
-      error(t('versions.lastVersionGuard'));
-      return;
-    }
-
-    const version = versions.find(v => v.id === id);
-    if (!version) return;
-    if (version.id === latestVersion.id) return;
-
-    setVersions(prev => prev.filter(v => v.id !== id));
-
-    if (activeVersionId === id) {
-      setActiveVersionId(latestVersion.id);
-    }
-
-    success(t('versions.toastDeleted'));
+    store
+      .deleteVersion(id)
+      .then(() => {
+        success(t('versions.toastDeleted'));
+        // Deleting the active version must leave the app on a version that
+        // still exists - fall back to the latest remaining one.
+        if (activeVersionId !== id) return;
+        const remaining = versions.filter(version => version.id !== id);
+        const fallback = remaining[remaining.length - 1];
+        if (fallback) setActiveVersionId(fallback.id);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
+          error(t('versions.lastVersionGuard'));
+        } else {
+          error(t('common.saveError'));
+        }
+      });
   };
 
   const handleForecastUpdate = (quarterId: string, type: 'mustWin' | 'alternative', updatedProjects: Project[]) => {
-    setVersions(prev => {
-        const newVersions = [...prev];
-        const vIndex = newVersions.findIndex(v => v.id === activeVersionId);
-        if (vIndex === -1) return prev;
-        const version = { ...newVersions[vIndex]! };
-        const newForecastData = version.forecastData.map(q => {
-            if (q.id === quarterId) {
-                return {
-                    ...q,
-                    [type === 'mustWin' ? 'mustWinOpportunities' : 'alternativeOpportunities']: updatedProjects
-                };
-            }
-            return q;
-        });
-        version.forecastData = newForecastData;
-        newVersions[vIndex] = version;
-        return newVersions;
-    });
+    const quarter = forecastData.find(q => q.id === quarterId);
+    if (!quarter) return;
+    const updatedQuarter: QuarterData = {
+      ...quarter,
+      [type === 'mustWin' ? 'mustWinOpportunities' : 'alternativeOpportunities']: updatedProjects,
+    };
+    store.upsertQuarterData(activeVersionId, updatedQuarter).catch(() => error(t('common.saveError')));
   };
 
   const handleNavigateToProject = (projectId: string) => {
@@ -191,9 +199,13 @@ const AppContent: React.FC = () => {
       navigate('/my-overview');
   };
 
-  // Determine ReadOnly state for Planner
-  // Read Only if: Not Latest Version OR User is Employee
-  const isPlannerReadOnly = !isLatestVersion || isRole('employee');
+  // Determine ReadOnly state for Planner.
+  // Read only if: not the latest version, OR the user lacks planning access
+  // (pm/bl). `employee` is no longer mutually exclusive with `pm`/`bl`, so an
+  // employee+pm user must keep write access - see `hasPlanningAccess`, which
+  // Sidebar.tsx's version-history visibility derives from the same way so
+  // the two can never drift apart.
+  const isPlannerReadOnly = !isLatestVersion || !hasPlanningAccess(isRole);
 
   // Reset Highlight effects when navigating away from specific views
   useEffect(() => {
@@ -205,9 +217,14 @@ const AppContent: React.FC = () => {
       }
   }, [location.pathname]);
 
+  if (!activeVersion) {
+    // Defensive only: the server always seeds at least one plan version.
+    return <FullScreenMessage><span className="text-sm font-medium">{t('common.loadError')}</span></FullScreenMessage>;
+  }
+
   return (
     <div className="flex h-screen bg-charcoal-50 text-charcoal-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
-      <Sidebar 
+      <Sidebar
         versions={versions}
         employees={employees}
         projects={projects}
@@ -217,11 +234,11 @@ const AppContent: React.FC = () => {
         onRenameVersion={handleRenameVersion}
         onDeleteVersion={handleDeleteVersion}
       />
-      
+
       <main className="flex-1 flex flex-col h-full overflow-hidden relative tech-pattern">
         {/* Top Fade Gradient for depth */}
         <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-charcoal-50 to-transparent z-10 pointer-events-none" />
-        
+
         <Suspense
           fallback={
             <div className="flex-1 flex flex-col items-center justify-center h-full text-charcoal-600">
@@ -231,28 +248,31 @@ const AppContent: React.FC = () => {
           }
         >
         <Routes>
-            <Route path="/" element={<Navigate to={isRole('employee') ? '/my-overview' : (isRole('sales') ? '/sales-pipeline' : '/planner')} replace />} />
-            
+            <Route path="/" element={<Navigate to={getLandingRoute(isRole)} replace />} />
+
             <Route path="/my-overview" element={
                 <AnimatedPage>
-                  <MyOverview 
+                  <MyOverview
                       assignments={plannerAssignments}
                       projects={projects}
                       absences={plannerAbsences}
                       employees={employees}
                       targetEmployeeId={selectedEmployeeId}
+                      holidays={holidays}
+                      oneOnOnes={oneOnOnes}
                   />
                 </AnimatedPage>
             } />
 
             <Route path="/planner" element={
                 <AnimatedPage>
-                  <ResourcePlanner 
+                  <ResourcePlanner
                       key={activeVersion.id}
                       employees={employees}
                       assignments={plannerAssignments}
                       absences={plannerAbsences}
                       projects={projects}
+                      holidays={holidays}
                       onAssignmentChange={handleAssignmentChange}
                       onAbsenceChange={handleAbsenceChange}
                       onNavigateToEmployee={handleNavigateToEmployee}
@@ -266,9 +286,9 @@ const AppContent: React.FC = () => {
             {isRole('sales') && (
                 <Route path="/sales-pipeline" element={
                     <AnimatedPage>
-                        <SalesPipeline 
+                        <SalesPipeline
                             projects={projects}
-                            onUpdateProjects={setProjects}
+                            onUpdateProjects={handleUpdateProjects}
                         />
                     </AnimatedPage>
                 } />
@@ -278,12 +298,13 @@ const AppContent: React.FC = () => {
                 <>
                     <Route path="/forecast" element={
                         <AnimatedPage>
-                          <QuarterlyForecast 
-                              data={forecastData} 
+                          <QuarterlyForecast
+                              data={forecastData}
                               allProjects={projects}
                               assignments={plannerAssignments}
                               employees={employees}
                               absences={plannerAbsences}
+                              holidays={holidays}
                               onUpdateForecast={handleForecastUpdate}
                               readOnly={!isLatestVersion}
                           />
@@ -292,9 +313,11 @@ const AppContent: React.FC = () => {
 
                     <Route path="/team" element={
                         <AnimatedPage>
-                          <ManageTeam 
+                          <ManageTeam
                               employees={employees}
-                              onUpdateEmployees={setEmployees}
+                              oneOnOnes={oneOnOnes}
+                              onUpdateEmployees={handleUpdateEmployees}
+                              onUpdateOneOnOnes={handleUpdateOneOnOnes}
                               onNavigateToEmployee={handleNavigateToEmployee}
                               projects={projects}
                               assignments={plannerAssignments}
@@ -317,19 +340,22 @@ const AppContent: React.FC = () => {
                           <StrategyModule
                               projects={projects}
                               assignments={plannerAssignments}
+                              goals={goals}
+                              northStars={northStars}
+                              onUpdateGoals={handleUpdateGoals}
                           />
                         </AnimatedPage>
                     } />
                 </>
             )}
-            
+
             {/* Manage Projects accessible to PM, BL, Sales */}
             {isRole(['pm', 'bl', 'sales']) && (
                 <Route path="/projects" element={
                     <AnimatedPage>
-                        <ManageProjects 
+                        <ManageProjects
                             projects={projects}
-                            onUpdateProjects={setProjects}
+                            onUpdateProjects={handleUpdateProjects}
                             highlightedProjectId={highlightedProjectId}
                         />
                     </AnimatedPage>
@@ -343,18 +369,27 @@ const AppContent: React.FC = () => {
                       projects={projects}
                       assignments={plannerAssignments}
                       onNavigateToProject={handleNavigateToProject}
-                      onUpdateCustomers={setCustomers}
+                      onUpdateCustomers={handleUpdateCustomers}
                   />
                 </AnimatedPage>
             } />
-            
+
+            {/* User Administration: Admin Only */}
+            {isRole('admin') && (
+                <Route path="/admin" element={
+                    <AnimatedPage>
+                        <ManageUsers employees={employees} />
+                    </AnimatedPage>
+                } />
+            )}
+
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
       </main>
 
-      <CreateVersionDialog 
+      <CreateVersionDialog
         isOpen={isVersionDialogOpen}
         onClose={() => setIsVersionDialogOpen(false)}
         onCreate={handleCreateVersion}
@@ -363,10 +398,46 @@ const AppContent: React.FC = () => {
   );
 };
 
+/** Gates rendering on the live store's initial load, and surfaces load errors via toast. */
+const LiveStoreGate: React.FC = () => {
+  const { status, error: storeError } = useLiveStore();
+  const { t } = useLanguage();
+  const { error: toastError } = useToast();
+  const previousStatus = React.useRef(status);
+
+  useEffect(() => {
+    if (status === 'error' && previousStatus.current !== 'error') {
+      toastError(storeError ?? t('common.loadError'));
+    }
+    previousStatus.current = status;
+  }, [status, storeError, t, toastError]);
+
+  if (status === 'loading') {
+    return (
+      <FullScreenMessage>
+        <AsciiSpinner className="text-2xl mb-2" />
+        <span className="text-sm font-medium">{t('common.loading')}</span>
+      </FullScreenMessage>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <FullScreenMessage>
+        <span className="text-sm font-medium">{t('common.loadError')}</span>
+      </FullScreenMessage>
+    );
+  }
+
+  return <AppContent />;
+};
+
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <LiveStoreProvider>
+        <LiveStoreGate />
+      </LiveStoreProvider>
     </AuthProvider>
   );
 };

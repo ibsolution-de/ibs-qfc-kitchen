@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
-import { Employee, Project, Assignment, IkigaiItem } from '../types';
+import { Employee, Project, Assignment, IkigaiItem, OneOnOneSession } from '../types';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Plus, Trash2, Edit2, Upload, Star, MapPin, Briefcase, UserPlus, Users, Sparkles, Building2, X, MessageSquare, Target, TrendingUp } from 'lucide-react';
@@ -20,7 +20,9 @@ interface ManageTeamProps {
   employees: Employee[];
   projects?: Project[];
   assignments?: Assignment[];
+  oneOnOnes: OneOnOneSession[];
   onUpdateEmployees: (employees: Employee[]) => void;
+  onUpdateOneOnOnes: (sessions: OneOnOneSession[]) => void;
   onNavigateToEmployee?: (employeeId: string) => void;
 }
 
@@ -122,7 +124,9 @@ const EmployeeCard: React.FC<EmployeeCardProps> = ({ emp, onNavigateToEmployee, 
 
 export const ManageTeam: React.FC<ManageTeamProps> = ({
   employees,
+  oneOnOnes,
   onUpdateEmployees,
+  onUpdateOneOnOnes,
   onNavigateToEmployee,
   projects = [],
   assignments = []
@@ -596,6 +600,11 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({
           employee={selectedEmpFor1on1}
           isOpen={is1on1Open}
           onClose={() => setIs1on1Open(false)}
+          sessions={oneOnOnes.filter(s => s.employeeId === selectedEmpFor1on1.id)}
+          onUpdateSessions={(nextEmployeeSessions) => {
+            const otherSessions = oneOnOnes.filter(s => s.employeeId !== selectedEmpFor1on1.id);
+            onUpdateOneOnOnes([...otherSessions, ...nextEmployeeSessions]);
+          }}
         />
       )}
 

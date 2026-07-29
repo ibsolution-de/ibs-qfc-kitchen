@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package qfc.strategy.v1;
+
+enum StrategyPerspective {
+  STRATEGY_PERSPECTIVE_UNSPECIFIED = 0;
+  STRATEGY_PERSPECTIVE_FINANCIAL = 1;
+  STRATEGY_PERSPECTIVE_CUSTOMER = 2;
+  STRATEGY_PERSPECTIVE_INTERNAL = 3;
+  STRATEGY_PERSPECTIVE_LEARNING = 4;
+}
+
+message StrategicGoal {
+  string id = 1;
+  string title = 2;
+  optional string description = 3;
+  StrategyPerspective perspective = 4;
+  // Projects that contribute to this goal.
+  repeated string linked_project_ids = 5;
+}
+
+message NorthStarMetric {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string color = 4;
+}
+
+message ListGoalsRequest {}
+
+message ListGoalsResponse {
+  repeated StrategicGoal goals = 1;
+}
+
+message UpsertGoalRequest {
+  StrategicGoal goal = 1;
+}
+
+message UpsertGoalResponse {
+  StrategicGoal goal = 1;
+}
+
+message DeleteGoalRequest {
+  string id = 1;
+}
+
+message DeleteGoalResponse {}
+
+message ListNorthStarMetricsRequest {}
+
+message ListNorthStarMetricsResponse {
+  repeated NorthStarMetric metrics = 1;
+}
+
+message UpsertNorthStarMetricRequest {
+  NorthStarMetric metric = 1;
+}
+
+message UpsertNorthStarMetricResponse {
+  NorthStarMetric metric = 1;
+}
+
+message DeleteNorthStarMetricRequest {
+  string id = 1;
+}
+
+message DeleteNorthStarMetricResponse {}
+
+service StrategyService {
+  rpc ListGoals(ListGoalsRequest) returns (ListGoalsResponse);
+  rpc UpsertGoal(UpsertGoalRequest) returns (UpsertGoalResponse);
+  rpc DeleteGoal(DeleteGoalRequest) returns (DeleteGoalResponse);
+  rpc ListNorthStarMetrics(ListNorthStarMetricsRequest) returns (ListNorthStarMetricsResponse);
+  rpc UpsertNorthStarMetric(UpsertNorthStarMetricRequest) returns (UpsertNorthStarMetricResponse);
+  rpc DeleteNorthStarMetric(DeleteNorthStarMetricRequest) returns (DeleteNorthStarMetricResponse);
+}

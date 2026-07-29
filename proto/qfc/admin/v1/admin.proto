@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package qfc.admin.v1;
+
+import "qfc/session/v1/session.proto";
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated qfc.session.v1.User users = 1;
+}
+
+// Creates a user that has never logged in, or updates the roles and employee
+// link of one that has.
+//
+// Only the admin-writable subset of a user is accepted: `name` and `avatar` are
+// derived from the proxy headers at login time, so taking them here would let an
+// admin set values the next login silently overwrites. A pre-created user gets
+// `name = email` as a placeholder until their first login supplies the real one.
+message UpsertUserRequest {
+  string email = 1;
+  // Must not be empty.
+  repeated qfc.session.v1.UserRole roles = 2;
+  // Links this login to an employee record, which is what binds a user to their
+  // own overview.
+  optional string employee_id = 3;
+}
+
+message UpsertUserResponse {
+  qfc.session.v1.User user = 1;
+}
+
+message DeleteUserRequest {
+  string email = 1;
+}
+
+message DeleteUserResponse {}
+
+// Account and role administration. Every RPC requires the caller to hold
+// USER_ROLE_ADMIN; everyone else gets permission_denied. This is the only
+// role-enforced service.
+service AdminService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+}

@@ -1,7 +1,7 @@
 {
   "name": "ibs-qfc-kitchen",
   "private": true,
-  "packageManager": "pnpm@11.15.1",
+  "packageManager": "pnpm@11.17.0",
   "scripts": {
     "dev": "pnpm -C web dev",
     "build": "pnpm -C web build",
@@ -11,6 +11,9 @@
     "test:watch": "pnpm -C web test:watch",
     "api:dev": "cargo run --manifest-path api/Cargo.toml",
     "api:lint": "cargo clippy --manifest-path api/Cargo.toml -- -D warnings",
-    "api:test": "cargo test --manifest-path api/Cargo.toml"
+    "api:test": "cargo test --manifest-path api/Cargo.toml",
+    "proto:gen": "pnpm -C web exec buf generate --template ../buf.gen.yaml ../proto",
+    "proto:lint": "pnpm -C web exec buf lint ../proto",
+    "seed:gen": "pnpm -C web exec jiti ../tools/gen-seed.ts"
   }
 }

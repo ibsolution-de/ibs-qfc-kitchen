@@ -10,40 +10,83 @@ import { CheckCircle, Smile, Meh, Frown, Bot, Mic, FileText, Sparkles, Archive, 
 import { generateCoachingAgenda, extractActionItems } from '../services/ai';
 import { Modal } from './ui/Modal';
 import { AsciiSpinner } from './ui/AsciiSpinner';
-import { MOCK_1ON1S } from '../constants';
+import { useDebouncedCallback } from '../hooks/useDebouncedCallback';
+
+// How long to wait after the last keystroke before persisting notes - long
+// enough that normal typing never round-trips per character, short enough
+// that a pause reads as "done for now" and gets saved promptly.
+const NOTES_PERSIST_DEBOUNCE_MS = 700;
 
 interface OneOnOneDashboardProps {
     employee: Employee;
     isOpen: boolean;
     onClose: () => void;
+    /** All 1:1 sessions for this employee, sourced from the live store. */
+    sessions: OneOnOneSession[];
+    onUpdateSessions: (sessions: OneOnOneSession[]) => void;
 }
 
-export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, isOpen, onClose }) => {
+export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, isOpen, onClose, sessions: employeeSessions, onUpdateSessions }) => {
     const { t, formatDate, language } = useLanguage();
     const { apiKey, isAiEnabled } = useSettings();
-    
+
     // State
     const [sessions, setSessions] = useState<OneOnOneSession[]>([]);
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [isAiProcessing, setIsAiProcessing] = useState(false);
 
-    // Initial Load (Simulation)
+    // Initial Load, seeded from the live store data for this employee.
     useEffect(() => {
         if (isOpen) {
-            // Filter mocks for this employee or load from storage
-            const empSessions = MOCK_1ON1S.filter(s => s.employeeId === employee.id).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const empSessions = [...employeeSessions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setSessions(empSessions);
             if (empSessions.length > 0) setSelectedSessionId(empSessions[0]!.id);
         }
+        // Deliberately excludes `employeeSessions`: this only (re-)seeds the
+        // working copy when the modal opens or the employee changes, mirroring
+        // the previous mock-backed behavior - subsequent store updates flow
+        // through `handleUpdateSession`/`handleCreateSession` below instead.
     }, [isOpen, employee.id]);
 
     const activeSession = sessions.find(s => s.id === selectedSessionId);
-    
+
     // Find previous commitments (Elephant Memory)
     // Logic: Find the most recent *completed* session before the current active one
-    const previousSession = activeSession 
+    const previousSession = activeSession
         ? sessions.find(s => s.status === 'completed' && new Date(s.date) < new Date(activeSession.date))
         : null;
+
+    // Notes persist debounced (see NOTES_PERSIST_DEBOUNCE_MS above): the
+    // textarea's local `sessions` state updates on every keystroke so typing
+    // stays instant, but the store write - and the ChangeEvent it fans out
+    // to every connected client - only fires once typing settles. Recreated
+    // every render so it always closes over the latest `sessions`/
+    // `activeSession`; `useDebouncedCallback` keeps `run`/`flush`/`cancel`
+    // referentially stable regardless.
+    const persistNotes = useDebouncedCallback<string>((notes) => {
+        if (!activeSession) return;
+        const updated = sessions.map(s => s.id === activeSession.id ? { ...s, notes } : s);
+        onUpdateSessions(updated);
+    }, NOTES_PERSIST_DEBOUNCE_MS);
+
+    // Flush a pending notes edit before it would otherwise be lost: when the
+    // employee this dashboard is showing changes (component isn't remounted
+    // - see ManageTeam, which keeps it mounted across opens), and on
+    // unmount. Blur and session-switch flushes are wired at their call
+    // sites below.
+    useEffect(() => {
+        return () => {
+            persistNotes.flush();
+        };
+    }, [employee.id]);
+
+    const handleClose = () => {
+        // Closing doesn't unmount this component (ManageTeam keeps it around
+        // across opens for the same employee) - flush explicitly so a note
+        // typed right before closing isn't dropped.
+        persistNotes.flush();
+        onClose();
+    };
 
     const handleCreateSession = () => {
         const newSession: OneOnOneSession = {
@@ -56,14 +99,17 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
             commitments: [],
             agenda: []
         };
-        setSessions([newSession, ...sessions]);
+        const next = [newSession, ...sessions];
+        setSessions(next);
         setSelectedSessionId(newSession.id);
+        onUpdateSessions(next);
     };
 
     const handleUpdateSession = (updates: Partial<OneOnOneSession>) => {
         if (!activeSession) return;
         const updated = sessions.map(s => s.id === activeSession.id ? { ...s, ...updates } : s);
         setSessions(updated);
+        onUpdateSessions(updated);
     };
 
     const handleGenerateAgenda = async () => {
@@ -107,7 +153,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`${t('oneOnOne.title')} - ${employee.name}`} size="xl">
+        <Modal isOpen={isOpen} onClose={handleClose} title={`${t('oneOnOne.title')} - ${employee.name}`} size="xl">
             <div className="flex flex-col h-[75vh]">
                 {/* Top Header: Employee Context */}
                 <div className="bg-charcoal-50 p-4 border-b border-charcoal-200 flex items-center justify-between flex-shrink-0">
@@ -142,7 +188,12 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                             {sessions.map(s => (
                                 <button
                                     key={s.id}
-                                    onClick={() => setSelectedSessionId(s.id)}
+                                    onClick={() => {
+                                        // Flush before switching away: the debounced write below
+                                        // targets whichever session was active when it was scheduled.
+                                        persistNotes.flush();
+                                        setSelectedSessionId(s.id);
+                                    }}
                                     className={`w-full text-left p-3 rounded-lg border transition-all ${
                                         selectedSessionId === s.id 
                                         ? 'bg-white border-blue-300 shadow-md ring-1 ring-blue-100' 
@@ -269,11 +320,18 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
                                                 )}
                                             </div>
                                             <div className="relative flex-1 flex flex-col">
-                                                <textarea 
+                                                <textarea
                                                     className="w-full flex-1 min-h-[160px] p-4 border border-charcoal-200 rounded-lg text-sm leading-relaxed focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 outline-none resize-none bg-yellow-50/30"
                                                     placeholder={t('oneOnOne.notesPlaceholder')}
                                                     value={activeSession.notes}
-                                                    onChange={(e) => handleUpdateSession({ notes: e.target.value })}
+                                                    onChange={(e) => {
+                                                        const notes = e.target.value;
+                                                        // Local state updates every keystroke so the textarea stays
+                                                        // responsive; the store write is debounced (see persistNotes above).
+                                                        setSessions(sessions.map(s => s.id === activeSession.id ? { ...s, notes } : s));
+                                                        persistNotes.run(notes);
+                                                    }}
+                                                    onBlur={() => persistNotes.flush()}
                                                 />
                                                 <div className="absolute bottom-3 right-3">
                                                     <button className="p-2 text-charcoal-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors shadow-sm bg-white border border-charcoal-100" title={t('oneOnOne.voiceDictation')}>

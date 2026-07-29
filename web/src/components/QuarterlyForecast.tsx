@@ -1,8 +1,8 @@
 
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { QuarterData, Project, Assignment, Employee, Absence, PublicHoliday } from '../types';
-import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
+import { PASTEL_VARIANTS } from '../constants';
 import { Badge } from './ui/Badge';
 import {
   BarChart,
@@ -39,6 +39,7 @@ interface QuarterlyForecastProps {
   assignments: Assignment[];
   employees: Employee[];
   absences: Absence[];
+  holidays?: PublicHoliday[];
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
   readOnly?: boolean;
 }
@@ -271,6 +272,82 @@ const CommitNumberInput: React.FC<CommitNumberInputProps> = ({
       min={min}
       max={max}
       onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={handleKeyDown}
+    />
+  );
+};
+
+interface CommitTextInputProps {
+  value: string;
+  onCommit: (value: string) => void;
+  'aria-label': string;
+  className?: string;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+// Text-field sibling of CommitNumberInput above: same local-draft-until-blur
+// commit semantics (commit on blur/Enter, revert on Escape), so a free-text
+// field like "budget" gets the same write-amplification fix as the numeric
+// ones without introducing a second idiom on the same card.
+//
+// Text fields have one wrinkle numeric fields on this card don't: the
+// incoming `value` prop can change mid-edit because another client's write
+// arrived over the live stream, not just because the record switched. Simply
+// always re-syncing `draft` from `value` (as CommitNumberInput does) would
+// let that update stomp on keystrokes the user hasn't committed yet.
+// `isEditingRef` tracks "there's an uncommitted local edit" and gates the
+// sync effect: external updates apply immediately while idle, but are held
+// off until the current edit commits (blur/Enter/Escape), at which point the
+// prop - now reflecting either what was just committed or whatever landed
+// from elsewhere - takes over again.
+const CommitTextInput: React.FC<CommitTextInputProps> = ({
+  value,
+  onCommit,
+  'aria-label': ariaLabel,
+  className = '',
+  disabled,
+  placeholder,
+}) => {
+  const [draft, setDraft] = useState(value);
+  const isEditingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isEditingRef.current) {
+      setDraft(value);
+    }
+  }, [value]);
+
+  const commit = useCallback(() => {
+    isEditingRef.current = false;
+    onCommit(draft);
+  }, [draft, onCommit]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commit();
+      e.currentTarget.blur();
+    } else if (e.key === 'Escape') {
+      setDraft(value);
+      e.currentTarget.blur();
+    }
+  }, [commit, value]);
+
+  return (
+    <input
+      type="text"
+      disabled={disabled}
+      aria-label={ariaLabel}
+      title={ariaLabel}
+      className={className}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => {
+        isEditingRef.current = true;
+        setDraft(e.target.value);
+      }}
       onBlur={commit}
       onKeyDown={handleKeyDown}
     />
@@ -537,12 +614,12 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
                 </div>
                 <div className="mt-2 text-[10px] text-charcoal-500 pl-6.5 flex justify-between items-center">
                   <span>{t('forecast.start')}: {p.startDate ? formatDate(new Date(p.startDate), 'MMM d, yyyy') : 'TBD'}</span>
-                  <input
-                    type="text"
+                  <CommitTextInput
+                    value={p.budget || ''}
                     disabled={readOnly}
                     className={`w-16 h-5 text-right font-mono text-charcoal-500 bg-transparent border-b hover:border-orange-200 focus:border-orange-400 focus:outline-none ${readOnly ? 'border-transparent' : 'border-transparent'}`}
-                    value={p.budget || ''}
-                    onChange={(e) => handleUpdateProject('mustWin', quarter.mustWinOpportunities, p, 'budget', e.target.value)}
+                    onCommit={(v) => handleUpdateProject('mustWin', quarter.mustWinOpportunities, p, 'budget', v)}
+                    aria-label={t('forecast.budgetPlaceholder')}
                     placeholder={readOnly ? '' : t('forecast.budgetPlaceholder')}
                   />
                 </div>
@@ -644,12 +721,12 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
                 </div>
                 <div className="mt-2 text-[10px] text-charcoal-500 pl-5 flex justify-between items-center">
                   <span>{t('forecast.start')}: {p.startDate ? formatDate(new Date(p.startDate), 'MMM d, yyyy') : 'TBD'}</span>
-                  <input
-                    type="text"
+                  <CommitTextInput
+                    value={p.budget || ''}
                     disabled={readOnly}
                     className={`w-16 h-5 text-right font-mono text-charcoal-500 bg-transparent border-b hover:border-blue-200 focus:border-blue-400 focus:outline-none ${readOnly ? 'border-transparent' : 'border-transparent'}`}
-                    value={p.budget || ''}
-                    onChange={(e) => handleUpdateProject('alternative', quarter.alternativeOpportunities, p, 'budget', e.target.value)}
+                    onCommit={(v) => handleUpdateProject('alternative', quarter.alternativeOpportunities, p, 'budget', v)}
+                    aria-label={t('forecast.budgetPlaceholder')}
                     placeholder={readOnly ? '' : t('forecast.budgetPlaceholder')}
                   />
                 </div>
@@ -723,13 +800,14 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
 });
 
 export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ 
-  data, 
-  allProjects, 
-  assignments, 
-  employees, 
+  data,
+  allProjects,
+  assignments,
+  employees,
   absences,
-  onUpdateForecast, 
-  readOnly = false 
+  holidays = [],
+  onUpdateForecast,
+  readOnly = false
 }) => {
   const { t, language } = useLanguage();
   const { apiKey, isAiEnabled, openSettings } = useSettings();
@@ -781,7 +859,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
           quarter: firstQuarter,
           employees,
           absences,
-          holidays: MOCK_HOLIDAYS,
+          holidays,
           assignments,
           allProjects,
         });
@@ -837,7 +915,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
               allProjects={allProjects}
               employees={employees}
               absences={absences}
-              holidays={MOCK_HOLIDAYS}
+              holidays={holidays}
               assignments={assignments}
               readOnly={readOnly}
               onUpdateForecast={onUpdateForecast}

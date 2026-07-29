@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Project, Assignment, StrategicGoal, StrategyPerspective } from '../types';
-import { MOCK_GOALS, MOCK_NORTH_STARS } from '../constants';
+import { Project, Assignment, StrategicGoal, StrategyPerspective, NorthStarMetric } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
@@ -24,6 +23,9 @@ import {
 interface StrategyModuleProps {
   projects: Project[];
   assignments: Assignment[];
+  goals: StrategicGoal[];
+  northStars: NorthStarMetric[];
+  onUpdateGoals: (goals: StrategicGoal[]) => void;
 }
 
 // Sub-components
@@ -154,12 +156,12 @@ const StrategyMap: React.FC<StrategyMapProps> = ({ goals, projects, onAddGoal })
     );
 };
 
-const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignment[] }> = ({ projects, assignments: _assignments }) => {
+const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignment[], northStars: NorthStarMetric[] }> = ({ projects, assignments: _assignments, northStars }) => {
     const { t } = useLanguage();
-    
+
     const data = useMemo(() => {
         // Calculate volume per metric
-        const metrics = MOCK_NORTH_STARS.map(ns => {
+        const metrics = northStars.map(ns => {
             const linkedProjects = projects.filter(p => p.northStarMetricId === ns.id);
             const volume = linkedProjects.reduce((sum, p) => {
                  return sum + (p.volume || 0);
@@ -206,7 +208,7 @@ const NorthStarAlignment: React.FC<{ projects: Project[], assignments: Assignmen
         });
 
         return { totalVolume, allItems, innerData, outerData };
-    }, [projects, t]);
+    }, [projects, northStars, t]);
 
     const { totalVolume, allItems, innerData, outerData } = data;
 
@@ -496,13 +498,12 @@ const StrategyCoPilot: React.FC = () => {
 };
 
 // Main Module Container
-export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assignments }) => {
+export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assignments, goals, northStars, onUpdateGoals }) => {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'map' | 'northstar' | 'copilot'>('map');
-  const [goals, setGoals] = useState<StrategicGoal[]>(MOCK_GOALS);
 
   const handleAddGoal = (goal: StrategicGoal) => {
-    setGoals(prev => [...prev, goal]);
+    onUpdateGoals([...goals, goal]);
   };
 
   return (
@@ -543,7 +544,7 @@ export const StrategyModule: React.FC<StrategyModuleProps> = ({ projects, assign
                
                {activeTab === 'northstar' && (
                    <div className="h-full bg-white/50 backdrop-blur-sm rounded-2xl border border-charcoal-200 shadow-inner animate-fade-in-up flex items-center justify-center">
-                       <NorthStarAlignment projects={projects} assignments={assignments} />
+                       <NorthStarAlignment projects={projects} assignments={assignments} northStars={northStars} />
                    </div>
                )}
                

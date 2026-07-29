@@ -3,12 +3,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Assignment, Project, Absence, Employee, Sentiment } from '../types';
+import { Assignment, Project, Absence, Employee, Sentiment, PublicHoliday, OneOnOneSession } from '../types';
 import { format, isSameDay, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Briefcase, Clock, TrendingUp, Smile, Frown, Meh, Folder, HeartHandshake } from 'lucide-react';
-import { PASTEL_VARIANTS, MOCK_HOLIDAYS, MOCK_1ON1S } from '../constants';
+import { PASTEL_VARIANTS } from '../constants';
 
 interface MyOverviewProps {
   assignments: Assignment[];
@@ -16,9 +16,11 @@ interface MyOverviewProps {
   absences: Absence[];
   employees?: Employee[]; // List of all employees to look up target
   targetEmployeeId?: string | null; // If set, view this employee instead of self
+  holidays?: PublicHoliday[];
+  oneOnOnes?: OneOnOneSession[];
 }
 
-export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, absences, employees = [], targetEmployeeId }) => {
+export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, absences, employees = [], targetEmployeeId, holidays = [], oneOnOnes = [] }) => {
   const { user } = useAuth();
   const { t, formatDate } = useLanguage();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -37,7 +39,9 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const displayId = isSelf ? user.employeeId : targetEmployeeId;
   const displayName = isSelf ? t('myOverview.title') : t('myOverview.employeeOverview').replace('{{name}}', targetEmployee?.name || '');
   const displayAvatar = isSelf ? user.avatar : targetEmployee?.avatar;
-  const displayRole = isSelf ? user.role : targetEmployee?.role;
+  // Only ever rendered for the non-self case below (the self case always shows
+  // `myOverview.subtitle` instead) - `user` no longer has a single `.role`.
+  const displayRole = isSelf ? undefined : targetEmployee?.role;
 
   // Filter data for the specific employee
   const myAssignments = assignments.filter(a => a.employeeId === displayId);
@@ -45,7 +49,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const myProjects = projects.filter(p => myProjectsIds.includes(p.id));
 
   // Find next upcoming 1:1
-  const my1on1s = MOCK_1ON1S.filter(s => s.employeeId === displayId && s.status === 'scheduled').sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const my1on1s = oneOnOnes.filter(s => s.employeeId === displayId && s.status === 'scheduled').sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const nextSession = my1on1s.length > 0 ? my1on1s[0] : null;
 
   // Current Week Calendar
@@ -195,7 +199,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
                          const dayAbsence = absences.find(a => a.employeeId === displayId && a.date === dateStr);
                          // Check holiday for the specific employee location
                          const empLocation = isSelf ? 'DE' : targetEmployee?.location || 'DE'; // Simplified, should check actual user loc
-                         const isHoliday = MOCK_HOLIDAYS.some(h => h.date === dateStr && (h.location === 'ALL' || h.location === empLocation));
+                         const isHoliday = holidays.some(h => h.date === dateStr && (h.location === 'ALL' || h.location === empLocation));
 
                          return (
                              <div key={dateStr} className={`flex flex-col gap-2 p-2 rounded-lg border min-h-[120px] ${isToday ? 'border-blue-300 ring-1 ring-blue-100 bg-blue-50/20' : 'border-charcoal-100 bg-charcoal-50/20'}`}>

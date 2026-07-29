@@ -1,12 +1,13 @@
 
 
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket } from 'lucide-react';
-import { PlanVersion, UserRole, Employee, Project } from '../types';
+import { NavLink } from 'react-router-dom';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket, Check, X as XIcon } from 'lucide-react';
+import { PlanVersion, Employee, Project } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { diffVersions } from '../utils/versions';
+import { hasPlanningAccess } from '../utils/access';
 
 const BUILD_DATE = '2026-07-22';
 import { useSettings } from '../contexts/SettingsContext';
@@ -37,8 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { t, language, setLanguage, formatDate } = useLanguage();
   const { apiKey, setApiKey, isAiEnabled, setIsAiEnabled, isSettingsModalOpen, openSettings, closeSettings } = useSettings();
-  const { user, loginAs, isRole } = useAuth();
-  const navigate = useNavigate();
+  const { user, toggleDevRole, clearDevRoleOverride, isRole } = useAuth();
+  const canPlan = hasPlanningAccess(isRole);
   
   const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
@@ -154,25 +155,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const getManageItems = () => {
      const items = [];
-     
+
      // Team: PM and BL
      if (isRole(['pm', 'bl'])) {
         items.push({ path: '/team', label: t('sidebar.team'), icon: Users });
      }
-     
+
      // Projects: PM and BL and Sales
      if (isRole(['pm', 'bl', 'sales'])) {
          items.push({ path: '/projects', label: t('sidebar.projects'), icon: Layers });
      }
-     
+
      // Customers: All can see (read only for emp)
      items.push({ path: '/customers', label: t('sidebar.customers'), icon: Building2 });
 
      return items;
   };
 
+  const getAdminItems = () => {
+     const items = [];
+
+     // User administration: Admin only
+     if (isRole('admin')) {
+        items.push({ path: '/admin', label: t('sidebar.userAdministration'), icon: ShieldCheck });
+     }
+
+     return items;
+  };
+
   const menuItems = getMenuItems();
   const manageItems = getManageItems();
+  const adminItems = getAdminItems();
 
   return (
     <>
@@ -234,8 +247,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
         )}
 
-        {/* Version History */}
-        {!isRole('employee') && (
+        {adminItems.length > 0 && (
+        <nav className="space-y-1 mt-8 flex-shrink-0 animate-slide-in-right" style={{ animationDelay: '0.2s' }}>
+            <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest mb-3 px-3 font-mono opacity-80">{t('sidebar.administration')}</div>
+            {adminItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group
+                  ${isActive
+                    ? 'bg-white text-charcoal-900 shadow-sm ring-1 ring-charcoal-200 translate-x-1'
+                    : 'text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100 hover:translate-x-1'
+                  }
+                `}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon className={`w-4 h-4 transition-colors ${isActive ? 'text-charcoal-800' : 'text-charcoal-400 group-hover:text-charcoal-600'}`} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            ))}
+        </nav>
+        )}
+
+        {/* Version History: planning staff (pm/bl) only - employee is no longer mutually exclusive with pm/bl, so this derives from the same `canPlan` boolean as the planner's read-only state in App.tsx rather than re-deriving from `employee`. */}
+        {canPlan && (
         <div className="mt-8 flex-1 flex flex-col min-h-0 animate-slide-in-right" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-center justify-between px-3 mb-2 flex-shrink-0">
              <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest flex items-center gap-2 font-mono opacity-80">
@@ -410,12 +448,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
             <div className="flex-1 min-w-0">
                 <div className="font-medium text-charcoal-900 text-xs truncate">{user.name}</div>
-                <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">{t(`roles.${user.role}`)}</div>
+                <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">
+                    {user.roles.map(role => t(`roles.${role}`)).join(', ')}
+                </div>
             </div>
             <UserCircle className="w-4 h-4 text-charcoal-400" />
         </button>
 
-        {/* Role Switcher Popover */}
+        {/* Role Switcher Popover: dev-only, toggles a set of roles rather than picking one, so role combinations can be previewed. */}
         {isRoleSwitcherOpen && (
             <>
             <div className="fixed inset-0 z-40" onClick={() => setIsRoleSwitcherOpen(false)} />
@@ -423,28 +463,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest px-2 py-2 border-b border-charcoal-100 mb-1 font-mono">
                     {t('sidebar.switchRole')}
                 </div>
-                {['pm', 'employee', 'bl', 'sales'].map((role) => (
-                    <button
-                        ref={role === 'pm' ? firstRoleItemRef : undefined}
-                        key={role}
-                        onClick={() => {
-                            loginAs(role as UserRole);
-                            setIsRoleSwitcherOpen(false);
-                            // Navigate based on role
-                            if (role === 'sales') {
-                                navigate('/sales-pipeline');
-                            } else {
-                                navigate(role === 'employee' ? '/my-overview' : '/planner');
-                            }
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
-                            ${user.role === role ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
-                        `}
-                    >
-                        {t(`roles.${role}`)}
-                        {user.role === role && <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse-subtle" />}
-                    </button>
-                ))}
+                {(['pm', 'employee', 'bl', 'sales', 'admin'] as const).map((role) => {
+                    const checked = user.roles.includes(role);
+                    return (
+                        <button
+                            ref={role === 'pm' ? firstRoleItemRef : undefined}
+                            key={role}
+                            onClick={() => toggleDevRole(role)}
+                            role="checkbox"
+                            aria-checked={checked}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
+                                ${checked ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
+                            `}
+                        >
+                            {t(`roles.${role}`)}
+                            {checked && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                        </button>
+                    );
+                })}
+                <button
+                    onClick={() => {
+                        clearDevRoleOverride();
+                        setIsRoleSwitcherOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 mt-1 rounded-lg text-sm text-charcoal-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border-t border-charcoal-100 pt-2"
+                >
+                    <XIcon className="w-3.5 h-3.5" /> {t('sidebar.clearRoleOverride')}
+                </button>
             </div>
             </>
         )}

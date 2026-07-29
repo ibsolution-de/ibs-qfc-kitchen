@@ -9,7 +9,7 @@ ibs-qfc-kitchen/
 ├── package.json          # root orchestrator, scripts delegate to web/
 ├── pnpm-workspace.yaml   # packages: [web]
 ├── web/                  # React 19 + TS + Vite 8 + Tailwind 4 SPA
-├── api/                  # Rust backend (axum + tokio) — currently a skeleton
+├── api/                  # Rust backend: axum + Connect RPC (protobuf) + SQLite
 └── deploy/               # container image + ArgoCD manifests
 ```
 
@@ -52,4 +52,4 @@ See `deploy/` for the web container image (`deploy/images/web/`) and the ArgoCD 
 
 ## Status
 
-The backend (`api/`) is currently a skeleton only. The frontend still persists everything to `localStorage`; see `web/src/services/persistence/README.md` for the planned migration path.
+The frontend talks to the Rust backend over Connect RPC; there is no local-only persistence path anymore. See `api/README.md` for the API's stack, RPCs, storage model, and live-sync contract.

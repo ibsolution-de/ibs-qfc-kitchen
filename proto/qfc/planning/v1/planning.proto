@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package qfc.planning.v1;
+
+enum AbsenceType {
+  ABSENCE_TYPE_UNSPECIFIED = 0;
+  ABSENCE_TYPE_VACATION = 1;
+  ABSENCE_TYPE_SICK = 2;
+  ABSENCE_TYPE_TRAINING = 3;
+}
+
+message Assignment {
+  string id = 1;
+  // Scoped to a plan version server-side.
+  string version_id = 2;
+  string employee_id = 3;
+  string project_id = 4;
+  // ISO YYYY-MM-DD
+  string date = 5;
+  // Fraction of an 8h day, range 0.1-1.0; overload is evaluated against employee availability.
+  double allocation = 6;
+}
+
+message Absence {
+  string id = 1;
+  // Scoped to a plan version server-side.
+  string version_id = 2;
+  string employee_id = 3;
+  // ISO YYYY-MM-DD
+  string date = 4;
+  AbsenceType absence_type = 5;
+  bool approved = 6;
+}
+
+message PublicHoliday {
+  // ISO YYYY-MM-DD
+  string date = 1;
+  string name = 2;
+  // 'ALL' or specific country code
+  string location = 3;
+}
+
+message QuarterData {
+  string id = 1;
+  // e.g., "Q1 2024"
+  string name = 2;
+  // e.g., ["January", "February", "March"]
+  repeated string months = 3;
+  // Capacity for each month in days
+  repeated int32 total_capacity = 4;
+  // Clients resolve these against the project collection.
+  repeated string running_project_ids = 5;
+  // Clients resolve these against the project collection.
+  repeated string must_win_opportunity_ids = 6;
+  // Clients resolve these against the project collection.
+  repeated string alternative_opportunity_ids = 7;
+  string notes = 8;
+}
+
+message PlanVersionMeta {
+  string id = 1;
+  string name = 2;
+  optional string description = 3;
+  // ISO String
+  string created_at = 4;
+}
+
+message PlanVersion {
+  PlanVersionMeta meta = 1;
+  repeated Assignment assignments = 2;
+  // Versioned absences
+  repeated Absence absences = 3;
+  repeated QuarterData forecast_data = 4;
+}
+
+message ListVersionsRequest {}
+
+message ListVersionsResponse {
+  repeated PlanVersionMeta versions = 1;
+}
+
+message GetVersionRequest {
+  string version_id = 1;
+}
+
+message GetVersionResponse {
+  PlanVersion version = 1;
+}
+
+message CreateVersionRequest {
+  string name = 1;
+  optional string description = 2;
+  optional string copy_from_version_id = 3;
+}
+
+message CreateVersionResponse {
+  PlanVersion version = 1;
+}
+
+message UpdateVersionMetaRequest {
+  string version_id = 1;
+  string name = 2;
+  optional string description = 3;
+}
+
+message UpdateVersionMetaResponse {
+  PlanVersionMeta meta = 1;
+}
+
+message DeleteVersionRequest {
+  string version_id = 1;
+}
+
+message DeleteVersionResponse {}
+
+message ApplyAssignmentsRequest {
+  string version_id = 1;
+  repeated Assignment upserts = 2;
+  repeated string delete_ids = 3;
+}
+
+message ApplyAssignmentsResponse {
+  // Change-log sequence produced by the write.
+  int64 seq = 1;
+}
+
+message ApplyAbsencesRequest {
+  string version_id = 1;
+  repeated Absence upserts = 2;
+  repeated string delete_ids = 3;
+}
+
+message ApplyAbsencesResponse {
+  // Change-log sequence produced by the write.
+  int64 seq = 1;
+}
+
+message UpsertQuarterDataRequest {
+  string version_id = 1;
+  QuarterData quarter = 2;
+}
+
+message UpsertQuarterDataResponse {
+  QuarterData quarter = 1;
+}
+
+message DeleteQuarterDataRequest {
+  string version_id = 1;
+  string id = 2;
+}
+
+message DeleteQuarterDataResponse {}
+
+message ListHolidaysRequest {}
+
+message ListHolidaysResponse {
+  repeated PublicHoliday holidays = 1;
+}
+
+service PlanningService {
+  rpc ListVersions(ListVersionsRequest) returns (ListVersionsResponse);
+  rpc GetVersion(GetVersionRequest) returns (GetVersionResponse);
+  rpc CreateVersion(CreateVersionRequest) returns (CreateVersionResponse);
+  rpc UpdateVersionMeta(UpdateVersionMetaRequest) returns (UpdateVersionMetaResponse);
+  // Cascades to the version's assignments, absences and forecast rows.
+  rpc DeleteVersion(DeleteVersionRequest) returns (DeleteVersionResponse);
+  rpc ApplyAssignments(ApplyAssignmentsRequest) returns (ApplyAssignmentsResponse);
+  rpc ApplyAbsences(ApplyAbsencesRequest) returns (ApplyAbsencesResponse);
+  rpc UpsertQuarterData(UpsertQuarterDataRequest) returns (UpsertQuarterDataResponse);
+  rpc DeleteQuarterData(DeleteQuarterDataRequest) returns (DeleteQuarterDataResponse);
+  rpc ListHolidays(ListHolidaysRequest) returns (ListHolidaysResponse);
+}

@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package qfc.growth.v1;
+
+enum Sentiment {
+  SENTIMENT_UNSPECIFIED = 0;
+  SENTIMENT_GREAT = 1;
+  SENTIMENT_OKAY = 2;
+  SENTIMENT_STRESSFUL = 3;
+  SENTIMENT_UNKNOWN = 4;
+}
+
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_SCHEDULED = 1;
+  SESSION_STATUS_COMPLETED = 2;
+}
+
+message OneOnOneSession {
+  string id = 1;
+  string employee_id = 2;
+  // ISO String
+  string date = 3;
+  SessionStatus status = 4;
+  Sentiment sentiment = 5;
+  string notes = 6;
+  // "The Elephant Memory" - things promised
+  repeated string commitments = 7;
+  repeated string agenda = 8;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated OneOnOneSession sessions = 1;
+}
+
+message UpsertSessionRequest {
+  OneOnOneSession session = 1;
+}
+
+message UpsertSessionResponse {
+  OneOnOneSession session = 1;
+}
+
+message DeleteSessionRequest {
+  string id = 1;
+}
+
+message DeleteSessionResponse {}
+
+service GrowthService {
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc UpsertSession(UpsertSessionRequest) returns (UpsertSessionResponse);
+  rpc DeleteSession(DeleteSessionRequest) returns (DeleteSessionResponse);
+}
