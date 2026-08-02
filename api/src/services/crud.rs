@@ -69,7 +69,11 @@ pub(crate) async fn upsert<M: Message>(
     let id = access_id(&mut entity).clone();
 
     let mut tx = pool.begin().await?;
-    store::upsert_blob(&mut tx, spec.table, &id, &entity).await?;
+    // Encode once: the blob row and the `change_log` payload are the same
+    // byte string, so `upsert_blob_bytes` takes the pre-encoded `data`
+    // instead of `upsert_blob` re-encoding the entity a second time.
+    let data = entity.encode_to_vec();
+    store::upsert_blob_bytes(&mut tx, spec.table, &id, &data).await?;
     let mut pending = PendingEvents::new();
     pending.push(
         events::record(
@@ -79,7 +83,7 @@ pub(crate) async fn upsert<M: Message>(
             ChangeOp::Upsert,
             &id,
             None,
-            Some(entity.encode_to_vec()),
+            Some(data),
         )
         .await?,
     );
@@ -93,13 +97,30 @@ pub(crate) async fn upsert<M: Message>(
 /// nothing is written or published on that path (the delete statement
 /// itself is a no-op, and the transaction it ran in is simply dropped
 /// un-committed).
-pub(crate) async fn delete(pool: &SqlitePool, hub: &Hub, spec: &EntitySpec, actor_email: &str, id: &str) -> AppResult<()> {
+pub(crate) async fn delete(
+    pool: &SqlitePool,
+    hub: &Hub,
+    spec: &EntitySpec,
+    actor_email: &str,
+    id: &str,
+) -> AppResult<()> {
     let mut tx = pool.begin().await?;
     if !store::delete_blob(&mut tx, spec.table, id).await? {
         return Err(AppError::NotFound(spec.name, id.to_string()));
     }
     let mut pending = PendingEvents::new();
-    pending.push(events::record(&mut tx, actor_email, spec.kind, ChangeOp::Delete, id, None, None).await?);
+    pending.push(
+        events::record(
+            &mut tx,
+            actor_email,
+            spec.kind,
+            ChangeOp::Delete,
+            id,
+            None,
+            None,
+        )
+        .await?,
+    );
     tx.commit().await?;
     hub.publish_all(pending);
     Ok(())

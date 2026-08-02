@@ -4,7 +4,7 @@ import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Plus, Trash2, Edit2, Upload, Star, MapPin, Briefcase, UserPlus, Users, Sparkles, Building2, X, MessageSquare, Target, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
-import { MOCK_COMPANY_DIRECTORY } from '../constants';
+import { MOCK_COMPANY_DIRECTORY } from '../mocks';
 import { uid } from '../utils/uid';
 import { OneOnOneDashboard } from './OneOnOneDashboard';
 import { CompetencyRadar } from './development/CompetencyRadar';

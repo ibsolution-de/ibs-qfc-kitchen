@@ -106,6 +106,11 @@ export const UpsertUserResponseSchema: GenMessage<UpsertUserResponse> = /*@__PUR
  */
 export type DeleteUserRequest = Message<"qfc.admin.v1.DeleteUserRequest"> & {
   /**
+   * Users are identified by email, deliberately unlike the id-based Delete*
+   * RPCs of the other services: the email IS the user's auth identity
+   * (derived from the proxy headers at login) and the primary key of the
+   * users table — there is no surrogate id to delete by.
+   *
    * @generated from field: string email = 1;
    */
   email: string;

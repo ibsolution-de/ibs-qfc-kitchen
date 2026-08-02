@@ -30,7 +30,9 @@
 //! this module's scope).
 
 use buffa::{EnumValue, Enumeration, Message};
-use connectrpc::{ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{
+    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
+};
 use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::auth;
@@ -38,7 +40,7 @@ use crate::error::{AppError, AppResult};
 use crate::events::{self, Hub, PendingEvents};
 use crate::proto::events::{ChangeOp, EntityKind};
 use crate::proto::planning::{
-    AbsenceType, Absence, ApplyAbsencesRequest, ApplyAbsencesResponse, ApplyAssignmentsRequest,
+    Absence, AbsenceType, ApplyAbsencesRequest, ApplyAbsencesResponse, ApplyAssignmentsRequest,
     ApplyAssignmentsResponse, Assignment, CreateVersionRequest, CreateVersionResponse,
     DeleteQuarterDataRequest, DeleteQuarterDataResponse, DeleteVersionRequest,
     DeleteVersionResponse, GetVersionRequest, GetVersionResponse, ListHolidaysRequest,
@@ -46,6 +48,7 @@ use crate::proto::planning::{
     PlanningService, PublicHoliday, QuarterData, UpdateVersionMetaRequest,
     UpdateVersionMetaResponse, UpsertQuarterDataRequest, UpsertQuarterDataResponse,
 };
+use crate::time::now_millis;
 
 pub struct PlanningServiceImpl {
     pool: SqlitePool,
@@ -89,7 +92,13 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, CreateVersionRequest>,
     ) -> ServiceResult<CreateVersionResponse> {
         let current = auth::require(&ctx)?;
-        let version = do_create_version(&self.pool, &self.hub, &current.email, request.to_owned_message()).await?;
+        let version = do_create_version(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            request.to_owned_message(),
+        )
+        .await?;
         Response::ok(CreateVersionResponse {
             version: version.into(),
             ..Default::default()
@@ -102,7 +111,13 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, UpdateVersionMetaRequest>,
     ) -> ServiceResult<UpdateVersionMetaResponse> {
         let current = auth::require(&ctx)?;
-        let meta = do_update_version_meta(&self.pool, &self.hub, &current.email, request.to_owned_message()).await?;
+        let meta = do_update_version_meta(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            request.to_owned_message(),
+        )
+        .await?;
         Response::ok(UpdateVersionMetaResponse {
             meta: meta.into(),
             ..Default::default()
@@ -126,8 +141,17 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, ApplyAssignmentsRequest>,
     ) -> ServiceResult<ApplyAssignmentsResponse> {
         let current = auth::require(&ctx)?;
-        let seq = do_apply_assignments(&self.pool, &self.hub, &current.email, request.to_owned_message()).await?;
-        Response::ok(ApplyAssignmentsResponse { seq, ..Default::default() })
+        let seq = do_apply_assignments(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            request.to_owned_message(),
+        )
+        .await?;
+        Response::ok(ApplyAssignmentsResponse {
+            seq,
+            ..Default::default()
+        })
     }
 
     async fn apply_absences(
@@ -136,8 +160,17 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, ApplyAbsencesRequest>,
     ) -> ServiceResult<ApplyAbsencesResponse> {
         let current = auth::require(&ctx)?;
-        let seq = do_apply_absences(&self.pool, &self.hub, &current.email, request.to_owned_message()).await?;
-        Response::ok(ApplyAbsencesResponse { seq, ..Default::default() })
+        let seq = do_apply_absences(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            request.to_owned_message(),
+        )
+        .await?;
+        Response::ok(ApplyAbsencesResponse {
+            seq,
+            ..Default::default()
+        })
     }
 
     async fn upsert_quarter_data(
@@ -146,7 +179,13 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, UpsertQuarterDataRequest>,
     ) -> ServiceResult<UpsertQuarterDataResponse> {
         let current = auth::require(&ctx)?;
-        let quarter = do_upsert_quarter_data(&self.pool, &self.hub, &current.email, request.to_owned_message()).await?;
+        let quarter = do_upsert_quarter_data(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            request.to_owned_message(),
+        )
+        .await?;
         Response::ok(UpsertQuarterDataResponse {
             quarter: quarter.into(),
             ..Default::default()
@@ -180,26 +219,29 @@ impl PlanningService for PlanningServiceImpl {
 
 /// List every `plan_version` row as `PlanVersionMeta`, ordered by
 /// `created_at` ascending (the web app treats the last entry as the
-/// editable version — this ordering is load-bearing). `rowid` (SQLite's
-/// implicit row id, distinct from the `id` column) breaks ties between
-/// versions created within the same second, so two versions created back
-/// to back always sort in creation order rather than however SQLite
-/// happens to return equal keys.
+/// editable version — this ordering is load-bearing; epoch-millis INTEGER
+/// sorts chronologically just like the ISO text it replaced). `rowid`
+/// (SQLite's implicit row id, distinct from the `id` column) breaks ties
+/// between versions created within the same millisecond, so two versions
+/// created back to back always sort in creation order rather than however
+/// SQLite happens to return equal keys.
 async fn list_version_metas(pool: &SqlitePool) -> AppResult<Vec<PlanVersionMeta>> {
-    let rows: Vec<(String, String, Option<String>, String)> = sqlx::query_as(
+    let rows: Vec<(String, String, Option<String>, i64)> = sqlx::query_as(
         "SELECT id, name, description, created_at FROM plan_version ORDER BY created_at ASC, rowid ASC",
     )
     .fetch_all(pool)
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, name, description, created_at)| PlanVersionMeta {
-            id,
-            name,
-            description,
-            created_at,
-            ..Default::default()
-        })
+        .map(
+            |(id, name, description, created_at_millis)| PlanVersionMeta {
+                id,
+                name,
+                description,
+                created_at_millis,
+                ..Default::default()
+            },
+        )
         .collect())
 }
 
@@ -208,18 +250,18 @@ async fn list_version_metas(pool: &SqlitePool) -> AppResult<Vec<PlanVersionMeta>
 /// `plan_version` row matches.
 async fn fetch_version(pool: &SqlitePool, version_id: &str) -> AppResult<PlanVersion> {
     let mut conn = pool.acquire().await?;
-    let meta_row: Option<(String, Option<String>, String)> =
+    let meta_row: Option<(String, Option<String>, i64)> =
         sqlx::query_as("SELECT name, description, created_at FROM plan_version WHERE id = ?1")
             .bind(version_id)
             .fetch_optional(&mut *conn)
             .await?;
-    let (name, description, created_at) =
+    let (name, description, created_at_millis) =
         meta_row.ok_or_else(|| AppError::NotFound("plan_version", version_id.to_string()))?;
     let meta = PlanVersionMeta {
         id: version_id.to_string(),
         name,
         description,
-        created_at,
+        created_at_millis,
         ..Default::default()
     };
 
@@ -239,13 +281,20 @@ async fn fetch_version(pool: &SqlitePool, version_id: &str) -> AppResult<PlanVer
 /// Create a new plan version, deep-copying `request.copy_from_version_id`'s
 /// assignments/absences/forecast data (with fresh ids) into it when set.
 /// Returns the full persisted `PlanVersion`.
-async fn do_create_version(pool: &SqlitePool, hub: &Hub, actor_email: &str, request: CreateVersionRequest) -> AppResult<PlanVersion> {
+async fn do_create_version(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    request: CreateVersionRequest,
+) -> AppResult<PlanVersion> {
     if request.name.trim().is_empty() {
-        return Err(AppError::InvalidArgument("name must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "name must not be empty".to_string(),
+        ));
     }
 
     let id = uuid::Uuid::new_v4().to_string();
-    let created_at = iso8601_now();
+    let created_at_millis = now_millis();
 
     let mut tx = pool.begin().await?;
 
@@ -261,7 +310,7 @@ async fn do_create_version(pool: &SqlitePool, hub: &Hub, actor_email: &str, requ
     .bind(&id)
     .bind(&request.name)
     .bind(request.description.as_deref())
-    .bind(&created_at)
+    .bind(created_at_millis)
     .bind(now_millis())
     .execute(&mut *tx)
     .await?;
@@ -279,7 +328,7 @@ async fn do_create_version(pool: &SqlitePool, hub: &Hub, actor_email: &str, requ
         id: id.clone(),
         name: request.name,
         description: request.description,
-        created_at,
+        created_at_millis,
         ..Default::default()
     };
 
@@ -317,14 +366,16 @@ async fn do_update_version_meta(
     request: UpdateVersionMetaRequest,
 ) -> AppResult<PlanVersionMeta> {
     if request.name.trim().is_empty() {
-        return Err(AppError::InvalidArgument("name must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "name must not be empty".to_string(),
+        ));
     }
 
     let mut tx = pool.begin().await?;
     // `RETURNING created_at` both applies the update and confirms whether a
     // row existed in one round trip: `None` means `id` didn't match
     // anything, so nothing was written.
-    let created_at: Option<String> = sqlx::query_scalar(
+    let created_at_millis: Option<i64> = sqlx::query_scalar(
         "UPDATE plan_version SET name = ?1, description = ?2, updated_at = ?3 WHERE id = ?4 RETURNING created_at",
     )
     .bind(&request.name)
@@ -333,13 +384,14 @@ async fn do_update_version_meta(
     .bind(&request.version_id)
     .fetch_optional(&mut *tx)
     .await?;
-    let created_at = created_at.ok_or_else(|| AppError::NotFound("plan_version", request.version_id.clone()))?;
+    let created_at_millis = created_at_millis
+        .ok_or_else(|| AppError::NotFound("plan_version", request.version_id.clone()))?;
 
     let meta = PlanVersionMeta {
         id: request.version_id.clone(),
         name: request.name,
         description: request.description,
-        created_at,
+        created_at_millis,
         ..Default::default()
     };
 
@@ -374,7 +426,12 @@ async fn do_update_version_meta(
 /// `ConnectError` (unlike `AppError`) has no `From<sqlx::Error>` impl;
 /// calls already returning `AppResult` (`version_exists`, `events::record`)
 /// convert with a plain `?`.
-async fn do_delete_version(pool: &SqlitePool, hub: &Hub, actor_email: &str, version_id: &str) -> Result<(), ConnectError> {
+async fn do_delete_version(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    version_id: &str,
+) -> Result<(), ConnectError> {
     let mut tx = pool.begin().await.map_err(AppError::from)?;
     if !version_exists(&mut tx, version_id).await? {
         return Err(AppError::NotFound("plan_version", version_id.to_string()).into());
@@ -420,7 +477,12 @@ async fn do_delete_version(pool: &SqlitePool, hub: &Hub, actor_email: &str, vers
 /// one event per affected row. Returns the highest `change_log.seq` written
 /// by this call, or the pre-existing max if the batch wrote nothing (an
 /// empty batch, or every `delete_ids` entry was already gone).
-async fn do_apply_assignments(pool: &SqlitePool, hub: &Hub, actor_email: &str, request: ApplyAssignmentsRequest) -> AppResult<i64> {
+async fn do_apply_assignments(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    request: ApplyAssignmentsRequest,
+) -> AppResult<i64> {
     let version_id = request.version_id;
 
     // Validate the whole batch before touching the database at all: an
@@ -514,7 +576,12 @@ async fn do_apply_assignments(pool: &SqlitePool, hub: &Hub, actor_email: &str, r
 }
 
 /// The `absence` analogue of [`do_apply_assignments`].
-async fn do_apply_absences(pool: &SqlitePool, hub: &Hub, actor_email: &str, request: ApplyAbsencesRequest) -> AppResult<i64> {
+async fn do_apply_absences(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    request: ApplyAbsencesRequest,
+) -> AppResult<i64> {
     let version_id = request.version_id;
 
     for upsert in &request.upserts {
@@ -529,7 +596,14 @@ async fn do_apply_absences(pool: &SqlitePool, hub: &Hub, actor_email: &str, requ
 
     let mut pending = PendingEvents::new();
     for upsert in request.upserts {
-        let id = resolve_absence_id(&mut tx, &version_id, &upsert.employee_id, &upsert.date, &upsert.id).await?;
+        let id = resolve_absence_id(
+            &mut tx,
+            &version_id,
+            &upsert.employee_id,
+            &upsert.date,
+            &upsert.id,
+        )
+        .await?;
         let absence_type_db = absence_type_to_db(upsert.absence_type);
 
         sqlx::query(
@@ -606,7 +680,10 @@ async fn do_upsert_quarter_data(
 ) -> AppResult<QuarterData> {
     let version_id = request.version_id;
     let mut quarter = request.quarter.into_option().unwrap_or_default();
-    if quarter.id.is_empty() {
+    // A server-assigned id is always an INSERT; a client-supplied one may
+    // still collide with an existing row (the ON CONFLICT update path).
+    let fresh_id = quarter.id.is_empty();
+    if fresh_id {
         quarter.id = uuid::Uuid::new_v4().to_string();
     }
 
@@ -615,10 +692,23 @@ async fn do_upsert_quarter_data(
         return Err(AppError::NotFound("plan_version", version_id));
     }
 
-    let next_position: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(position), -1) + 1 FROM quarter_data WHERE version_id = ?1")
-        .bind(&version_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    // Only the INSERT path consumes `position` (the ON CONFLICT branch
+    // below updates `data` alone), so the MAX(position)+1 aggregate runs
+    // only when this upsert can actually insert: always for a
+    // server-assigned id, and for a client-supplied id only if no row
+    // carries it yet. In the update case the bound value is ignored by
+    // SQLite, so a plain 0 stands in.
+    let next_position: i64 =
+        if fresh_id || !quarter_data_exists(&mut tx, &version_id, &quarter.id).await? {
+            sqlx::query_scalar(
+                "SELECT COALESCE(MAX(position), -1) + 1 FROM quarter_data WHERE version_id = ?1",
+            )
+            .bind(&version_id)
+            .fetch_one(&mut *tx)
+            .await?
+        } else {
+            0
+        };
 
     sqlx::query(
         "INSERT INTO quarter_data (id, version_id, position, data) VALUES (?1, ?2, ?3, ?4)
@@ -652,7 +742,13 @@ async fn do_upsert_quarter_data(
 
 /// Delete one `quarter_data` row, or `AppError::NotFound` if it doesn't
 /// exist.
-async fn do_delete_quarter_data(pool: &SqlitePool, hub: &Hub, actor_email: &str, version_id: &str, id: &str) -> AppResult<()> {
+async fn do_delete_quarter_data(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    version_id: &str,
+    id: &str,
+) -> AppResult<()> {
     let mut tx = pool.begin().await?;
     let result = sqlx::query("DELETE FROM quarter_data WHERE version_id = ?1 AND id = ?2")
         .bind(version_id)
@@ -681,7 +777,10 @@ async fn do_delete_quarter_data(pool: &SqlitePool, hub: &Hub, actor_email: &str,
     Ok(())
 }
 
-async fn fetch_assignments(conn: &mut SqliteConnection, version_id: &str) -> AppResult<Vec<Assignment>> {
+async fn fetch_assignments(
+    conn: &mut SqliteConnection,
+    version_id: &str,
+) -> AppResult<Vec<Assignment>> {
     let rows: Vec<(String, String, String, String, f64)> = sqlx::query_as(
         "SELECT id, employee_id, project_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
     )
@@ -690,15 +789,17 @@ async fn fetch_assignments(conn: &mut SqliteConnection, version_id: &str) -> App
     .await?;
     Ok(rows
         .into_iter()
-        .map(|(id, employee_id, project_id, date, allocation)| Assignment {
-            id,
-            version_id: version_id.to_string(),
-            employee_id,
-            project_id,
-            date,
-            allocation,
-            ..Default::default()
-        })
+        .map(
+            |(id, employee_id, project_id, date, allocation)| Assignment {
+                id,
+                version_id: version_id.to_string(),
+                employee_id,
+                project_id,
+                date,
+                allocation,
+                ..Default::default()
+            },
+        )
         .collect())
 }
 
@@ -726,11 +827,15 @@ async fn fetch_absences(conn: &mut SqliteConnection, version_id: &str) -> AppRes
 /// Fetch every `quarter_data` row for `version_id`, decoded as
 /// `QuarterData`, ordered by `position` — the column that carries client
 /// display order (the proto message itself has no such field).
-async fn fetch_quarter_data(conn: &mut SqliteConnection, version_id: &str) -> AppResult<Vec<QuarterData>> {
-    let rows: Vec<Vec<u8>> = sqlx::query_scalar("SELECT data FROM quarter_data WHERE version_id = ?1 ORDER BY position")
-        .bind(version_id)
-        .fetch_all(&mut *conn)
-        .await?;
+async fn fetch_quarter_data(
+    conn: &mut SqliteConnection,
+    version_id: &str,
+) -> AppResult<Vec<QuarterData>> {
+    let rows: Vec<Vec<u8>> =
+        sqlx::query_scalar("SELECT data FROM quarter_data WHERE version_id = ?1 ORDER BY position")
+            .bind(version_id)
+            .fetch_all(&mut *conn)
+            .await?;
     rows.into_iter()
         .map(|data| QuarterData::decode_from_slice(&data).map_err(AppError::from))
         .collect()
@@ -739,7 +844,11 @@ async fn fetch_quarter_data(conn: &mut SqliteConnection, version_id: &str) -> Ap
 /// Deep-copy every `assignment` row of `source_id` into `new_version_id`,
 /// assigning each copy a fresh uuid — `assignment.id` is a globally unique
 /// primary key, so source row ids are never reused across versions.
-async fn copy_assignments(conn: &mut SqliteConnection, source_id: &str, new_version_id: &str) -> AppResult<Vec<Assignment>> {
+async fn copy_assignments(
+    conn: &mut SqliteConnection,
+    source_id: &str,
+    new_version_id: &str,
+) -> AppResult<Vec<Assignment>> {
     let rows: Vec<(String, String, String, f64)> = sqlx::query_as(
         "SELECT employee_id, project_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
     )
@@ -776,7 +885,11 @@ async fn copy_assignments(conn: &mut SqliteConnection, source_id: &str, new_vers
 
 /// Deep-copy every `absence` row of `source_id` into `new_version_id` with
 /// fresh ids — see [`copy_assignments`].
-async fn copy_absences(conn: &mut SqliteConnection, source_id: &str, new_version_id: &str) -> AppResult<Vec<Absence>> {
+async fn copy_absences(
+    conn: &mut SqliteConnection,
+    source_id: &str,
+    new_version_id: &str,
+) -> AppResult<Vec<Absence>> {
     let rows: Vec<(String, String, String, bool)> = sqlx::query_as(
         "SELECT employee_id, date, absence_type, approved FROM absence WHERE version_id = ?1 ORDER BY id",
     )
@@ -817,24 +930,31 @@ async fn copy_absences(conn: &mut SqliteConnection, source_id: &str, new_version
 /// safe) — see [`copy_assignments`]. The copy's id is re-embedded into the
 /// re-encoded blob, keeping `QuarterData.id` in sync with the `id` column
 /// the same way a fresh upsert would.
-async fn copy_quarter_data(conn: &mut SqliteConnection, source_id: &str, new_version_id: &str) -> AppResult<Vec<QuarterData>> {
-    let rows: Vec<(i64, Vec<u8>)> =
-        sqlx::query_as("SELECT position, data FROM quarter_data WHERE version_id = ?1 ORDER BY position")
-            .bind(source_id)
-            .fetch_all(&mut *conn)
-            .await?;
+async fn copy_quarter_data(
+    conn: &mut SqliteConnection,
+    source_id: &str,
+    new_version_id: &str,
+) -> AppResult<Vec<QuarterData>> {
+    let rows: Vec<(i64, Vec<u8>)> = sqlx::query_as(
+        "SELECT position, data FROM quarter_data WHERE version_id = ?1 ORDER BY position",
+    )
+    .bind(source_id)
+    .fetch_all(&mut *conn)
+    .await?;
 
     let mut copied = Vec::with_capacity(rows.len());
     for (position, data) in rows {
         let mut quarter = QuarterData::decode_from_slice(&data)?;
         quarter.id = uuid::Uuid::new_v4().to_string();
-        sqlx::query("INSERT INTO quarter_data (id, version_id, position, data) VALUES (?1, ?2, ?3, ?4)")
-            .bind(&quarter.id)
-            .bind(new_version_id)
-            .bind(position)
-            .bind(quarter.encode_to_vec())
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query(
+            "INSERT INTO quarter_data (id, version_id, position, data) VALUES (?1, ?2, ?3, ?4)",
+        )
+        .bind(&quarter.id)
+        .bind(new_version_id)
+        .bind(position)
+        .bind(quarter.encode_to_vec())
+        .execute(&mut *conn)
+        .await?;
         copied.push(quarter);
     }
     Ok(copied)
@@ -846,6 +966,23 @@ async fn version_exists(conn: &mut SqliteConnection, id: &str) -> AppResult<bool
         .bind(id)
         .fetch_optional(&mut *conn)
         .await?;
+    Ok(found.is_some())
+}
+
+/// `true` if a `quarter_data` row exists for `(version_id, id)` — the key
+/// `do_upsert_quarter_data`'s `ON CONFLICT` clause targets, used there to
+/// skip the MAX(position)+1 aggregate on the update path.
+async fn quarter_data_exists(
+    conn: &mut SqliteConnection,
+    version_id: &str,
+    id: &str,
+) -> AppResult<bool> {
+    let found: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM quarter_data WHERE version_id = ?1 AND id = ?2")
+            .bind(version_id)
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await?;
     Ok(found.is_some())
 }
 
@@ -899,13 +1036,14 @@ async fn resolve_absence_id(
     date: &str,
     requested_id: &str,
 ) -> AppResult<String> {
-    let existing: Option<String> =
-        sqlx::query_scalar("SELECT id FROM absence WHERE version_id = ?1 AND employee_id = ?2 AND date = ?3")
-            .bind(version_id)
-            .bind(employee_id)
-            .bind(date)
-            .fetch_optional(&mut *conn)
-            .await?;
+    let existing: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM absence WHERE version_id = ?1 AND employee_id = ?2 AND date = ?3",
+    )
+    .bind(version_id)
+    .bind(employee_id)
+    .bind(date)
+    .fetch_optional(&mut *conn)
+    .await?;
     Ok(match existing {
         Some(id) => id,
         None if requested_id.is_empty() => uuid::Uuid::new_v4().to_string(),
@@ -926,10 +1064,14 @@ fn validate_assignment_upsert(version_id: &str, upsert: &Assignment) -> AppResul
         )));
     }
     if upsert.employee_id.trim().is_empty() {
-        return Err(AppError::InvalidArgument("assignment.employee_id must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "assignment.employee_id must not be empty".to_string(),
+        ));
     }
     if upsert.project_id.trim().is_empty() {
-        return Err(AppError::InvalidArgument("assignment.project_id must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "assignment.project_id must not be empty".to_string(),
+        ));
     }
     if !looks_like_iso_date(&upsert.date) {
         return Err(AppError::InvalidArgument(format!(
@@ -955,7 +1097,9 @@ fn validate_absence_upsert(version_id: &str, upsert: &Absence) -> AppResult<()> 
         )));
     }
     if upsert.employee_id.trim().is_empty() {
-        return Err(AppError::InvalidArgument("absence.employee_id must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "absence.employee_id must not be empty".to_string(),
+        ));
     }
     if !looks_like_iso_date(&upsert.date) {
         return Err(AppError::InvalidArgument(format!(
@@ -1010,7 +1154,10 @@ fn absence_type_from_db(value: &str) -> EnumValue<AbsenceType> {
     match AbsenceType::from_proto_name(value) {
         Some(known) => EnumValue::Known(known),
         None => {
-            tracing::warn!(value, "unknown absence_type in absence table; defaulting to unspecified");
+            tracing::warn!(
+                value,
+                "unknown absence_type in absence table; defaulting to unspecified"
+            );
             EnumValue::Known(AbsenceType::Unspecified)
         }
     }
@@ -1032,68 +1179,9 @@ async fn list_all_holidays(pool: &SqlitePool) -> AppResult<Vec<PublicHoliday>> {
         .collect())
 }
 
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
-
-/// The current UTC time as an ISO-8601 string (`YYYY-MM-DDTHH:MM:SSZ`),
-/// matching the format already used by seeded plan-version data (see
-/// `seed/seed.json`'s `createdAt` fields). No `chrono` dependency in this
-/// crate — built directly from `SystemTime` plus [`civil_from_days`]'s
-/// pure-integer calendar arithmetic.
-fn iso8601_now() -> String {
-    let elapsed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = elapsed.as_secs() as i64;
-    let days = secs.div_euclid(86_400);
-    let time_of_day = secs.rem_euclid(86_400);
-    let (year, month, day) = civil_from_days(days);
-    let hour = time_of_day / 3600;
-    let minute = (time_of_day % 3600) / 60;
-    let second = time_of_day % 60;
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// Howard Hinnant's `civil_from_days` algorithm: converts a day count since
-/// the Unix epoch (1970-01-01) into a proleptic-Gregorian (year, month,
-/// day) triple using only integer arithmetic — see
-/// <http://howardhinnant.github.io/date_algorithms.html>.
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64; // [0, 146096]
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365; // [0, 399]
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
-    let mp = (5 * doy + 2) / 153; // [0, 11]
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32; // [1, 12]
-    let year = if m <= 2 { y + 1 } else { y };
-    (year, m, d)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn civil_from_days_matches_known_epoch_dates() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
-        assert_eq!(civil_from_days(19_782), (2024, 2, 29), "2024 is a leap year");
-        assert_eq!(civil_from_days(19_783), (2024, 3, 1));
-    }
-
-    #[test]
-    fn iso8601_now_has_the_expected_shape() {
-        let stamp = iso8601_now();
-        assert_eq!(stamp.len(), 20, "{stamp}");
-        assert!(stamp.ends_with('Z'), "{stamp}");
-        assert!(looks_like_iso_date(&stamp[..10]), "{stamp}");
-    }
 
     #[test]
     fn looks_like_iso_date_accepts_and_rejects() {

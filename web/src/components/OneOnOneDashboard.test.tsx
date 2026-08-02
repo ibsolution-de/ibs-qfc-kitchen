@@ -52,7 +52,7 @@ const employee: Employee = {
 const makeSession = (overrides: Partial<OneOnOneSession> = {}): OneOnOneSession => ({
   id: 's1',
   employeeId: employee.id,
-  date: '2026-01-15T00:00:00.000Z',
+  date: 1768435200000, // 2026-01-15T00:00:00Z
   status: 'scheduled',
   sentiment: 'unknown',
   notes: '',
@@ -167,8 +167,8 @@ describe('OneOnOneDashboard notes persistence', () => {
 
   it('flushes an unpersisted edit instead of dropping it when switching to a different session', () => {
     const onUpdateSessions = vi.fn();
-    const recentSession = makeSession({ id: 'recent', date: '2026-02-01T00:00:00.000Z' });
-    const olderSession = makeSession({ id: 'older', date: '2026-01-01T00:00:00.000Z' });
+    const recentSession = makeSession({ id: 'recent', date: 1769896800000 }); // 2026-02-01T00:00:00Z
+    const olderSession = makeSession({ id: 'older', date: 1767225600000 }); // 2026-01-01T00:00:00Z
     const { container } = renderDashboard({ sessions: [recentSession, olderSession], onUpdateSessions });
 
     const textarea = container.querySelector('textarea') as HTMLTextAreaElement;

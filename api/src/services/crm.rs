@@ -9,8 +9,8 @@ use crate::auth;
 use crate::error::{AppError, AppResult};
 use crate::events::Hub;
 use crate::proto::crm::{
-    Customer, CustomerService, DeleteCustomerRequest, DeleteCustomerResponse,
-    ListCustomersRequest, ListCustomersResponse, UpsertCustomerRequest, UpsertCustomerResponse,
+    Customer, CustomerService, DeleteCustomerRequest, DeleteCustomerResponse, ListCustomersRequest,
+    ListCustomersResponse, UpsertCustomerRequest, UpsertCustomerResponse,
 };
 use crate::proto::events::EntityKind;
 use crate::services::crud;
@@ -46,7 +46,11 @@ impl CustomerService for CustomerServiceImpl {
         request: ServiceRequest<'_, UpsertCustomerRequest>,
     ) -> ServiceResult<UpsertCustomerResponse> {
         let current = auth::require(&ctx)?;
-        let entity = request.to_owned_message().customer.into_option().unwrap_or_default();
+        let entity = request
+            .to_owned_message()
+            .customer
+            .into_option()
+            .unwrap_or_default();
         let spec = crud::EntitySpec {
             table: Table::Customer,
             kind: EntityKind::Customer,
@@ -86,10 +90,14 @@ impl CustomerService for CustomerServiceImpl {
 
 fn validate_customer(customer: &Customer) -> AppResult<()> {
     if customer.name.trim().is_empty() {
-        return Err(AppError::InvalidArgument("customer.name must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "customer.name must not be empty".to_string(),
+        ));
     }
     if customer.email.trim().is_empty() {
-        return Err(AppError::InvalidArgument("customer.email must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "customer.email must not be empty".to_string(),
+        ));
     }
     Ok(())
 }

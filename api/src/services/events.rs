@@ -3,14 +3,18 @@
 //! from the shared [`Hub`](crate::events::Hub), deduping the overlap
 //! between replay and live delivery by `seq`.
 
-use connectrpc::{Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream};
+use connectrpc::{
+    Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
+};
 use futures::StreamExt;
 use sqlx::SqlitePool;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
 use crate::events::{self, Hub};
-use crate::proto::events::{ChangeEvent, EventService, WatchRequest};
+use crate::proto::events::{
+    ChangeEvent, EventService, GetEventsStateRequest, GetEventsStateResponse, WatchRequest,
+};
 
 pub struct EventServiceImpl {
     pool: SqlitePool,
@@ -24,6 +28,18 @@ impl EventServiceImpl {
 }
 
 impl EventService for EventServiceImpl {
+    async fn get_events_state(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetEventsStateRequest>,
+    ) -> ServiceResult<GetEventsStateResponse> {
+        let max_seq = events::max_committed_seq(&self.pool).await?;
+        Response::ok(GetEventsStateResponse {
+            max_seq,
+            ..Default::default()
+        })
+    }
+
     async fn watch(
         &self,
         _ctx: RequestContext,
@@ -64,37 +80,42 @@ impl EventService for EventServiceImpl {
         let last_seq = replay.last().map_or(since_seq, |event| event.seq);
 
         let live = BroadcastStream::new(live);
-        let stream = futures::stream::iter(replay.into_iter().map(Ok)).chain(
-            futures::stream::unfold((live, last_seq, false), |(mut live, last_seq, done)| async move {
-                if done {
-                    return None;
-                }
-                loop {
-                    match live.next().await {
-                        // The hub was dropped — process shutdown. End the
-                        // stream cleanly rather than erroring.
-                        None => return None,
-                        Some(Ok(event)) => {
-                            if event.seq <= last_seq {
-                                // Already delivered via replay (or a prior
-                                // live event) — dedupe silently.
-                                continue;
+        let stream =
+            futures::stream::iter(replay.into_iter().map(Ok)).chain(futures::stream::unfold(
+                (live, last_seq, false),
+                |(mut live, last_seq, done)| async move {
+                    if done {
+                        return None;
+                    }
+                    loop {
+                        match live.next().await {
+                            // The hub was dropped — process shutdown. End the
+                            // stream cleanly rather than erroring.
+                            None => return None,
+                            Some(Ok(event)) => {
+                                if event.seq <= last_seq {
+                                    // Already delivered via replay (or a prior
+                                    // live event) — dedupe silently.
+                                    continue;
+                                }
+                                let next_last_seq = event.seq;
+                                return Some((Ok(event), (live, next_last_seq, false)));
                             }
-                            let next_last_seq = event.seq;
-                            return Some((Ok(event), (live, next_last_seq, false)));
-                        }
-                        Some(Err(BroadcastStreamRecvError::Lagged(_))) => {
-                            // We fell behind the live channel and missed
-                            // events irrecoverably (from this stream's
-                            // perspective) — surface the same
-                            // reload-required signal as a pruned replay
-                            // rather than silently skipping ahead.
-                            return Some((Err(events::reload_required_error()), (live, last_seq, true)));
+                            Some(Err(BroadcastStreamRecvError::Lagged(_))) => {
+                                // We fell behind the live channel and missed
+                                // events irrecoverably (from this stream's
+                                // perspective) — surface the same
+                                // reload-required signal as a pruned replay
+                                // rather than silently skipping ahead.
+                                return Some((
+                                    Err(events::reload_required_error()),
+                                    (live, last_seq, true),
+                                ));
+                            }
                         }
                     }
-                }
-            }),
-        );
+                },
+            ));
 
         Response::stream_ok(stream)
     }

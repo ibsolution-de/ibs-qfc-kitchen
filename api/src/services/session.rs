@@ -5,7 +5,9 @@
 use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
 
 use crate::auth::{self, CurrentUser};
-use crate::proto::session::{GetSessionRequest, GetSessionResponse, SessionService, User, UserRole};
+use crate::proto::session::{
+    GetSessionRequest, GetSessionResponse, SessionService, User, UserRole,
+};
 
 pub struct SessionServiceImpl;
 
@@ -24,7 +26,12 @@ impl SessionService for SessionServiceImpl {
 }
 
 fn user_from(current: CurrentUser) -> User {
-    user_from_fields(&current.email, &current.name, &current.roles, current.employee_id)
+    user_from_fields(
+        &current.email,
+        &current.name,
+        &current.roles,
+        current.employee_id,
+    )
 }
 
 /// Build the wire `User` message from raw identity fields rather than a
@@ -38,7 +45,10 @@ pub(crate) fn user_from_fields(
     roles: &[UserRole],
     employee_id: Option<String>,
 ) -> User {
-    let avatar = format!("https://ui-avatars.com/api/?name={}", encode_query_component(name));
+    let avatar = format!(
+        "https://ui-avatars.com/api/?name={}",
+        encode_query_component(name)
+    );
     User {
         id: email.to_string(),
         name: name.to_string(),

@@ -61,15 +61,21 @@ message Project {
   ProjectStatus status = 5;
   // Days
   optional int32 volume = 6;
+  // YYYY-MM-DD calendar dates (dates convention: plain string, no time of
+  // day, no time zone).
   optional string start_date = 7;
   optional string end_date = 8;
+  // Free-form display label (e.g. "80k") — deliberately NOT parsed money;
+  // hourly_rate below is the machine-readable money field of this message.
   optional string budget = 9;
   optional string topic = 10;
   optional string notes = 11;
   // Critical for conflict detection.
   optional bool is_critical = 12;
-  // EUR per hour (default ~100)
-  optional double hourly_rate = 13;
+  // EUR per hour as a decimal string in major units (e.g. "120" or
+  // "97.50"). A string, not a double: rates feed cost computations and
+  // binary floats put rounding artifacts on the wire.
+  optional string hourly_rate = 13;
   repeated Milestone milestones = 14;
   // 0-100%
   optional int32 probability = 15;

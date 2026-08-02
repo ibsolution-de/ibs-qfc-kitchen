@@ -17,7 +17,9 @@
 //! not because publishing was forgotten.
 
 use buffa::EnumValue;
-use connectrpc::{ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{
+    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
+};
 use sqlx::SqlitePool;
 
 use crate::auth::{self, CurrentUser};
@@ -28,6 +30,7 @@ use crate::proto::admin::{
 };
 use crate::proto::session::{User, UserRole};
 use crate::services::session::user_from_fields;
+use crate::time::now_millis;
 
 pub struct AdminServiceImpl {
     pool: SqlitePool,
@@ -127,7 +130,11 @@ fn validate_upsert(request: &UpsertUserRequest) -> AppResult<()> {
 /// overwritten again on the person's next login anyway.
 async fn do_upsert(pool: &SqlitePool, request: UpsertUserRequest) -> AppResult<User> {
     validate_upsert(&request)?;
-    let roles: Vec<UserRole> = request.roles.iter().filter_map(EnumValue::as_known).collect();
+    let roles: Vec<UserRole> = request
+        .roles
+        .iter()
+        .filter_map(EnumValue::as_known)
+        .collect();
     let canonical = auth::roles_to_db(&roles);
 
     sqlx::query(
@@ -156,7 +163,11 @@ async fn do_upsert(pool: &SqlitePool, request: UpsertUserRequest) -> AppResult<U
 /// remaining account holding `USER_ROLE_ADMIN` — either one would leave the
 /// instance with nobody able to call `AdminService` again, and there is no
 /// recovery path for that short of hand-editing the database.
-async fn do_delete(pool: &SqlitePool, current: &CurrentUser, email: &str) -> Result<(), ConnectError> {
+async fn do_delete(
+    pool: &SqlitePool,
+    current: &CurrentUser,
+    email: &str,
+) -> Result<(), ConnectError> {
     if email.eq_ignore_ascii_case(&current.email) {
         return Err(ConnectError::new(
             ErrorCode::FailedPrecondition,
@@ -178,7 +189,9 @@ async fn do_delete(pool: &SqlitePool, current: &CurrentUser, email: &str) -> Res
     if auth::roles_from_db(target_roles_raw).contains(&UserRole::Admin) {
         let remaining_admins = all
             .iter()
-            .filter(|(row_email, roles_raw)| row_email != email && auth::roles_from_db(roles_raw).contains(&UserRole::Admin))
+            .filter(|(row_email, roles_raw)| {
+                row_email != email && auth::roles_from_db(roles_raw).contains(&UserRole::Admin)
+            })
             .count();
         if remaining_admins == 0 {
             return Err(ConnectError::new(
@@ -196,11 +209,4 @@ async fn do_delete(pool: &SqlitePool, current: &CurrentUser, email: &str) -> Res
 
     tx.commit().await.map_err(AppError::from)?;
     Ok(())
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
 }

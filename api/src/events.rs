@@ -42,7 +42,7 @@
 
 use buffa::{Enumeration, Message};
 use connectrpc::{ConnectError, ErrorCode};
-use sqlx::{SqlitePool, SqliteConnection};
+use sqlx::{SqliteConnection, SqlitePool};
 use tokio::sync::broadcast;
 
 use crate::error::{AppError, AppResult};
@@ -185,6 +185,17 @@ pub async fn record(
     })
 }
 
+/// The highest `seq` currently committed to `change_log`, or 0 when the
+/// log is empty. Read by `EventServiceImpl::get_events_state` so clients can
+/// close the gap between a full state reload and their next `Watch`
+/// subscription (see `GetEventsStateResponse.max_seq` in events.proto).
+pub(crate) async fn max_committed_seq(pool: &SqlitePool) -> AppResult<i64> {
+    let max: Option<i64> = sqlx::query_scalar("SELECT MAX(seq) FROM change_log")
+        .fetch_one(pool)
+        .await?;
+    Ok(max.unwrap_or(0))
+}
+
 /// The oldest `seq` still present in `change_log`, or `None` if the table is
 /// empty (either nothing has ever been recorded, or — impossible in
 /// practice since [`prune`] always keeps the newest `RETENTION_ROWS` — the
@@ -212,25 +223,36 @@ pub(crate) async fn replay_since(pool: &SqlitePool, since_seq: i64) -> AppResult
     .await?;
 
     rows.into_iter()
-        .map(|(seq, kind, op, entity_id, version_id, actor_email, ts_millis, payload)| {
-            build_change_event(RawChangeLogRow {
-                seq,
-                kind: kind_from_db(kind)?,
-                op: op_from_db(op)?,
-                entity_id: &entity_id,
-                version_id: version_id.as_deref(),
-                actor_email: &actor_email,
-                ts_millis,
-                payload: payload.as_deref(),
-            })
-        })
+        .map(
+            |(seq, kind, op, entity_id, version_id, actor_email, ts_millis, payload)| {
+                build_change_event(RawChangeLogRow {
+                    seq,
+                    kind: kind_from_db(kind)?,
+                    op: op_from_db(op)?,
+                    entity_id: &entity_id,
+                    version_id: version_id.as_deref(),
+                    actor_email: &actor_email,
+                    ts_millis,
+                    payload: payload.as_deref(),
+                })
+            },
+        )
         .collect()
 }
 
 /// Raw column tuple shape of a `change_log` row, as read back by
 /// [`replay_since`]. A type alias purely to keep clippy's
 /// `type_complexity` lint quiet at the call site above.
-type DbChangeLogRow = (i64, i32, i32, String, Option<String>, String, i64, Option<Vec<u8>>);
+type DbChangeLogRow = (
+    i64,
+    i32,
+    i32,
+    String,
+    Option<String>,
+    String,
+    i64,
+    Option<Vec<u8>>,
+);
 
 /// The distinguishable error a `Watch` client must branch on: the change
 /// history it needs (either because its `since_seq` predates the retention
@@ -292,8 +314,12 @@ fn decode_body(kind: EntityKind, payload: Option<&[u8]>) -> AppResult<Option<Bod
         EntityKind::Absence => Body::from(planning::Absence::decode_from_slice(bytes)?),
         EntityKind::QuarterData => Body::from(planning::QuarterData::decode_from_slice(bytes)?),
         EntityKind::StrategicGoal => Body::from(strategy::StrategicGoal::decode_from_slice(bytes)?),
-        EntityKind::NorthStarMetric => Body::from(strategy::NorthStarMetric::decode_from_slice(bytes)?),
-        EntityKind::OneOnOneSession => Body::from(growth::OneOnOneSession::decode_from_slice(bytes)?),
+        EntityKind::NorthStarMetric => {
+            Body::from(strategy::NorthStarMetric::decode_from_slice(bytes)?)
+        }
+        EntityKind::OneOnOneSession => {
+            Body::from(growth::OneOnOneSession::decode_from_slice(bytes)?)
+        }
         EntityKind::Unspecified => {
             return Err(AppError::Internal(
                 "change_log row carries a payload but ENTITY_KIND_UNSPECIFIED".to_string(),
@@ -313,24 +339,18 @@ fn op_from_db(value: i32) -> AppResult<ChangeOp> {
         .ok_or_else(|| AppError::Internal(format!("change_log: unknown ChangeOp {value}")))
 }
 
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
+use crate::time::now_millis;
 
 /// Delete `change_log` rows beyond the most recent [`RETENTION_ROWS`]. Safe
 /// to call concurrently with writers: it only ever removes rows older than
 /// whatever the newest `RETENTION_ROWS` happen to be at the moment it runs,
 /// and a fresh write can only add to that newest set, never shrink it.
 pub async fn prune(pool: &SqlitePool) -> AppResult<u64> {
-    let result = sqlx::query(
-        "DELETE FROM change_log WHERE seq <= (SELECT MAX(seq) FROM change_log) - ?1",
-    )
-    .bind(RETENTION_ROWS)
-    .execute(pool)
-    .await?;
+    let result =
+        sqlx::query("DELETE FROM change_log WHERE seq <= (SELECT MAX(seq) FROM change_log) - ?1")
+            .bind(RETENTION_ROWS)
+            .execute(pool)
+            .await?;
     Ok(result.rows_affected())
 }
 

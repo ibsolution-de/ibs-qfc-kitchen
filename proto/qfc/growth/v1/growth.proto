@@ -19,8 +19,9 @@ enum SessionStatus {
 message OneOnOneSession {
   string id = 1;
   string employee_id = 2;
-  // ISO String
-  string date = 3;
+  // Session time as Unix epoch milliseconds (instants convention, see
+  // qfc.planning.v1.PlanVersionMeta.created_at_millis).
+  int64 date_millis = 3;
   SessionStatus status = 4;
   Sentiment sentiment = 5;
   string notes = 6;

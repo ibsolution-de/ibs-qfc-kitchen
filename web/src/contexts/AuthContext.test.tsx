@@ -1,5 +1,5 @@
 import React from 'react';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { render, renderHook, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { create } from '@bufbuild/protobuf';
 
@@ -88,5 +88,77 @@ describe('AuthContext.isRole', () => {
 
     act(() => result.current.clearDevRoleOverride());
     await waitFor(() => expect(result.current.user.roles).toEqual(['employee']));
+  });
+});
+
+describe('AuthContext session handling', () => {
+  function renderApp() {
+    return render(
+      <LanguageProvider>
+        <AuthProvider>
+          <div>protected app</div>
+        </AuthProvider>
+      </LanguageProvider>
+    );
+  }
+
+  it('shows the session-expired screen when qfc:unauthenticated fires and recovers via Retry', async () => {
+    // The transport interceptor fires this event on any UNAUTHENTICATED
+    // RPC; AuthContext must swap the app for the session-expired screen.
+    // (LanguageProvider defaults to German.)
+    sessionClient.getSession.mockResolvedValue({ user: makeUserProto([UserRoleProto.EMPLOYEE]) });
+
+    renderApp();
+    expect(await screen.findByText('protected app')).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('qfc:unauthenticated'));
+    });
+
+    expect(screen.queryByText('protected app')).not.toBeInTheDocument();
+    expect(screen.getByText('Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Erneut versuchen'));
+
+    await waitFor(() => expect(sessionClient.getSession).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('protected app')).toBeInTheDocument();
+  });
+
+  it('stays on the session-expired screen when the retry hits UNAUTHENTICATED again', async () => {
+    sessionClient.getSession.mockResolvedValue({ user: makeUserProto([UserRoleProto.EMPLOYEE]) });
+
+    renderApp();
+    expect(await screen.findByText('protected app')).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('qfc:unauthenticated'));
+    });
+    expect(screen.getByText('Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.')).toBeInTheDocument();
+
+    // Retry: the fetch fails again and the interceptor re-fires the event.
+    sessionClient.getSession.mockRejectedValueOnce(new Error('unauthenticated'));
+    fireEvent.click(screen.getByText('Erneut versuchen'));
+    await waitFor(() => expect(sessionClient.getSession).toHaveBeenCalledTimes(2));
+    act(() => {
+      window.dispatchEvent(new CustomEvent('qfc:unauthenticated'));
+    });
+
+    expect(screen.queryByText('protected app')).not.toBeInTheDocument();
+    expect(screen.getByText('Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.')).toBeInTheDocument();
+  });
+
+  it('offers Retry on the generic error screen and re-runs the session fetch', async () => {
+    sessionClient.getSession.mockRejectedValueOnce(new Error('boom'));
+
+    renderApp();
+    expect(
+      await screen.findByText('Daten konnten nicht vom Server geladen werden. Bitte später erneut versuchen.')
+    ).toBeInTheDocument();
+
+    sessionClient.getSession.mockResolvedValueOnce({ user: makeUserProto([UserRoleProto.EMPLOYEE]) });
+    fireEvent.click(screen.getByText('Erneut versuchen'));
+
+    expect(await screen.findByText('protected app')).toBeInTheDocument();
+    expect(sessionClient.getSession).toHaveBeenCalledTimes(2);
   });
 });

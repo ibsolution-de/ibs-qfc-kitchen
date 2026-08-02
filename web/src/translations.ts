@@ -12,7 +12,10 @@ export const translations = {
     common: {
       loading: 'Loading…',
       loadError: 'Failed to load data from the server. Please try again later.',
-      saveError: 'Failed to save your change. Please try again.'
+      saveError: 'Failed to save your change. Please try again.',
+      sessionExpired: 'Your session has expired. Please sign in again.',
+      retry: 'Retry',
+      reload: 'Reload page'
     },
     accessibility: {
       chartData: 'Chart data',
@@ -588,7 +591,10 @@ export const translations = {
     common: {
       loading: 'Laden…',
       loadError: 'Daten konnten nicht vom Server geladen werden. Bitte später erneut versuchen.',
-      saveError: 'Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.'
+      saveError: 'Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.',
+      sessionExpired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
+      retry: 'Erneut versuchen',
+      reload: 'Seite neu laden'
     },
     accessibility: {
       chartData: 'Diagrammdaten',

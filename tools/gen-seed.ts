@@ -9,7 +9,14 @@
  * `api/src/seed.rs` embeds this same file at compile time and deserializes
  * it into buffa-generated message types whose serde impls speak the
  * identical wire format (full enum names, lowerCamelCase field names), so
- * the JSON produced here needs no adjustment to be read on the Rust side.
+ * the JSON produced here needs almost no adjustment to be read on the Rust
+ * side. The one exception is `projects[].hourlyRate`: `web/src/constants.ts`
+ * authors it as a `number` while `qfc.portfolio.v1.Project.hourly_rate` is
+ * a decimal *string*, so `seed.rs` rewrites the number to its shortest
+ * decimal string (`110` -> `"110"`, `97.5` -> `"97.5"`) before
+ * deserializing; strings pass through untouched. The epoch-millis int64
+ * fields (`createdAtMillis`, `dateMillis`) parse in either proto3-JSON
+ * form, quoted or unquoted.
  *
  * Run via `pnpm seed:gen` (see the root `package.json`), which pipes this
  * file through `jiti` rather than plain `node`: several imports below

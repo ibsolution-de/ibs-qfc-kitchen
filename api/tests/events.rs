@@ -5,18 +5,21 @@
 //! `qfc_api::db::connect`) and cleans it up (including WAL sidecar files) on
 //! the way out.
 
-use std::path::PathBuf;
+mod common;
+
 use std::time::Duration;
 
-use buffa::view::HasMessageView;
 use buffa::Message;
+use buffa::view::HasMessageView;
 use bytes::Bytes;
 use connectrpc::{ConnectError, ErrorCode, RequestContext, ServiceRequest};
 use futures::StreamExt;
-use qfc_api::proto::events::{ChangeEvent, ChangeOp, EntityKind, EventService, WatchRequest};
+use qfc_api::proto::events::{
+    ChangeEvent, ChangeOp, EntityKind, EventService, GetEventsStateRequest, WatchRequest,
+};
 use qfc_api::proto::team::Employee;
 use qfc_api::services::events::EventServiceImpl;
-use qfc_api::{db, events, store};
+use qfc_api::{events, store};
 use sqlx::SqlitePool;
 
 /// Calls `EventServiceImpl::watch` the way the dispatcher would: encode a
@@ -35,7 +38,22 @@ macro_rules! watch {
         );
         let view = WatchRequest::decode_view(&body).expect("decode WatchRequest view");
         let req = ServiceRequest::<WatchRequest>::from_parts(&view, &body);
-        $svc.watch(RequestContext::new(http::HeaderMap::new()), req).await
+        $svc.watch(RequestContext::new(http::HeaderMap::new()), req)
+            .await
+    }};
+}
+
+/// Calls `EventServiceImpl::get_events_state` the way the dispatcher would
+/// (see `watch!`): round-trips an empty `GetEventsStateRequest` through its
+/// wire encoding and awaits the handler.
+macro_rules! get_state {
+    ($svc:expr) => {{
+        let body = Bytes::from(GetEventsStateRequest::default().encode_to_vec());
+        let view =
+            GetEventsStateRequest::decode_view(&body).expect("decode GetEventsStateRequest view");
+        let req = ServiceRequest::<GetEventsStateRequest>::from_parts(&view, &body);
+        $svc.get_events_state(RequestContext::new(http::HeaderMap::new()), req)
+            .await
     }};
 }
 
@@ -50,21 +68,6 @@ fn decode_event(item: &impl connectrpc::Encodable<ChangeEvent>) -> ChangeEvent {
         .encode(connectrpc::CodecFormat::Proto)
         .expect("encode stream item");
     ChangeEvent::decode_from_slice(&bytes).expect("decode ChangeEvent")
-}
-
-async fn temp_pool() -> (SqlitePool, PathBuf) {
-    let path = std::env::temp_dir().join(format!("qfc-events-test-{}.db", uuid::Uuid::new_v4()));
-    let pool = db::connect(path.to_str().expect("temp path is utf8"))
-        .await
-        .expect("connect to temp db");
-    (pool, path)
-}
-
-async fn cleanup(pool: SqlitePool, path: PathBuf) {
-    pool.close().await;
-    let _ = std::fs::remove_file(&path);
-    let _ = std::fs::remove_file(format!("{}-wal", path.display()));
-    let _ = std::fs::remove_file(format!("{}-shm", path.display()));
 }
 
 /// Writes one `Employee` upsert the way a business service would: inside a
@@ -103,7 +106,7 @@ async fn write_employee(pool: &SqlitePool, hub: &events::Hub, actor_email: &str,
 
 #[tokio::test]
 async fn watch_receives_event_from_concurrent_write() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("events").await;
     let hub = events::Hub::new();
     let svc = EventServiceImpl::new(pool.clone(), hub.clone());
 
@@ -114,7 +117,13 @@ async fn watch_receives_event_from_concurrent_write() {
     let writer_pool = pool.clone();
     let writer_hub = hub.clone();
     tokio::spawn(async move {
-        write_employee(&writer_pool, &writer_hub, "actor@example.com", "emp-concurrent").await;
+        write_employee(
+            &writer_pool,
+            &writer_hub,
+            "actor@example.com",
+            "emp-concurrent",
+        )
+        .await;
     });
 
     let item = stream
@@ -127,12 +136,12 @@ async fn watch_receives_event_from_concurrent_write() {
     assert_eq!(event.op.as_known(), Some(ChangeOp::Upsert));
     assert!(event.seq > 0);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn watch_replays_exact_tail_since_mid_history() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("events").await;
     let hub = events::Hub::new();
     let svc = EventServiceImpl::new(pool.clone(), hub.clone());
 
@@ -158,12 +167,12 @@ async fn watch_replays_exact_tail_since_mid_history() {
         assert!(event.seq > since_seq);
     }
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn watch_since_seq_below_retention_floor_requires_reload() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("events").await;
     let hub = events::Hub::new();
     let svc = EventServiceImpl::new(pool.clone(), hub.clone());
 
@@ -191,12 +200,12 @@ async fn watch_since_seq_below_retention_floor_requires_reload() {
     };
     assert_eq!(err.code, ErrorCode::DataLoss);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn rolled_back_transaction_never_broadcasts() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("events").await;
     let hub = events::Hub::new();
     let mut live = hub.subscribe();
 
@@ -249,5 +258,32 @@ async fn rolled_back_transaction_never_broadcasts() {
         "expected no broadcast after a rollback, but the subscriber received something"
     );
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn get_events_state_reports_committed_high_water_mark() {
+    let (pool, db) = common::temp_pool("events").await;
+    let hub = events::Hub::new();
+    let svc = EventServiceImpl::new(pool.clone(), hub.clone());
+
+    // Empty change log: the mark is 0, and a client reloading now may safely
+    // start `Watch` with since_seq = 0 (live only, no replay).
+    let empty = get_state!(svc).expect("get_events_state ok");
+    assert_eq!(
+        empty.body.max_seq, 0,
+        "empty change log must report max_seq 0"
+    );
+
+    // After a committed write the mark is exactly that write's seq — reading
+    // it BEFORE a full reload and passing it as since_seq afterwards is what
+    // closes the gap between the reload snapshot and the live stream.
+    let seq = write_employee(&pool, &hub, "actor@example.com", "emp-hwm").await;
+    let marked = get_state!(svc).expect("get_events_state ok");
+    assert_eq!(
+        marked.body.max_seq, seq,
+        "mark must equal the newest committed seq"
+    );
+
+    db.cleanup(pool).await;
 }

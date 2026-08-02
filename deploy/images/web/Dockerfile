@@ -1,15 +1,21 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build-Stage: Vite React Build ----
-FROM node:24-alpine AS build
+# Multi-Arch manifest-list digest, aktualisiert via Dependabot.
+FROM node:24-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS build
 WORKDIR /app
 RUN corepack enable
-COPY . .
+# Dependency layer: only the pnpm manifest/lock files, so `pnpm install` stays
+# cached unless dependencies actually change (sources come after).
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json web/
 RUN pnpm install --frozen-lockfile
+COPY . .
 RUN pnpm build
 
 # ---- Runtime-Stage: nginx (unprivileged) liefert statische Files ----
-FROM nginxinc/nginx-unprivileged:1.30-alpine AS runtime
+# Multi-Arch manifest-list digest, aktualisiert via Dependabot.
+FROM nginxinc/nginx-unprivileged:1.30-alpine@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49 AS runtime
 LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.authors="nazar.kulyk@ibsolution.de" \
     org.opencontainers.image.url="https://github.com/ibsolution-de/ibs-qfc-kitchen" \

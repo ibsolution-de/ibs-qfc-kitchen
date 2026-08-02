@@ -1,11 +1,10 @@
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import pkg from './package.json';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, __dirname, '');
+export default defineConfig(() => {
     return {
       base: '/',
       server: {
@@ -22,8 +21,11 @@ export default defineConfig(({ mode }) => {
       plugins: [react(), tailwindcss()],
       define: {
         '__APP_VERSION__': JSON.stringify(pkg.version),
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        // Build stamp shown in the sidebar. Date only — the full ISO timestamp
+        // would needlessly change the bundle hash on every build.
+        '__BUILD_DATE__': JSON.stringify(new Date().toISOString().slice(0, 10))
+        // NOTE: no process.env.* defines here. Baking GEMINI_API_KEY (or any
+        // env secret) into the client bundle ships it publicly to every user.
       },
       resolve: {
         alias: {

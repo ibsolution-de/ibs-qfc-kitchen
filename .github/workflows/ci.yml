@@ -11,7 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        # Full history so the buf-breaking step below can resolve main
+        # (PRs) resp. main~1 (pushes to main) as its --against ref.
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -25,6 +29,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint protobuf definitions
+        run: pnpm proto:lint
+
+      # Drift check: regenerate the TS stubs and fail if the committed
+      # web/src/api/gen tree differs from what buf generate produces.
+      - name: Check generated protobuf stubs are up to date
+        run: |
+          pnpm proto:gen
+          git diff --exit-code web/src/api/gen
+
+      # Breaking-change gate against main. buf's `.git#branch=<name>` ref
+      # resolves refs/heads/<name> only, so on PRs we fetch origin/main into
+      # a local `main` branch (not checked out there — allowed). On pushes to
+      # main the branch IS checked out, so we compare against the pre-push
+      # state HEAD~1 — as an explicit commit SHA, because buf's git ref parser
+      # does not resolve revision suffixes like `branch=main~1` (full history
+      # is guaranteed by fetch-depth: 0).
+      - name: Fetch base ref for buf breaking
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin main:main
+            echo "BUF_AGAINST=.git#branch=main,subdir=proto" >> "$GITHUB_ENV"
+          else
+            echo "BUF_AGAINST=.git#commit=$(git rev-parse HEAD~1),subdir=proto" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check protobuf breaking changes
+        run: pnpm -C web exec buf breaking ../proto --against "${BUF_AGAINST}"
+
       - name: Lint
         run: pnpm lint
 
@@ -33,3 +66,39 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # Rust API checks (api/). The toolchain is pinned by rust-toolchain.toml at
+  # the repo root (channel "stable", components rustfmt + clippy); rustup picks
+  # that file up automatically for every cargo invocation below. The action's
+  # `toolchain: stable` input only bootstraps rustup with a matching default.
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install protobuf compiler
+        # api/build.rs (connectrpc-build) shells out to protoc.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: api
+
+      - name: Format check
+        run: cargo fmt --manifest-path api/Cargo.toml --check
+
+      - name: Clippy
+        run: cargo clippy --manifest-path api/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --manifest-path api/Cargo.toml --locked

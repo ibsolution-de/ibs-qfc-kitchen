@@ -61,8 +61,12 @@ message PlanVersionMeta {
   string id = 1;
   string name = 2;
   optional string description = 3;
-  // ISO String
-  string created_at = 4;
+  // Creation instant as Unix epoch milliseconds.
+  // Convention: instants are int64 with a _millis suffix (like
+  // qfc.events.v1.ChangeEvent.ts_millis); calendar dates are YYYY-MM-DD
+  // strings. google.protobuf.Timestamp is deliberately not used — plain
+  // millis keep both the Rust (buffa) and TS (protobuf-es) sides trivial.
+  int64 created_at_millis = 4;
 }
 
 message PlanVersion {

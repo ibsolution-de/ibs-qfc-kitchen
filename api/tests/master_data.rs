@@ -8,7 +8,7 @@
 //! through; a couple of `GrowthServiceImpl` tests additionally cover the
 //! hand-written `one_on_one` path documented in `services/growth.rs`.
 
-use std::path::PathBuf;
+mod common;
 
 use buffa::view::HasMessageView;
 use buffa::{Enumeration, Message};
@@ -16,6 +16,7 @@ use bytes::Bytes;
 use connectrpc::{ConnectError, Encodable, ErrorCode, RequestContext, ServiceRequest};
 use futures::StreamExt;
 use qfc_api::auth::CurrentUser;
+use qfc_api::events;
 use qfc_api::proto::events::{ChangeOp, EntityKind, EventService, WatchRequest};
 use qfc_api::proto::growth::{
     DeleteSessionRequest, GrowthService, ListSessionsRequest, OneOnOneSession, UpsertSessionRequest,
@@ -28,25 +29,9 @@ use qfc_api::proto::team::{
 use qfc_api::services::events::EventServiceImpl;
 use qfc_api::services::growth::GrowthServiceImpl;
 use qfc_api::services::team::TeamServiceImpl;
-use qfc_api::{db, events};
 use sqlx::SqlitePool;
 
 const ACTOR: &str = "actor@example.com";
-
-async fn temp_pool() -> (SqlitePool, PathBuf) {
-    let path = std::env::temp_dir().join(format!("qfc-master-data-test-{}.db", uuid::Uuid::new_v4()));
-    let pool = db::connect(path.to_str().expect("temp path is utf8"))
-        .await
-        .expect("connect to temp db");
-    (pool, path)
-}
-
-async fn cleanup(pool: SqlitePool, path: PathBuf) {
-    pool.close().await;
-    let _ = std::fs::remove_file(&path);
-    let _ = std::fs::remove_file(format!("{}-wal", path.display()));
-    let _ = std::fs::remove_file(format!("{}-shm", path.display()));
-}
 
 /// A `RequestContext` carrying `email` as the authenticated caller, the way
 /// `auth::middleware` would have set it up upstream of the handler.
@@ -70,7 +55,11 @@ async fn list_employees(svc: &TeamServiceImpl) -> Result<Vec<Employee>, ConnectE
     Ok(resp.body.employees)
 }
 
-async fn upsert_employee(svc: &TeamServiceImpl, actor: &str, employee: Employee) -> Result<Employee, ConnectError> {
+async fn upsert_employee(
+    svc: &TeamServiceImpl,
+    actor: &str,
+    employee: Employee,
+) -> Result<Employee, ConnectError> {
     let body = Bytes::from(
         UpsertEmployeeRequest {
             employee: employee.into(),
@@ -98,7 +87,11 @@ async fn delete_employee(svc: &TeamServiceImpl, actor: &str, id: &str) -> Result
     Ok(())
 }
 
-async fn upsert_session(svc: &GrowthServiceImpl, actor: &str, session: OneOnOneSession) -> Result<OneOnOneSession, ConnectError> {
+async fn upsert_session(
+    svc: &GrowthServiceImpl,
+    actor: &str,
+    session: OneOnOneSession,
+) -> Result<OneOnOneSession, ConnectError> {
     let body = Bytes::from(
         UpsertSessionRequest {
             session: session.into(),
@@ -112,7 +105,11 @@ async fn upsert_session(svc: &GrowthServiceImpl, actor: &str, session: OneOnOneS
     Ok(resp.body.session.into_option().unwrap_or_default())
 }
 
-async fn delete_session(svc: &GrowthServiceImpl, actor: &str, id: &str) -> Result<(), ConnectError> {
+async fn delete_session(
+    svc: &GrowthServiceImpl,
+    actor: &str,
+    id: &str,
+) -> Result<(), ConnectError> {
     let body = Bytes::from(
         DeleteSessionRequest {
             id: id.to_string(),
@@ -164,32 +161,39 @@ async fn change_log_row_count(pool: &SqlitePool) -> i64 {
 
 #[tokio::test]
 async fn upsert_with_empty_id_assigns_and_returns_id() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
     let employee = Employee {
         name: "New Hire".to_string(),
         ..Default::default()
     };
-    let created = upsert_employee(&svc, ACTOR, employee).await.expect("upsert ok");
+    let created = upsert_employee(&svc, ACTOR, employee)
+        .await
+        .expect("upsert ok");
 
-    assert!(!created.id.is_empty(), "server must assign an id when the client sends none");
+    assert!(
+        !created.id.is_empty(),
+        "server must assign an id when the client sends none"
+    );
     uuid::Uuid::parse_str(&created.id).expect("assigned id should be a UUID");
 
     let rows = list_employees(&svc).await.expect("list ok");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].id, created.id);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn upsert_then_list_round_trips_entity_field_by_field() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
     let sent = sample_employee("");
-    let created = upsert_employee(&svc, ACTOR, sent.clone()).await.expect("upsert ok");
+    let created = upsert_employee(&svc, ACTOR, sent.clone())
+        .await
+        .expect("upsert ok");
 
     let rows = list_employees(&svc).await.expect("list ok");
     assert_eq!(rows.len(), 1);
@@ -215,12 +219,12 @@ async fn upsert_then_list_round_trips_entity_field_by_field() {
     expected.id = created.id;
     assert_eq!(round_tripped, &expected);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn update_of_existing_id_replaces_rather_than_duplicates() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
     let created = upsert_employee(
@@ -247,30 +251,36 @@ async fn update_of_existing_id_replaces_rather_than_duplicates() {
     .expect("update ok");
     assert_eq!(updated.id, created.id);
 
-    assert_eq!(employee_row_count(&pool).await, 1, "update must replace, not add a row");
+    assert_eq!(
+        employee_row_count(&pool).await,
+        1,
+        "update must replace, not add a row"
+    );
 
     let rows = list_employees(&svc).await.expect("list ok");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].id, created.id);
     assert_eq!(rows[0].name, "Updated Name");
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn delete_of_missing_id_returns_not_found() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
-    let err = delete_employee(&svc, ACTOR, "does-not-exist").await.expect_err("expected NotFound");
+    let err = delete_employee(&svc, ACTOR, "does-not-exist")
+        .await
+        .expect_err("expected NotFound");
     assert_eq!(err.code, ErrorCode::NotFound);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn validation_failure_returns_invalid_argument_and_writes_nothing() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
     let rows_before = employee_row_count(&pool).await;
@@ -289,19 +299,23 @@ async fn validation_failure_returns_invalid_argument_and_writes_nothing() {
     .expect_err("expected InvalidArgument");
     assert_eq!(err.code, ErrorCode::InvalidArgument);
 
-    assert_eq!(employee_row_count(&pool).await, rows_before, "rejected upsert must not write a row");
+    assert_eq!(
+        employee_row_count(&pool).await,
+        rows_before,
+        "rejected upsert must not write a row"
+    );
     assert_eq!(
         change_log_row_count(&pool).await,
         change_log_before,
         "rejected upsert must not append a change_log row"
     );
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn each_mutation_appends_exactly_one_change_log_row_with_kind_op_actor() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
 
     // Create.
@@ -356,7 +370,9 @@ async fn each_mutation_appends_exactly_one_change_log_row_with_kind_op_actor() {
 
     // Delete.
     let before_delete = change_log_row_count(&pool).await;
-    delete_employee(&svc, ACTOR, &created.id).await.expect("delete ok");
+    delete_employee(&svc, ACTOR, &created.id)
+        .await
+        .expect("delete ok");
     assert_eq!(change_log_row_count(&pool).await, before_delete + 1);
 
     let (kind, op, actor_email): (i32, i32, String) = sqlx::query_as(
@@ -370,12 +386,12 @@ async fn each_mutation_appends_exactly_one_change_log_row_with_kind_op_actor() {
     assert_eq!(op, ChangeOp::Delete.to_i32());
     assert_eq!(actor_email, ACTOR);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn watch_subscriber_receives_event_for_service_upsert() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let hub = events::Hub::new();
     let event_svc = EventServiceImpl::new(pool.clone(), hub.clone());
 
@@ -410,19 +426,22 @@ async fn watch_subscriber_receives_event_for_service_upsert() {
         .await
         .expect("stream ended before an event arrived")
         .expect("event delivered without error");
-    let bytes = item.encode(connectrpc::CodecFormat::Proto).expect("encode stream item");
-    let event = qfc_api::proto::events::ChangeEvent::decode_from_slice(&bytes).expect("decode ChangeEvent");
+    let bytes = item
+        .encode(connectrpc::CodecFormat::Proto)
+        .expect("encode stream item");
+    let event =
+        qfc_api::proto::events::ChangeEvent::decode_from_slice(&bytes).expect("decode ChangeEvent");
 
     assert_eq!(event.kind.as_known(), Some(EntityKind::Employee));
     assert_eq!(event.op.as_known(), Some(ChangeOp::Upsert));
     assert_eq!(event.actor_email, ACTOR);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn growth_session_upsert_keeps_employee_id_column_in_sync() {
-    let (pool, db_path) = temp_pool().await;
+    let (pool, db) = common::temp_pool("master-data").await;
     let svc = GrowthServiceImpl::new(pool.clone(), events::Hub::new());
 
     let created = upsert_session(
@@ -430,7 +449,8 @@ async fn growth_session_upsert_keeps_employee_id_column_in_sync() {
         ACTOR,
         OneOnOneSession {
             employee_id: "emp-42".to_string(),
-            date: "2026-01-01".to_string(),
+            // 2026-01-01T00:00:00Z in epoch millis (instants convention).
+            date_millis: 1_767_225_600_000,
             ..Default::default()
         },
     )
@@ -438,16 +458,18 @@ async fn growth_session_upsert_keeps_employee_id_column_in_sync() {
     .expect("upsert ok");
     assert!(!created.id.is_empty());
 
-    let stored_employee_id: String = sqlx::query_scalar("SELECT employee_id FROM one_on_one WHERE id = ?1")
-        .bind(&created.id)
-        .fetch_one(&pool)
-        .await
-        .expect("fetch employee_id column");
+    let stored_employee_id: String =
+        sqlx::query_scalar("SELECT employee_id FROM one_on_one WHERE id = ?1")
+            .bind(&created.id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch employee_id column");
     assert_eq!(stored_employee_id, "emp-42");
 
     let sessions_body = Bytes::from(ListSessionsRequest::default().encode_to_vec());
     let sessions_view = ListSessionsRequest::decode_view(&sessions_body).expect("decode view");
-    let sessions_req = ServiceRequest::<ListSessionsRequest>::from_parts(&sessions_view, &sessions_body);
+    let sessions_req =
+        ServiceRequest::<ListSessionsRequest>::from_parts(&sessions_view, &sessions_body);
     let sessions = svc
         .list_sessions(ctx_for(ACTOR), sessions_req)
         .await
@@ -457,12 +479,14 @@ async fn growth_session_upsert_keeps_employee_id_column_in_sync() {
     assert_eq!(sessions.len(), 1);
     assert_eq!(sessions[0].employee_id, "emp-42");
 
-    delete_session(&svc, ACTOR, &created.id).await.expect("delete ok");
+    delete_session(&svc, ACTOR, &created.id)
+        .await
+        .expect("delete ok");
     let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM one_on_one")
         .fetch_one(&pool)
         .await
         .expect("count one_on_one rows");
     assert_eq!(remaining, 0);
 
-    cleanup(pool, db_path).await;
+    db.cleanup(pool).await;
 }

@@ -53,6 +53,7 @@ use crate::proto::portfolio::Project;
 use crate::proto::strategy::{NorthStarMetric, StrategicGoal};
 use crate::proto::team::Employee;
 use crate::store::{self, Table};
+use crate::time::now_millis;
 
 /// The generated seed artifact (see this module's doc comment). Embedded at
 /// compile time, so a malformed file is a build-time asset, not a runtime
@@ -60,7 +61,7 @@ use crate::store::{self, Table};
 const SEED_JSON: &str = include_str!("../seed/seed.json");
 
 /// The `meta` key marking that the first-run seed has completed. Its value
-/// is the ISO-8601 timestamp the seed committed at — informational only,
+/// is the epoch-millis timestamp the seed committed at — informational only,
 /// never read back by [`seed_if_empty`] itself; presence of the row is the
 /// only thing that matters.
 const SEEDED_META_KEY: &str = "seeded";
@@ -111,7 +112,10 @@ pub async fn seed_from_json(pool: &SqlitePool, json: &str) -> AppResult<bool> {
         return Ok(false);
     }
 
-    let data: SeedData = serde_json::from_str(json)
+    let mut raw: serde_json::Value = serde_json::from_str(json)
+        .map_err(|err| AppError::Internal(format!("seed/seed.json is malformed: {err}")))?;
+    decimalize_project_hourly_rates(&mut raw);
+    let data: SeedData = serde_json::from_value(raw)
         .map_err(|err| AppError::Internal(format!("seed/seed.json is malformed: {err}")))?;
 
     let mut tx = pool.begin().await?;
@@ -171,6 +175,33 @@ pub async fn seed_from_json(pool: &SqlitePool, json: &str) -> AppResult<bool> {
     Ok(true)
 }
 
+/// Rewrite every `projects[].hourlyRate` JSON *number* to its decimal
+/// string form, in place, before `raw` is deserialized into the proto types.
+///
+/// `qfc.portfolio.v1.Project.hourly_rate` is an `optional string` (a
+/// decimal, exact by construction), but the seed data originates from
+/// `web/src/constants.ts`'s `hourlyRate: number`, so the generated artifact
+/// carries JSON numbers there. Rust's `f64` `Display` already produces the
+/// shortest round-trip form — integral values with no fraction (`110` →
+/// `"110"`, `0` → `"0"`), otherwise the minimal decimal (`97.5` →
+/// `"97.5"`) — which is exactly the canonical form the proto field
+/// documents. Values already in string form (e.g. after a regeneration
+/// whose adapters emit strings) pass through untouched; absent rates
+/// (proto3-JSON omits unset optionals) are left absent.
+fn decimalize_project_hourly_rates(raw: &mut serde_json::Value) {
+    let Some(projects) = raw.get_mut("projects").and_then(|p| p.as_array_mut()) else {
+        return;
+    };
+    for project in projects {
+        let Some(rate) = project.get_mut("hourlyRate") else {
+            continue;
+        };
+        if let Some(number) = rate.as_f64() {
+            *rate = serde_json::Value::String(format!("{number}"));
+        }
+    }
+}
+
 /// `true` if the `meta` table already carries a `seeded` row — the cheap
 /// check [`seed_from_json`] runs before doing any real work.
 async fn already_seeded(pool: &SqlitePool) -> AppResult<bool> {
@@ -188,7 +219,7 @@ async fn already_seeded(pool: &SqlitePool) -> AppResult<bool> {
 async fn mark_seeded(conn: &mut SqliteConnection) -> AppResult<()> {
     sqlx::query("INSERT INTO meta (key, value) VALUES (?1, ?2)")
         .bind(SEEDED_META_KEY)
-        .bind(iso8601_now())
+        .bind(now_millis().to_string())
         .execute(&mut *conn)
         .await?;
     Ok(())
@@ -199,14 +230,19 @@ async fn mark_seeded(conn: &mut SqliteConnection) -> AppResult<()> {
 /// that module's doc comment for why `one_on_one` isn't a plain
 /// `store::Table` blob table). A plain `INSERT` (no `ON CONFLICT`) is enough
 /// here: seeding only ever runs once, against an empty table.
-async fn insert_one_on_one(conn: &mut SqliteConnection, session: &OneOnOneSession) -> AppResult<()> {
-    sqlx::query("INSERT INTO one_on_one (id, employee_id, updated_at, data) VALUES (?1, ?2, ?3, ?4)")
-        .bind(&session.id)
-        .bind(&session.employee_id)
-        .bind(now_millis())
-        .bind(session.encode_to_vec())
-        .execute(&mut *conn)
-        .await?;
+async fn insert_one_on_one(
+    conn: &mut SqliteConnection,
+    session: &OneOnOneSession,
+) -> AppResult<()> {
+    sqlx::query(
+        "INSERT INTO one_on_one (id, employee_id, updated_at, data) VALUES (?1, ?2, ?3, ?4)",
+    )
+    .bind(&session.id)
+    .bind(&session.employee_id)
+    .bind(now_millis())
+    .bind(session.encode_to_vec())
+    .execute(&mut *conn)
+    .await?;
     Ok(())
 }
 
@@ -218,17 +254,19 @@ async fn insert_one_on_one(conn: &mut SqliteConnection, session: &OneOnOneSessio
 ///
 /// Returns `(assignments inserted, absences inserted, quarter_data inserted)`
 /// for the caller's summary log line.
-async fn insert_plan_version(conn: &mut SqliteConnection, version: &PlanVersion) -> AppResult<(usize, usize, usize)> {
-    let meta = version
-        .meta
-        .as_option()
-        .ok_or_else(|| AppError::Internal("seed plan version is missing its required meta".to_string()))?;
+async fn insert_plan_version(
+    conn: &mut SqliteConnection,
+    version: &PlanVersion,
+) -> AppResult<(usize, usize, usize)> {
+    let meta = version.meta.as_option().ok_or_else(|| {
+        AppError::Internal("seed plan version is missing its required meta".to_string())
+    })?;
 
     sqlx::query("INSERT INTO plan_version (id, name, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)")
         .bind(&meta.id)
         .bind(&meta.name)
         .bind(meta.description.as_deref())
-        .bind(&meta.created_at)
+        .bind(meta.created_at_millis)
         .bind(now_millis())
         .execute(&mut *conn)
         .await?;
@@ -269,28 +307,38 @@ async fn insert_plan_version(conn: &mut SqliteConnection, version: &PlanVersion)
     }
 
     for (position, quarter) in version.forecast_data.iter().enumerate() {
-        sqlx::query("INSERT INTO quarter_data (id, version_id, position, data) VALUES (?1, ?2, ?3, ?4)")
-            .bind(&quarter.id)
-            .bind(&meta.id)
-            .bind(position as i64)
-            .bind(quarter.encode_to_vec())
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query(
+            "INSERT INTO quarter_data (id, version_id, position, data) VALUES (?1, ?2, ?3, ?4)",
+        )
+        .bind(&quarter.id)
+        .bind(&meta.id)
+        .bind(position as i64)
+        .bind(quarter.encode_to_vec())
+        .execute(&mut *conn)
+        .await?;
     }
 
     // Not simply `version.assignments.len()`: the upsert above can collapse
     // more than one seed entry onto the same cell (see this module's
     // top-level doc comment), so the actual row count is read back rather
     // than assumed equal to the input length.
-    let assignment_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM assignment WHERE version_id = ?1")
-        .bind(&meta.id)
-        .fetch_one(&mut *conn)
-        .await?;
+    let assignment_rows: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM assignment WHERE version_id = ?1")
+            .bind(&meta.id)
+            .fetch_one(&mut *conn)
+            .await?;
 
-    Ok((assignment_rows as usize, version.absences.len(), version.forecast_data.len()))
+    Ok((
+        assignment_rows as usize,
+        version.absences.len(),
+        version.forecast_data.len(),
+    ))
 }
 
-async fn insert_public_holiday(conn: &mut SqliteConnection, holiday: &PublicHoliday) -> AppResult<()> {
+async fn insert_public_holiday(
+    conn: &mut SqliteConnection,
+    holiday: &PublicHoliday,
+) -> AppResult<()> {
     sqlx::query("INSERT INTO public_holiday (date, location, name) VALUES (?1, ?2, ?3)")
         .bind(&holiday.date)
         .bind(&holiday.location)
@@ -306,65 +354,9 @@ async fn insert_public_holiday(conn: &mut SqliteConnection, holiday: &PublicHoli
 /// that module (and `api/src/services/**` is out of this module's remit to
 /// change), so the few lines are duplicated here rather than shared.
 fn absence_type_to_db(value: EnumValue<AbsenceType>) -> String {
-    value.as_known().unwrap_or(AbsenceType::Unspecified).proto_name().to_string()
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
-}
-
-/// The current UTC time as an ISO-8601 string (`YYYY-MM-DDTHH:MM:SSZ`) —
-/// mirrors `services::planning::iso8601_now` (private to that module, see
-/// [`absence_type_to_db`]'s comment on why it's duplicated rather than
-/// shared).
-fn iso8601_now() -> String {
-    let elapsed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = elapsed.as_secs() as i64;
-    let days = secs.div_euclid(86_400);
-    let time_of_day = secs.rem_euclid(86_400);
-    let (year, month, day) = civil_from_days(days);
-    let hour = time_of_day / 3600;
-    let minute = (time_of_day % 3600) / 60;
-    let second = time_of_day % 60;
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// Howard Hinnant's `civil_from_days` algorithm — see
-/// `services::planning::civil_from_days` (same body, duplicated for the
-/// reason noted on [`iso8601_now`]).
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64; // [0, 146096]
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365; // [0, 399]
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
-    let mp = (5 * doy + 2) / 153; // [0, 11]
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32; // [1, 31]
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32; // [1, 12]
-    let year = if m <= 2 { y + 1 } else { y };
-    (year, m, d)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn civil_from_days_matches_known_epoch_dates() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
-        assert_eq!(civil_from_days(19_782), (2024, 2, 29), "2024 is a leap year");
-    }
-
-    #[test]
-    fn iso8601_now_has_the_expected_shape() {
-        let stamp = iso8601_now();
-        assert_eq!(stamp.len(), 20, "{stamp}");
-        assert!(stamp.ends_with('Z'), "{stamp}");
-    }
+    value
+        .as_known()
+        .unwrap_or(AbsenceType::Unspecified)
+        .proto_name()
+        .to_string()
 }

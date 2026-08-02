@@ -112,7 +112,7 @@ export interface PlanVersion {
   id: string;
   name: string;
   description?: string;
-  createdAt: string; // ISO String
+  createdAt: number; // epoch millis
   assignments: Assignment[];
   absences: Absence[]; // Versioned absences
   forecastData: QuarterData[];
@@ -152,7 +152,7 @@ export type Sentiment = 'great' | 'okay' | 'stressful' | 'unknown';
 export interface OneOnOneSession {
   id: string;
   employeeId: string;
-  date: string; // ISO String
+  date: number; // epoch millis
   status: 'scheduled' | 'completed';
   sentiment: Sentiment;
   notes: string;

@@ -23,11 +23,13 @@ export class AiNotConfiguredError extends Error {
 
 const LOCAL_STORAGE_KEY = 'gemini_api_key';
 
+// The key comes from the user (explicitly or via localStorage) only. There is
+// deliberately no env fallback: baking a build-time key into the shipped
+// bundle would publish it to every user (see vite.config.ts `define`).
 function resolveApiKey(explicitApiKey?: string): string | undefined {
   return (
     explicitApiKey ||
-    (typeof localStorage !== 'undefined' ? localStorage.getItem(LOCAL_STORAGE_KEY) || undefined : undefined) ||
-    (typeof process !== 'undefined' ? process.env.API_KEY : undefined)
+    (typeof localStorage !== 'undefined' ? localStorage.getItem(LOCAL_STORAGE_KEY) || undefined : undefined)
   );
 }
 

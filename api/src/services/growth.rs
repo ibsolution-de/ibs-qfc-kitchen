@@ -19,7 +19,7 @@
 
 use buffa::Message;
 use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
-use sqlx::{SqlitePool, SqliteConnection};
+use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::auth;
 use crate::error::{AppError, AppResult};
@@ -29,6 +29,7 @@ use crate::proto::growth::{
     DeleteSessionRequest, DeleteSessionResponse, GrowthService, ListSessionsRequest,
     ListSessionsResponse, OneOnOneSession, UpsertSessionRequest, UpsertSessionResponse,
 };
+use crate::time::now_millis;
 
 pub struct GrowthServiceImpl {
     pool: SqlitePool,
@@ -60,7 +61,11 @@ impl GrowthService for GrowthServiceImpl {
         request: ServiceRequest<'_, UpsertSessionRequest>,
     ) -> ServiceResult<UpsertSessionResponse> {
         let current = auth::require(&ctx)?;
-        let session = request.to_owned_message().session.into_option().unwrap_or_default();
+        let session = request
+            .to_owned_message()
+            .session
+            .into_option()
+            .unwrap_or_default();
         let session = do_upsert(&self.pool, &self.hub, &current.email, session).await?;
         Response::ok(UpsertSessionResponse {
             session: session.into(),
@@ -118,8 +123,12 @@ async fn do_upsert(
     }
     validate_session(&session)?;
 
+    // Encode once: the row blob and the `change_log` payload are the same
+    // byte string (see `store::upsert_blob_bytes` for the shared variant of
+    // this pattern).
+    let data = session.encode_to_vec();
     let mut tx = pool.begin().await?;
-    upsert_session_row(&mut tx, &session.id, &session.employee_id, &session).await?;
+    upsert_session_row(&mut tx, &session.id, &session.employee_id, &data).await?;
     let mut pending = PendingEvents::new();
     pending.push(
         events::record(
@@ -129,7 +138,7 @@ async fn do_upsert(
             ChangeOp::Upsert,
             &session.id,
             None,
-            Some(session.encode_to_vec()),
+            Some(data),
         )
         .await?,
     );
@@ -147,7 +156,18 @@ async fn do_delete(pool: &SqlitePool, hub: &Hub, actor_email: &str, id: &str) ->
         return Err(AppError::NotFound("one_on_one_session", id.to_string()));
     }
     let mut pending = PendingEvents::new();
-    pending.push(events::record(&mut tx, actor_email, EntityKind::OneOnOneSession, ChangeOp::Delete, id, None, None).await?);
+    pending.push(
+        events::record(
+            &mut tx,
+            actor_email,
+            EntityKind::OneOnOneSession,
+            ChangeOp::Delete,
+            id,
+            None,
+            None,
+        )
+        .await?,
+    );
     tx.commit().await?;
     hub.publish_all(pending);
     Ok(())
@@ -155,12 +175,14 @@ async fn do_delete(pool: &SqlitePool, hub: &Hub, actor_email: &str, id: &str) ->
 
 /// Insert or replace the `one_on_one` row for `id`, keeping the
 /// `employee_id` column (used by `idx_one_on_one_employee_id`) in sync with
-/// the encoded `session` blob's own `employee_id` field.
+/// the encoded session blob's own `employee_id` field. `data` arrives
+/// pre-encoded: `do_upsert` reuses the same bytes for the `change_log`
+/// payload instead of encoding the session twice.
 async fn upsert_session_row(
     conn: &mut SqliteConnection,
     id: &str,
     employee_id: &str,
-    session: &OneOnOneSession,
+    data: &[u8],
 ) -> AppResult<()> {
     sqlx::query(
         "INSERT INTO one_on_one (id, employee_id, updated_at, data) VALUES (?1, ?2, ?3, ?4)
@@ -169,7 +191,7 @@ async fn upsert_session_row(
     .bind(id)
     .bind(employee_id)
     .bind(now_millis())
-    .bind(session.encode_to_vec())
+    .bind(data)
     .execute(&mut *conn)
     .await?;
     Ok(())
@@ -183,11 +205,4 @@ async fn delete_session_row(conn: &mut SqliteConnection, id: &str) -> AppResult<
         .execute(&mut *conn)
         .await?;
     Ok(result.rows_affected() > 0)
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
 }

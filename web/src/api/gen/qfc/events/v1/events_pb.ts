@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file qfc/events/v1/events.proto.
  */
 export const file_qfc_events_v1_events: GenFile = /*@__PURE__*/
-  fileDesc("ChpxZmMvZXZlbnRzL3YxL2V2ZW50cy5wcm90bxINcWZjLmV2ZW50cy52MSLdBQoLQ2hhbmdlRXZlbnQSCwoDc2VxGAEgASgDEicKBGtpbmQYAiABKA4yGS5xZmMuZXZlbnRzLnYxLkVudGl0eUtpbmQSIwoCb3AYAyABKA4yFy5xZmMuZXZlbnRzLnYxLkNoYW5nZU9wEhEKCWVudGl0eV9pZBgEIAEoCRIXCgp2ZXJzaW9uX2lkGAUgASgJSAGIAQESEwoLYWN0b3JfZW1haWwYBiABKAkSEQoJdHNfbWlsbGlzGAcgASgDEikKCGVtcGxveWVlGAogASgLMhUucWZjLnRlYW0udjEuRW1wbG95ZWVIABIoCghjdXN0b21lchgLIAEoCzIULnFmYy5jcm0udjEuQ3VzdG9tZXJIABIsCgdwcm9qZWN0GAwgASgLMhkucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0SAASOAoMcGxhbl92ZXJzaW9uGA0gASgLMiAucWZjLnBsYW5uaW5nLnYxLlBsYW5WZXJzaW9uTWV0YUgAEjEKCmFzc2lnbm1lbnQYDiABKAsyGy5xZmMucGxhbm5pbmcudjEuQXNzaWdubWVudEgAEisKB2Fic2VuY2UYDyABKAsyGC5xZmMucGxhbm5pbmcudjEuQWJzZW5jZUgAEjQKDHF1YXJ0ZXJfZGF0YRgQIAEoCzIcLnFmYy5wbGFubmluZy52MS5RdWFydGVyRGF0YUgAEjgKDnN0cmF0ZWdpY19nb2FsGBEgASgLMh4ucWZjLnN0cmF0ZWd5LnYxLlN0cmF0ZWdpY0dvYWxIABI9ChFub3J0aF9zdGFyX21ldHJpYxgSIAEoCzIgLnFmYy5zdHJhdGVneS52MS5Ob3J0aFN0YXJNZXRyaWNIABI8ChJvbmVfb25fb25lX3Nlc3Npb24YEyABKAsyHi5xZmMuZ3Jvd3RoLnYxLk9uZU9uT25lU2Vzc2lvbkgAQgYKBGJvZHlCDQoLX3ZlcnNpb25faWQiIQoMV2F0Y2hSZXF1ZXN0EhEKCXNpbmNlX3NlcRgBIAEoAypRCghDaGFuZ2VPcBIZChVDSEFOR0VfT1BfVU5TUEVDSUZJRUQQABIUChBDSEFOR0VfT1BfVVBTRVJUEAESFAoQQ0hBTkdFX09QX0RFTEVURRACKs4CCgpFbnRpdHlLaW5kEhsKF0VOVElUWV9LSU5EX1VOU1BFQ0lGSUVEEAASGAoURU5USVRZX0tJTkRfRU1QTE9ZRUUQARIYChRFTlRJVFlfS0lORF9DVVNUT01FUhACEhcKE0VOVElUWV9LSU5EX1BST0pFQ1QQAxIcChhFTlRJVFlfS0lORF9QTEFOX1ZFUlNJT04QBBIaChZFTlRJVFlfS0lORF9BU1NJR05NRU5UEAUSFwoTRU5USVRZX0tJTkRfQUJTRU5DRRAGEhwKGEVOVElUWV9LSU5EX1FVQVJURVJfREFUQRAHEh4KGkVOVElUWV9LSU5EX1NUUkFURUdJQ19HT0FMEAgSIQodRU5USVRZX0tJTkRfTk9SVEhfU1RBUl9NRVRSSUMQCRIiCh5FTlRJVFlfS0lORF9PTkVfT05fT05FX1NFU1NJT04QCjJSCgxFdmVudFNlcnZpY2USQgoFV2F0Y2gSGy5xZmMuZXZlbnRzLnYxLldhdGNoUmVxdWVzdBoaLnFmYy5ldmVudHMudjEuQ2hhbmdlRXZlbnQwAWIGcHJvdG8z", [file_qfc_team_v1_team, file_qfc_crm_v1_crm, file_qfc_portfolio_v1_portfolio, file_qfc_planning_v1_planning, file_qfc_strategy_v1_strategy, file_qfc_growth_v1_growth]);
+  fileDesc("ChpxZmMvZXZlbnRzL3YxL2V2ZW50cy5wcm90bxINcWZjLmV2ZW50cy52MSLdBQoLQ2hhbmdlRXZlbnQSCwoDc2VxGAEgASgDEicKBGtpbmQYAiABKA4yGS5xZmMuZXZlbnRzLnYxLkVudGl0eUtpbmQSIwoCb3AYAyABKA4yFy5xZmMuZXZlbnRzLnYxLkNoYW5nZU9wEhEKCWVudGl0eV9pZBgEIAEoCRIXCgp2ZXJzaW9uX2lkGAUgASgJSAGIAQESEwoLYWN0b3JfZW1haWwYBiABKAkSEQoJdHNfbWlsbGlzGAcgASgDEikKCGVtcGxveWVlGAogASgLMhUucWZjLnRlYW0udjEuRW1wbG95ZWVIABIoCghjdXN0b21lchgLIAEoCzIULnFmYy5jcm0udjEuQ3VzdG9tZXJIABIsCgdwcm9qZWN0GAwgASgLMhkucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0SAASOAoMcGxhbl92ZXJzaW9uGA0gASgLMiAucWZjLnBsYW5uaW5nLnYxLlBsYW5WZXJzaW9uTWV0YUgAEjEKCmFzc2lnbm1lbnQYDiABKAsyGy5xZmMucGxhbm5pbmcudjEuQXNzaWdubWVudEgAEisKB2Fic2VuY2UYDyABKAsyGC5xZmMucGxhbm5pbmcudjEuQWJzZW5jZUgAEjQKDHF1YXJ0ZXJfZGF0YRgQIAEoCzIcLnFmYy5wbGFubmluZy52MS5RdWFydGVyRGF0YUgAEjgKDnN0cmF0ZWdpY19nb2FsGBEgASgLMh4ucWZjLnN0cmF0ZWd5LnYxLlN0cmF0ZWdpY0dvYWxIABI9ChFub3J0aF9zdGFyX21ldHJpYxgSIAEoCzIgLnFmYy5zdHJhdGVneS52MS5Ob3J0aFN0YXJNZXRyaWNIABI8ChJvbmVfb25fb25lX3Nlc3Npb24YEyABKAsyHi5xZmMuZ3Jvd3RoLnYxLk9uZU9uT25lU2Vzc2lvbkgAQgYKBGJvZHlCDQoLX3ZlcnNpb25faWQiIQoMV2F0Y2hSZXF1ZXN0EhEKCXNpbmNlX3NlcRgBIAEoAyIXChVHZXRFdmVudHNTdGF0ZVJlcXVlc3QiKQoWR2V0RXZlbnRzU3RhdGVSZXNwb25zZRIPCgdtYXhfc2VxGAEgASgDKlEKCENoYW5nZU9wEhkKFUNIQU5HRV9PUF9VTlNQRUNJRklFRBAAEhQKEENIQU5HRV9PUF9VUFNFUlQQARIUChBDSEFOR0VfT1BfREVMRVRFEAIqzgIKCkVudGl0eUtpbmQSGwoXRU5USVRZX0tJTkRfVU5TUEVDSUZJRUQQABIYChRFTlRJVFlfS0lORF9FTVBMT1lFRRABEhgKFEVOVElUWV9LSU5EX0NVU1RPTUVSEAISFwoTRU5USVRZX0tJTkRfUFJPSkVDVBADEhwKGEVOVElUWV9LSU5EX1BMQU5fVkVSU0lPThAEEhoKFkVOVElUWV9LSU5EX0FTU0lHTk1FTlQQBRIXChNFTlRJVFlfS0lORF9BQlNFTkNFEAYSHAoYRU5USVRZX0tJTkRfUVVBUlRFUl9EQVRBEAcSHgoaRU5USVRZX0tJTkRfU1RSQVRFR0lDX0dPQUwQCBIhCh1FTlRJVFlfS0lORF9OT1JUSF9TVEFSX01FVFJJQxAJEiIKHkVOVElUWV9LSU5EX09ORV9PTl9PTkVfU0VTU0lPThAKMrEBCgxFdmVudFNlcnZpY2USQgoFV2F0Y2gSGy5xZmMuZXZlbnRzLnYxLldhdGNoUmVxdWVzdBoaLnFmYy5ldmVudHMudjEuQ2hhbmdlRXZlbnQwARJdCg5HZXRFdmVudHNTdGF0ZRIkLnFmYy5ldmVudHMudjEuR2V0RXZlbnRzU3RhdGVSZXF1ZXN0GiUucWZjLmV2ZW50cy52MS5HZXRFdmVudHNTdGF0ZVJlc3BvbnNlYgZwcm90bzM", [file_qfc_team_v1_team, file_qfc_crm_v1_crm, file_qfc_portfolio_v1_portfolio, file_qfc_planning_v1_planning, file_qfc_strategy_v1_strategy, file_qfc_growth_v1_growth]);
 
 /**
  * @generated from message qfc.events.v1.ChangeEvent
@@ -156,6 +156,42 @@ export const WatchRequestSchema: GenMessage<WatchRequest> = /*@__PURE__*/
   messageDesc(file_qfc_events_v1_events, 1);
 
 /**
+ * @generated from message qfc.events.v1.GetEventsStateRequest
+ */
+export type GetEventsStateRequest = Message<"qfc.events.v1.GetEventsStateRequest"> & {
+};
+
+/**
+ * Describes the message qfc.events.v1.GetEventsStateRequest.
+ * Use `create(GetEventsStateRequestSchema)` to create a new message.
+ */
+export const GetEventsStateRequestSchema: GenMessage<GetEventsStateRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_events_v1_events, 2);
+
+/**
+ * @generated from message qfc.events.v1.GetEventsStateResponse
+ */
+export type GetEventsStateResponse = Message<"qfc.events.v1.GetEventsStateResponse"> & {
+  /**
+   * The highest seq currently committed to the change log (0 when empty).
+   * Clients read this BEFORE a full (re)load and pass it as WatchRequest.since_seq
+   * afterwards: everything committed before the mark is covered by the fresh
+   * snapshot, everything after it arrives via replay-then-live. This closes the
+   * gap between the load RPCs and the Watch subscription.
+   *
+   * @generated from field: int64 max_seq = 1;
+   */
+  maxSeq: bigint;
+};
+
+/**
+ * Describes the message qfc.events.v1.GetEventsStateResponse.
+ * Use `create(GetEventsStateResponseSchema)` to create a new message.
+ */
+export const GetEventsStateResponseSchema: GenMessage<GetEventsStateResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_events_v1_events, 3);
+
+/**
  * @generated from enum qfc.events.v1.ChangeOp
  */
 export enum ChangeOp {
@@ -254,12 +290,26 @@ export const EntityKindSchema: GenEnum<EntityKind> = /*@__PURE__*/
  */
 export const EventService: GenService<{
   /**
+   * Streaming responses intentionally carry the element type, not a
+   * WatchResponse wrapper — the stream ITEM is the contract here (lint
+   * exception configured in proto/buf.yaml).
+   *
    * @generated from rpc qfc.events.v1.EventService.Watch
    */
   watch: {
     methodKind: "server_streaming";
     input: typeof WatchRequestSchema;
     output: typeof ChangeEventSchema;
+  },
+  /**
+   * High-water mark for gap-free full reloads (see GetEventsStateResponse.max_seq).
+   *
+   * @generated from rpc qfc.events.v1.EventService.GetEventsState
+   */
+  getEventsState: {
+    methodKind: "unary";
+    input: typeof GetEventsStateRequestSchema;
+    output: typeof GetEventsStateResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_qfc_events_v1_events, 0);

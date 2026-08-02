@@ -198,7 +198,7 @@ const fullPlanVersion: PlanVersion = {
   id: 'v1',
   name: 'Baseline',
   description: 'The initial plan',
-  createdAt: '2026-01-01T00:00:00Z',
+  createdAt: 1767225600000, // 2026-01-01T00:00:00Z
   assignments: [fullAssignment],
   absences: [fullAbsence],
   forecastData: [fullQuarter],
@@ -207,7 +207,7 @@ const fullPlanVersion: PlanVersion = {
 const minimalPlanVersion: PlanVersion = {
   id: 'v2',
   name: 'Bare',
-  createdAt: '2026-01-01T00:00:00Z',
+  createdAt: 1767225600000, // 2026-01-01T00:00:00Z
   assignments: [],
   absences: [],
   forecastData: [],
@@ -238,7 +238,7 @@ const fullMetric: NorthStarMetric = {
 const fullSession: OneOnOneSession = {
   id: 's1',
   employeeId: 'e1',
-  date: '2026-02-01T10:00:00Z',
+  date: 1769940000000, // 2026-02-01T10:00:00Z
   status: 'completed',
   sentiment: 'great',
   notes: 'Great chat',
@@ -373,6 +373,12 @@ describe('Project', () => {
     const proto = projectToProto(fullProject);
     proto.health = ProjectHealth.UNSPECIFIED;
     expect(projectFromProto(proto).health).toBeUndefined();
+  });
+
+  it('throws a descriptive error for a present but non-finite hourlyRate', () => {
+    const proto = projectToProto(fullProject);
+    proto.hourlyRate = 'not-a-number';
+    expect(() => projectFromProto(proto)).toThrow(/Project p1: hourlyRate/);
   });
 });
 

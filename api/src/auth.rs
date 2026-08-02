@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use crate::config::DevUser;
 use crate::error::{AppError, AppResult};
 use crate::proto::session::UserRole;
+use crate::time::now_millis;
 
 /// Header names set by the ingress auth proxy (oauth2-proxy and
 /// compatible). `X-Auth-Request-Name` arrives surname-first (e.g.
@@ -60,9 +61,10 @@ pub struct AuthState {
 /// if the auth middleware wasn't applied in front of this route, which is a
 /// wiring bug rather than a real per-request condition.
 pub fn require(ctx: &RequestContext) -> Result<CurrentUser, ConnectError> {
-    ctx.extensions().get::<CurrentUser>().cloned().ok_or_else(|| {
-        ConnectError::new(ErrorCode::Unauthenticated, "authentication required")
-    })
+    ctx.extensions()
+        .get::<CurrentUser>()
+        .cloned()
+        .ok_or_else(|| ConnectError::new(ErrorCode::Unauthenticated, "authentication required"))
 }
 
 /// Fetch the current caller for a handler that requires a specific role,
@@ -163,7 +165,10 @@ async fn upsert_and_load(
     default_role: UserRole,
     admin_emails: &[String],
 ) -> Result<CurrentUser, sqlx::Error> {
-    let seed_roles: Vec<UserRole> = if admin_emails.iter().any(|admin| admin.eq_ignore_ascii_case(email)) {
+    let seed_roles: Vec<UserRole> = if admin_emails
+        .iter()
+        .any(|admin| admin.eq_ignore_ascii_case(email))
+    {
         vec![UserRole::Admin]
     } else {
         vec![default_role]
@@ -212,10 +217,11 @@ async fn upsert_and_load(
 /// the real name.
 pub async fn ensure_admins(pool: &SqlitePool, admin_emails: &[String]) -> AppResult<()> {
     for email in admin_emails {
-        let existing: Option<String> = sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
-            .bind(email)
-            .fetch_optional(pool)
-            .await?;
+        let existing: Option<String> =
+            sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
+                .bind(email)
+                .fetch_optional(pool)
+                .await?;
 
         match existing {
             Some(roles_raw) => {
@@ -249,13 +255,6 @@ pub async fn ensure_admins(pool: &SqlitePool, admin_emails: &[String]) -> AppRes
         }
     }
     Ok(())
-}
-
-fn now_millis() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as i64
 }
 
 /// The canonical, on-the-wire-independent token for one role, used by both
@@ -317,7 +316,10 @@ pub fn roles_from_db(value: &str) -> Vec<UserRole> {
     roles.sort_unstable_by_key(|role| role_token(*role));
     roles.dedup();
     if roles.is_empty() {
-        tracing::warn!(value, "users.roles produced no recognized roles; defaulting to EMPLOYEE");
+        tracing::warn!(
+            value,
+            "users.roles produced no recognized roles; defaulting to EMPLOYEE"
+        );
         roles.push(UserRole::Employee);
     }
     roles
@@ -348,7 +350,10 @@ mod tests {
 
     #[test]
     fn roles_to_db_dedups() {
-        assert_eq!(roles_to_db(&[UserRole::Pm, UserRole::Pm, UserRole::Pm]), "PM");
+        assert_eq!(
+            roles_to_db(&[UserRole::Pm, UserRole::Pm, UserRole::Pm]),
+            "PM"
+        );
     }
 
     #[test]

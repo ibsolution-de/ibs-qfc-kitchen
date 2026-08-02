@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::routing::get;
 use axum::Router;
+use axum::routing::get;
 use qfc_api::{auth, config, db, events, seed, services};
 use tracing_subscriber::EnvFilter;
 
@@ -19,7 +19,9 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let config = config::Config::from_env().expect("invalid configuration");
@@ -55,7 +57,9 @@ async fn main() {
 
     let connect_router = connectrpc::Router::new()
         .add_service(Arc::new(services::session::SessionServiceImpl))
-        .add_service(Arc::new(services::admin::AdminServiceImpl::new(state.pool.clone())))
+        .add_service(Arc::new(services::admin::AdminServiceImpl::new(
+            state.pool.clone(),
+        )))
         .add_service(Arc::new(services::events::EventServiceImpl::new(
             state.pool.clone(),
             state.hub.clone(),

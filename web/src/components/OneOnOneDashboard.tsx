@@ -38,7 +38,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
     // Initial Load, seeded from the live store data for this employee.
     useEffect(() => {
         if (isOpen) {
-            const empSessions = [...employeeSessions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const empSessions = [...employeeSessions].sort((a,b) => b.date - a.date);
             setSessions(empSessions);
             if (empSessions.length > 0) setSelectedSessionId(empSessions[0]!.id);
         }
@@ -53,7 +53,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
     // Find previous commitments (Elephant Memory)
     // Logic: Find the most recent *completed* session before the current active one
     const previousSession = activeSession
-        ? sessions.find(s => s.status === 'completed' && new Date(s.date) < new Date(activeSession.date))
+        ? sessions.find(s => s.status === 'completed' && s.date < activeSession.date)
         : null;
 
     // Notes persist debounced (see NOTES_PERSIST_DEBOUNCE_MS above): the
@@ -92,7 +92,7 @@ export const OneOnOneDashboard: React.FC<OneOnOneDashboardProps> = ({ employee, 
         const newSession: OneOnOneSession = {
             id: uid(),
             employeeId: employee.id,
-            date: new Date().toISOString(),
+            date: Date.now(),
             status: 'scheduled',
             sentiment: 'unknown',
             notes: '',

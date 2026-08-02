@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Code, ConnectError } from '@connectrpc/connect';
 
 import {
@@ -107,6 +107,94 @@ function removeById<T extends { id: string }>(list: readonly T[], id: string): T
   return list.filter(item => item.id !== id);
 }
 
+/**
+ * `QuarterData` embeds full `Project` objects (runningProjects /
+ * mustWinOpportunities / alternativeOpportunities) that `QuarterlyForecast`
+ * renders from directly, so a PROJECT change event must reach into every
+ * version's forecastData - otherwise those views keep showing a stale copy.
+ * `project === undefined` means DELETE: the embedded copies are removed.
+ * Only replaces/removes existing entries; which quarter list a project
+ * belongs to is owned by QUARTER_DATA events, not by PROJECT events.
+ * Referentially transparent: untouched quarters/versions keep their identity.
+ */
+function updateEmbeddedProjects(
+  versions: readonly PlanVersion[],
+  projectId: string,
+  project: Project | undefined
+): PlanVersion[] {
+  const patchList = (list: Project[]): Project[] => {
+    const index = list.findIndex(existing => existing.id === projectId);
+    if (index === -1) return list;
+    if (project === undefined) return list.filter(existing => existing.id !== projectId);
+    const next = [...list];
+    next[index] = project;
+    return next;
+  };
+  return versions.map(version => {
+    let versionChanged = false;
+    const forecastData = version.forecastData.map(quarter => {
+      const runningProjects = patchList(quarter.runningProjects);
+      const mustWinOpportunities = patchList(quarter.mustWinOpportunities);
+      const alternativeOpportunities = patchList(quarter.alternativeOpportunities);
+      if (
+        runningProjects === quarter.runningProjects &&
+        mustWinOpportunities === quarter.mustWinOpportunities &&
+        alternativeOpportunities === quarter.alternativeOpportunities
+      ) {
+        return quarter;
+      }
+      versionChanged = true;
+      return { ...quarter, runningProjects, mustWinOpportunities, alternativeOpportunities };
+    });
+    return versionChanged ? { ...version, forecastData } : version;
+  });
+}
+
+/**
+ * Bookkeeping for an in-flight `hydrateVersion` fetch. `startSeq` is the
+ * event-log high-water mark when the fetch started; the three id sets record
+ * which assignments/absences/quarters a watch event (seq > startSeq) changed
+ * while the GetVersion round-trip was still in flight. Those entries are
+ * strictly newer than the fetched snapshot and must win the merge.
+ */
+interface PendingHydration {
+  startSeq: bigint;
+  assignments: Set<string>;
+  absences: Set<string>;
+  quarters: Set<string>;
+}
+
+/**
+ * Merges a freshly fetched full-version snapshot with the current state:
+ * for every id changed by a watch event during the fetch (see
+ * `PendingHydration`) the current entry is preferred over the staler
+ * snapshot entry; an id the snapshot still carries but the current state
+ * no longer has was deleted by such an event and is dropped.
+ */
+function mergeHydratedVersion(
+  current: PlanVersion | undefined,
+  snapshot: PlanVersion,
+  pending: PendingHydration | undefined
+): PlanVersion {
+  if (current === undefined || pending === undefined) return snapshot;
+  const preferCurrent = <T extends { id: string }>(snapshotList: T[], currentList: T[], changedIds: Set<string>): T[] => {
+    if (changedIds.size === 0) return snapshotList;
+    // Drop staler snapshot copies of changed ids, then re-apply the current
+    // (newer) entries - upsert also covers ids the snapshot never had.
+    let merged = snapshotList.filter(item => !changedIds.has(item.id));
+    for (const item of currentList) {
+      if (changedIds.has(item.id)) merged = upsertById(merged, item);
+    }
+    return merged;
+  };
+  return {
+    ...snapshot,
+    assignments: preferCurrent(snapshot.assignments, current.assignments, pending.assignments),
+    absences: preferCurrent(snapshot.absences, current.absences, pending.absences),
+    forecastData: preferCurrent(snapshot.forecastData, current.forecastData, pending.quarters),
+  };
+}
+
 const initialState: LiveStoreState = {
   status: 'loading',
   error: undefined,
@@ -148,10 +236,19 @@ export function applyChangeEvent(prev: LiveStoreState, event: ChangeEvent): Live
 
     case EntityKind.PROJECT: {
       if (event.op === ChangeOp.DELETE) {
-        return { ...prev, projects: removeById(prev.projects, event.entityId) };
+        return {
+          ...prev,
+          projects: removeById(prev.projects, event.entityId),
+          versions: updateEmbeddedProjects(prev.versions, event.entityId, undefined),
+        };
       }
       if (event.body.case !== 'project') return prev;
-      return { ...prev, projects: upsertById(prev.projects, projectFromProto(event.body.value)) };
+      const project = projectFromProto(event.body.value);
+      return {
+        ...prev,
+        projects: upsertById(prev.projects, project),
+        versions: updateEmbeddedProjects(prev.versions, event.entityId, project),
+      };
     }
 
     case EntityKind.STRATEGIC_GOAL: {
@@ -186,12 +283,12 @@ export function applyChangeEvent(prev: LiveStoreState, event: ChangeEvent): Live
       const meta = event.body.value;
       const existing = prev.versions.find(version => version.id === meta.id);
       const merged: PlanVersion = existing
-        ? { ...existing, name: meta.name, description: meta.description, createdAt: meta.createdAt }
+        ? { ...existing, name: meta.name, description: meta.description, createdAt: Number(meta.createdAtMillis) }
         : {
             id: meta.id,
             name: meta.name,
             description: meta.description,
-            createdAt: meta.createdAt,
+            createdAt: Number(meta.createdAtMillis),
             // Only the meta is carried on the wire; a follow-up GetVersion
             // (triggered by the watch loop) fills these in for a version
             // created elsewhere that we haven't seen before.
@@ -289,24 +386,68 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // render cycle - this is what makes "apply the same change twice" a no-op.
   const lastSeqRef = useRef(0n);
   // Plan version ids we already have full data for (vs. only a meta shell).
+  // An id is added ONLY after its hydration succeeded - a failed fetch must
+  // not leave a permanent empty shell that blocks every retry.
   const knownFullVersionIdsRef = useRef<Set<string>>(new Set());
+  // In-flight one-off GetVersion fetches, keyed by version id. Guards
+  // against duplicate hydration fetches and carries the stale-overwrite
+  // bookkeeping (see PendingHydration above).
+  const pendingHydrationsRef = useRef<Map<string, PendingHydration>>(new Map());
 
   const hydrateVersion = useCallback(async (versionId: string): Promise<void> => {
+    // Remember the high-water mark at fetch start: watch events with
+    // seq > startSeq may apply newer changes to this version while the
+    // GetVersion round-trip is in flight; those must win over the (staler)
+    // snapshot in the merge below (tracked by trackChangeDuringHydration).
+    const pending: PendingHydration = {
+      startSeq: lastSeqRef.current,
+      assignments: new Set(),
+      absences: new Set(),
+      quarters: new Set(),
+    };
+    pendingHydrationsRef.current.set(versionId, pending);
     try {
       const response = await planningClient.getVersion({ versionId });
       if (!response.version) return;
       const projectsById = new Map(dataRef.current.projects.map(project => [project.id, project] as const));
       const { planVersion } = planVersionFromProto(response.version, projectsById);
-      setData(prev => ({ ...prev, versions: upsertById(prev.versions, planVersion) }));
+      // Capture `pending` for the merge: the setData updater runs later
+      // during React's render — by then the finally below has already
+      // removed the map entry, so looking it up inside the updater would
+      // silently lose the stale-overwrite protection.
+      setData(prev => ({
+        ...prev,
+        versions: upsertById(
+          prev.versions,
+          mergeHydratedVersion(
+            prev.versions.find(version => version.id === versionId),
+            planVersion,
+            pending
+          )
+        ),
+      }));
+      // Only now is the version fully known: on failure the id stays
+      // unknown so a later event (or retry) can hydrate again.
+      knownFullVersionIdsRef.current.add(versionId);
     } catch {
       // Best-effort: another actor's new version will show up fully on the
-      // next full reload if this one-off fetch fails.
+      // next full reload or re-hydration if this one-off fetch fails.
+    } finally {
+      pendingHydrationsRef.current.delete(versionId);
     }
   }, []);
 
   const loadAll = useCallback(async (): Promise<void> => {
     setData(prev => ({ ...prev, error: undefined }));
     try {
+      // Read the event-log high-water mark BEFORE the snapshot reads: every
+      // change committed up to maxSeq is reflected in the list responses
+      // below (they are read after the mark), and everything beyond maxSeq
+      // is replayed by the watch stream we (re)start with sinceSeq=maxSeq
+      // (server-side subscribe-then-replay plus the client-side seq dedupe
+      // drops any double delivery). This closes the gap that previously
+      // existed between "snapshot taken" and "watch started" on (re)loads.
+      const eventsState = await eventClient.getEventsState({});
       const [employeesRes, projectsRes, customersRes, holidaysRes, goalsRes, northStarsRes, sessionsRes, versionsRes] =
         await Promise.all([
           teamClient.listEmployees({}),
@@ -354,6 +495,9 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         northStars,
         oneOnOnes,
       }));
+      // Advance the high-water mark only after the snapshot was applied:
+      // had any RPC above failed, the mark must stay where it was.
+      lastSeqRef.current = eventsState.maxSeq;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setData(prev => ({ ...prev, status: 'error', error: message }));
@@ -368,8 +512,32 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     function maybeHydrateNewVersion(event: ChangeEvent): void {
       if (event.kind !== EntityKind.PLAN_VERSION || event.op !== ChangeOp.UPSERT) return;
       if (knownFullVersionIdsRef.current.has(event.entityId)) return;
-      knownFullVersionIdsRef.current.add(event.entityId);
+      if (pendingHydrationsRef.current.has(event.entityId)) return;
       void hydrateVersion(event.entityId);
+    }
+
+    // Records assignment/absence/quarter changes that watch events apply
+    // while a hydration fetch for their version is in flight, so the
+    // hydration merge can prefer them over the staler GetVersion snapshot
+    // (see mergeHydratedVersion). Only events newer than the fetch's
+    // startSeq count - anything older is already in the snapshot.
+    function trackChangeDuringHydration(event: ChangeEvent): void {
+      if (event.versionId === undefined) return;
+      const pending = pendingHydrationsRef.current.get(event.versionId);
+      if (pending === undefined || event.seq <= pending.startSeq) return;
+      switch (event.kind) {
+        case EntityKind.ASSIGNMENT:
+          pending.assignments.add(event.entityId);
+          break;
+        case EntityKind.ABSENCE:
+          pending.absences.add(event.entityId);
+          break;
+        case EntityKind.QUARTER_DATA:
+          pending.quarters.add(event.entityId);
+          break;
+        default:
+          break;
+      }
     }
 
     async function watchLoop(): Promise<void> {
@@ -391,6 +559,7 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             if (event.seq > lastSeqRef.current) {
               lastSeqRef.current = event.seq;
               setData(prev => applyChangeEvent(prev, event));
+              trackChangeDuringHydration(event);
               maybeHydrateNewVersion(event);
             }
             // else: a replayed/duplicate event we already applied - no-op.
@@ -401,10 +570,11 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (err instanceof ConnectError && err.code === Code.Canceled) return;
           if (err instanceof ConnectError && err.code === Code.DataLoss) {
             // Our sinceSeq was pruned or we lagged: the only correct move is
-            // a full reload, then restart live with no replay (sinceSeq: 0) -
-            // the fresh snapshot already reflects everything up to "now".
+            // a full reload. loadAll re-reads the high-water mark itself and
+            // leaves lastSeqRef at it, so the restarted watch replays exactly
+            // the events committed after the fresh snapshot - no replay from
+            // 0 (which a pruned log cannot serve anyway) and no gap.
             setData(prev => ({ ...prev, status: 'reconnecting' }));
-            lastSeqRef.current = 0n;
             try {
               await loadAll();
             } catch {
@@ -506,7 +676,7 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...existing,
         name: meta.name,
         description: meta.description,
-        createdAt: meta.createdAt,
+        createdAt: Number(meta.createdAtMillis),
       };
       setData(prev => ({ ...prev, versions: upsertById(prev.versions, updated) }));
       return updated;
@@ -521,12 +691,16 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const applyAssignments = useCallback(
     async (versionId: string, upserts: Assignment[], deleteIds: string[]): Promise<void> => {
-      const response = await planningClient.applyAssignments({
+      // The response's seq is deliberately NOT used to bump lastSeqRef: our
+      // own mutation's event will be delivered (and deduped) via the watch
+      // stream, and jumping lastSeqRef forward here would silently discard
+      // in-flight events from other clients with a smaller seq. Applying our
+      // own event twice is harmless - upsertById/removeById are idempotent.
+      await planningClient.applyAssignments({
         versionId,
         upserts: upserts.map(assignment => assignmentToProto(assignment, versionId)),
         deleteIds,
       });
-      if (response.seq > lastSeqRef.current) lastSeqRef.current = response.seq;
       setData(prev => {
         const versionIndex = prev.versions.findIndex(version => version.id === versionId);
         if (versionIndex === -1) return prev;
@@ -546,12 +720,13 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const applyAbsences = useCallback(
     async (versionId: string, upserts: Absence[], deleteIds: string[]): Promise<void> => {
-      const response = await planningClient.applyAbsences({
+      // See applyAssignments for why the response seq is not bumped into
+      // lastSeqRef here.
+      await planningClient.applyAbsences({
         versionId,
         upserts: upserts.map(absence => absenceToProto(absence, versionId)),
         deleteIds,
       });
-      if (response.seq > lastSeqRef.current) lastSeqRef.current = response.seq;
       setData(prev => {
         const versionIndex = prev.versions.findIndex(version => version.id === versionId);
         if (versionIndex === -1) return prev;
@@ -624,27 +799,56 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setData(prev => ({ ...prev, oneOnOnes: removeById(prev.oneOnOnes, id) }));
   }, []);
 
-  const store: LiveStore = {
-    ...data,
-    saveEmployee,
-    deleteEmployee,
-    saveProject,
-    deleteProject,
-    saveCustomer,
-    deleteCustomer,
-    createVersion,
-    updateVersionMeta,
-    deleteVersion,
-    applyAssignments,
-    applyAbsences,
-    upsertQuarterData,
-    saveGoal,
-    deleteGoal,
-    saveNorthStar,
-    deleteNorthStar,
-    saveOneOnOne,
-    deleteOneOnOne,
-  };
+  // Memoized so the context value keeps its identity across renders that
+  // did not change `data` (e.g. re-renders triggered by a parent); without
+  // this every render would produce a fresh object and re-render every
+  // consumer. The action callbacks are all stable (useCallback with empty
+  // deps), so the value effectively only changes when `data` changes - the
+  // `useLiveStore` hook signature is unchanged for consumers.
+  const store: LiveStore = useMemo(
+    () => ({
+      ...data,
+      saveEmployee,
+      deleteEmployee,
+      saveProject,
+      deleteProject,
+      saveCustomer,
+      deleteCustomer,
+      createVersion,
+      updateVersionMeta,
+      deleteVersion,
+      applyAssignments,
+      applyAbsences,
+      upsertQuarterData,
+      saveGoal,
+      deleteGoal,
+      saveNorthStar,
+      deleteNorthStar,
+      saveOneOnOne,
+      deleteOneOnOne,
+    }),
+    [
+      data,
+      saveEmployee,
+      deleteEmployee,
+      saveProject,
+      deleteProject,
+      saveCustomer,
+      deleteCustomer,
+      createVersion,
+      updateVersionMeta,
+      deleteVersion,
+      applyAssignments,
+      applyAbsences,
+      upsertQuarterData,
+      saveGoal,
+      deleteGoal,
+      saveNorthStar,
+      deleteNorthStar,
+      saveOneOnOne,
+      deleteOneOnOne,
+    ]
+  );
 
   return <LiveStoreContext.Provider value={store}>{children}</LiveStoreContext.Provider>;
 };

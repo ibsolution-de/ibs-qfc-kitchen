@@ -8,3 +8,5 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - api-pvc.yaml
+  - api-backup-pvc.yaml
+  - api-backup-cronjob.yaml

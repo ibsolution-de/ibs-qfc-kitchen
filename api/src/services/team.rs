@@ -46,7 +46,11 @@ impl TeamService for TeamServiceImpl {
         request: ServiceRequest<'_, UpsertEmployeeRequest>,
     ) -> ServiceResult<UpsertEmployeeResponse> {
         let current = auth::require(&ctx)?;
-        let entity = request.to_owned_message().employee.into_option().unwrap_or_default();
+        let entity = request
+            .to_owned_message()
+            .employee
+            .into_option()
+            .unwrap_or_default();
         let spec = crud::EntitySpec {
             table: Table::Employee,
             kind: EntityKind::Employee,
@@ -86,7 +90,9 @@ impl TeamService for TeamServiceImpl {
 
 fn validate_employee(employee: &Employee) -> AppResult<()> {
     if employee.name.trim().is_empty() {
-        return Err(AppError::InvalidArgument("employee.name must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "employee.name must not be empty".to_string(),
+        ));
     }
     Ok(())
 }

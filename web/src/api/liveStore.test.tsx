@@ -8,9 +8,19 @@ import { ChangeEventSchema, EntityKind, ChangeOp, type ChangeEvent } from './gen
 import {
   PlanVersionMetaSchema,
   PlanVersionSchema,
+  AssignmentSchema,
+  QuarterDataSchema,
   type PlanVersionMeta as PlanVersionMetaProto,
   type PlanVersion as PlanVersionProto,
+  type Assignment as AssignmentProto,
+  type QuarterData as QuarterDataProto,
 } from './gen/qfc/planning/v1/planning_pb.js';
+import {
+  ProjectSchema,
+  ProjectColor,
+  ProjectStatus,
+  type Project as ProjectProto,
+} from './gen/qfc/portfolio/v1/portfolio_pb.js';
 import { LiveStoreProvider, useLiveStore } from './liveStore';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +73,7 @@ const { teamClient, customerClient, projectClient, planningClient, strategyClien
     },
     eventClient: {
       watch: vi.fn(),
+      getEventsState: vi.fn(),
     },
   }));
 
@@ -97,18 +108,73 @@ function makePlanVersionMetaProto(overrides: Partial<PlanVersionMetaProto> = {})
   return create(PlanVersionMetaSchema, {
     id: 'v1',
     name: 'Version 1',
-    createdAt: '2024-01-01T00:00:00Z',
+    createdAtMillis: 1704067200000n, // 2024-01-01T00:00:00Z
     ...overrides,
   });
 }
 
-function makePlanVersionProto(meta: PlanVersionMetaProto): PlanVersionProto {
+function makePlanVersionProto(
+  meta: PlanVersionMetaProto,
+  overrides: { assignments?: AssignmentProto[]; forecastData?: QuarterDataProto[] } = {}
+): PlanVersionProto {
   return create(PlanVersionSchema, {
     meta,
-    assignments: [],
+    assignments: overrides.assignments ?? [],
     absences: [],
-    forecastData: [],
+    forecastData: overrides.forecastData ?? [],
   });
+}
+
+function makeAssignmentProto(overrides: Partial<AssignmentProto> = {}): AssignmentProto {
+  return create(AssignmentSchema, {
+    id: 'a1',
+    versionId: 'v1',
+    employeeId: 'e1',
+    projectId: 'p1',
+    date: '2026-01-05',
+    allocation: 0.5,
+    ...overrides,
+  });
+}
+
+function makeProjectProto(id: string, name: string): ProjectProto {
+  return create(ProjectSchema, {
+    id,
+    name,
+    client: 'Acme',
+    color: ProjectColor.BLUE,
+    status: ProjectStatus.ACTIVE,
+    volume: 10,
+    startDate: '2026-01-01',
+    endDate: '2026-03-31',
+    hourlyRate: '100',
+    milestones: [],
+  });
+}
+
+function makeProjectEvent(seq: bigint, project: ProjectProto, op: ChangeOp = ChangeOp.UPSERT): ChangeEvent {
+  return create(ChangeEventSchema, {
+    seq,
+    kind: EntityKind.PROJECT,
+    op,
+    entityId: project.id,
+    actorEmail: 'actor@example.com',
+    tsMillis: 0n,
+    body: op === ChangeOp.DELETE ? { case: undefined } : { case: 'project', value: project },
+  });
+}
+
+/** A promise the test resolves/rejects manually to control RPC timing. */
+function deferred<T>() {
+  // Hand-rolled Promise.withResolvers: the tsconfig lib is ES2022, so the
+  // native helper (ES2024) isn't typed even though the runtime has it.
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 function emptyListResponses(): void {
@@ -163,6 +229,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   teamClient.listEmployees.mockResolvedValue({ employees: [] });
   emptyListResponses();
+  eventClient.getEventsState.mockResolvedValue({ maxSeq: 0n });
   eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
     makeWatchStream([], opts.signal)
   );
@@ -224,6 +291,10 @@ describe('LiveStoreProvider / useLiveStore', () => {
 
   it('reloads exactly once when the stream reports data_loss', async () => {
     teamClient.listEmployees.mockResolvedValue({ employees: [] });
+    // After a data_loss the reload re-reads the high-water mark and the
+    // restarted watch must resume from exactly that mark - not from 0 (a
+    // pruned log cannot serve 0) and not from the stale previous seq.
+    eventClient.getEventsState.mockResolvedValue({ maxSeq: 42n });
 
     let watchCall = 0;
     eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) => {
@@ -243,6 +314,8 @@ describe('LiveStoreProvider / useLiveStore', () => {
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(teamClient.listEmployees).toHaveBeenCalledTimes(2);
     expect(watchCall).toBeGreaterThanOrEqual(2);
+    expect(eventClient.getEventsState).toHaveBeenCalledTimes(2);
+    expect(eventClient.watch).toHaveBeenNthCalledWith(2, { sinceSeq: 42n }, expect.anything());
   });
 
   it('rejects on a failed mutation and leaves local state unchanged', async () => {
@@ -363,5 +436,160 @@ describe('LiveStoreProvider / useLiveStore', () => {
     expect(result.current.versions).toHaveLength(1);
     const fallback = result.current.versions[result.current.versions.length - 1];
     expect(fallback).toEqual(expect.objectContaining({ id: 'v1' }));
+  });
+
+  it('prefers watch-applied assignment changes over the staler GetVersion snapshot during hydration', async () => {
+    // A PLAN_VERSION event for an unknown version creates a meta shell and
+    // kicks off a hydration GetVersion. While that fetch is in flight, an
+    // ASSIGNMENT event (higher seq) applies a newer change to the shell.
+    // The hydration merge must keep the watch-applied entry instead of
+    // overwriting it with the staler snapshot copy.
+    const meta = makePlanVersionMetaProto();
+    const snapshot = makePlanVersionProto(meta, {
+      assignments: [makeAssignmentProto({ id: 'a1', allocation: 1 })],
+    });
+    const getVersionCall = deferred<{ version: PlanVersionProto }>();
+    planningClient.getVersion.mockReturnValue(getVersionCall.promise);
+
+    const planVersionEvent = create(ChangeEventSchema, {
+      seq: 1n,
+      kind: EntityKind.PLAN_VERSION,
+      op: ChangeOp.UPSERT,
+      entityId: 'v1',
+      actorEmail: 'actor@example.com',
+      tsMillis: 0n,
+      body: { case: 'planVersion', value: meta },
+    });
+    const assignmentEvent = create(ChangeEventSchema, {
+      seq: 2n,
+      kind: EntityKind.ASSIGNMENT,
+      op: ChangeOp.UPSERT,
+      entityId: 'a1',
+      versionId: 'v1',
+      actorEmail: 'actor@example.com',
+      tsMillis: 0n,
+      body: { case: 'assignment', value: makeAssignmentProto({ id: 'a1', allocation: 0.5 }) },
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([planVersionEvent, assignmentEvent], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    // Wait until the shell exists, the watch-applied assignment landed, and
+    // the hydration fetch is in flight - then resolve it with the stale
+    // snapshot.
+    await waitFor(() => expect(result.current.versions[0]?.assignments).toHaveLength(1));
+    expect(planningClient.getVersion).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      getVersionCall.resolve({ version: snapshot });
+    });
+
+    // The watch-applied allocation (0.5, seq 2 > hydration start seq 1)
+    // must win over the snapshot's staler allocation (1).
+    await waitFor(() => expect(result.current.versions[0]?.assignments).toHaveLength(1));
+    expect(result.current.versions[0]!.assignments[0]).toEqual(expect.objectContaining({ id: 'a1', allocation: 0.5 }));
+  });
+
+  it('retries hydration after a failed GetVersion instead of leaving a permanent empty shell', async () => {
+    // The first hydration fails; the id must NOT be latched as "known full",
+    // so the next PLAN_VERSION event for the same id triggers a new fetch
+    // that actually fills in the data.
+    const meta = makePlanVersionMetaProto();
+    planningClient.getVersion
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce({ version: makePlanVersionProto(meta, { assignments: [makeAssignmentProto()] }) });
+
+    const planVersionEvent = (seq: bigint) =>
+      create(ChangeEventSchema, {
+        seq,
+        kind: EntityKind.PLAN_VERSION,
+        op: ChangeOp.UPSERT,
+        entityId: 'v1',
+        actorEmail: 'actor@example.com',
+        tsMillis: 0n,
+        body: { case: 'planVersion', value: meta },
+      });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([planVersionEvent(1n), planVersionEvent(2n)], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await waitFor(() => expect(planningClient.getVersion).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.versions[0]?.assignments).toHaveLength(1));
+    expect(result.current.versions[0]!.assignments[0]).toEqual(expect.objectContaining({ id: 'a1' }));
+  });
+
+  it('a PROJECT upsert event also updates the copies embedded in versions forecastData', async () => {
+    const meta = makePlanVersionMetaProto();
+    projectClient.listProjects.mockResolvedValue({ projects: [makeProjectProto('p1', 'Old Name')] });
+    planningClient.listVersions.mockResolvedValue({ versions: [meta] });
+    planningClient.getVersion.mockResolvedValue({
+      version: makePlanVersionProto(meta, {
+        forecastData: [
+          create(QuarterDataSchema, {
+            id: 'q1',
+            name: 'Q1 2026',
+            months: ['January', 'February', 'March'],
+            totalCapacity: [20, 20, 20],
+            runningProjectIds: ['p1'],
+            mustWinOpportunityIds: [],
+            alternativeOpportunityIds: ['p1'],
+            notes: '',
+          }),
+        ],
+      }),
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([makeProjectEvent(1n, makeProjectProto('p1', 'New Name'))], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    // QuarterlyForecast renders from the embedded copies, so both the
+    // top-level project and every embedded reference must see the update.
+    // (No intermediate 'Old Name' assertion: the watch event may be applied
+    // in the same tick the status flips to ready, making that racy.)
+    await waitFor(() => expect(result.current.projects[0]!.name).toBe('New Name'));
+    const quarter = result.current.versions[0]!.forecastData[0]!;
+    expect(quarter.runningProjects[0]!.name).toBe('New Name');
+    expect(quarter.alternativeOpportunities[0]!.name).toBe('New Name');
+  });
+
+  it('a PROJECT delete event also removes the copies embedded in versions forecastData', async () => {
+    const meta = makePlanVersionMetaProto();
+    projectClient.listProjects.mockResolvedValue({ projects: [makeProjectProto('p1', 'Doomed')] });
+    planningClient.listVersions.mockResolvedValue({ versions: [meta] });
+    planningClient.getVersion.mockResolvedValue({
+      version: makePlanVersionProto(meta, {
+        forecastData: [
+          create(QuarterDataSchema, {
+            id: 'q1',
+            name: 'Q1 2026',
+            months: ['January', 'February', 'March'],
+            totalCapacity: [20, 20, 20],
+            runningProjectIds: ['p1'],
+            mustWinOpportunityIds: ['p1'],
+            alternativeOpportunityIds: [],
+            notes: '',
+          }),
+        ],
+      }),
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([makeProjectEvent(1n, makeProjectProto('p1', 'Doomed'), ChangeOp.DELETE)], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await waitFor(() => expect(result.current.projects).toHaveLength(0));
+    const quarter = result.current.versions[0]!.forecastData[0]!;
+    expect(quarter.runningProjects).toHaveLength(0);
+    expect(quarter.mustWinOpportunities).toHaveLength(0);
   });
 });

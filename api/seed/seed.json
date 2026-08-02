@@ -610,7 +610,7 @@
       "meta": {
         "id": "v1",
         "name": "Initial Q1 2026 Plan",
-        "createdAt": "2025-12-15T10:00:00Z"
+        "createdAtMillis": 1765792800000
       },
       "assignments": [
         {
@@ -2869,7 +2869,7 @@
       "meta": {
         "id": "v2",
         "name": "Adjusted Q1 2026 Plan after QFC Call",
-        "createdAt": "2026-01-20T14:30:00Z"
+        "createdAtMillis": 1768919400000
       },
       "assignments": [
         {
@@ -5159,7 +5159,7 @@
       "meta": {
         "id": "v3",
         "name": "Draft Q2 2026 Plan",
-        "createdAt": "2026-02-28T09:15:00Z"
+        "createdAtMillis": 1772270100000
       },
       "assignments": [
         {
@@ -7497,7 +7497,7 @@
       "meta": {
         "id": "v4",
         "name": "Current Q2 2026 Plan (Reduced March Load)",
-        "createdAt": "2026-03-03T09:00:00Z"
+        "createdAtMillis": 1772528400000
       },
       "assignments": [
         {
@@ -9380,7 +9380,7 @@
     {
       "id": "1o1_1",
       "employeeId": "e2",
-      "date": "2026-02-01T10:00:00Z",
+      "dateMillis": 1769940000000,
       "status": "SESSION_STATUS_COMPLETED",
       "sentiment": "SENTIMENT_GREAT",
       "notes": "Max is happy with the backend progress. Wants to look into Go for the new microservice.",
@@ -9397,14 +9397,14 @@
     {
       "id": "1o1_2",
       "employeeId": "e2",
-      "date": "2026-03-01T10:00:00Z",
+      "dateMillis": 1772359200000,
       "status": "SESSION_STATUS_SCHEDULED",
       "sentiment": "SENTIMENT_OKAY"
     },
     {
       "id": "1o1_3",
       "employeeId": "e3",
-      "date": "2026-02-15T14:00:00Z",
+      "dateMillis": 1771164000000,
       "status": "SESSION_STATUS_COMPLETED",
       "sentiment": "SENTIMENT_STRESSFUL",
       "notes": "Dana feels overwhelmed by the design changes requests from the client. Needs a shield.",
@@ -9420,7 +9420,7 @@
     {
       "id": "1o1_4",
       "employeeId": "e3",
-      "date": "2026-03-15T14:00:00Z",
+      "dateMillis": 1773583200000,
       "status": "SESSION_STATUS_SCHEDULED",
       "sentiment": "SENTIMENT_UNKNOWN"
     }

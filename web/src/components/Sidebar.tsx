@@ -8,12 +8,14 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { diffVersions } from '../utils/versions';
 import { hasPlanningAccess } from '../utils/access';
-
-const BUILD_DATE = '2026-07-22';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
+
+// Injected at build time via vite `define` (see global.d.ts); falls back to
+// 'dev' when running without the define (e.g. plain vitest).
+const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : 'dev';
 
 interface SidebarProps {
   versions: PlanVersion[];

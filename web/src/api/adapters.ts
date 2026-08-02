@@ -425,6 +425,20 @@ export function milestoneToProto(milestone: Milestone): MilestoneProto {
   });
 }
 
+/**
+ * The wire type is a decimal string; the domain keeps a number. A present
+ * but non-finite value is a data error, not `undefined` - fail loud like
+ * the enum tables instead of silently dropping the field.
+ */
+function hourlyRateFromProto(project: ProjectProto): number | undefined {
+  if (project.hourlyRate === undefined) return undefined;
+  const rate = Number(project.hourlyRate);
+  if (!Number.isFinite(rate)) {
+    throw new Error(`Project ${project.id}: hourlyRate is not a finite number (proto value '${project.hourlyRate}')`);
+  }
+  return rate;
+}
+
 /** `milestones` is optional in `types.ts`; see the note on `employeeFromProto` re: empty vs. absent. */
 export function projectFromProto(project: ProjectProto): Project {
   return {
@@ -440,7 +454,7 @@ export function projectFromProto(project: ProjectProto): Project {
     topic: project.topic,
     notes: project.notes,
     isCritical: project.isCritical,
-    hourlyRate: project.hourlyRate,
+    hourlyRate: hourlyRateFromProto(project),
     milestones: project.milestones.length > 0 ? project.milestones.map(milestoneFromProto) : undefined,
     probability: project.probability,
     stage: optionalEnumFromProto(pipelineStageMapping, project.stage),
@@ -463,7 +477,7 @@ export function projectToProto(project: Project): ProjectProto {
     topic: project.topic,
     notes: project.notes,
     isCritical: project.isCritical,
-    hourlyRate: project.hourlyRate,
+    hourlyRate: project.hourlyRate === undefined ? undefined : String(project.hourlyRate),
     milestones: (project.milestones ?? []).map(milestoneToProto),
     probability: project.probability,
     stage: optionalEnumToProto(pipelineStageMapping, project.stage),
@@ -703,7 +717,7 @@ export function planVersionFromProto(
       id: meta.id,
       name: meta.name,
       description: meta.description,
-      createdAt: meta.createdAt,
+      createdAt: Number(meta.createdAtMillis),
       assignments: assignmentsFromProto(planVersion.assignments),
       absences: absencesFromProto(planVersion.absences),
       forecastData,
@@ -719,7 +733,7 @@ export function planVersionToProto(planVersion: PlanVersion): PlanVersionProto {
       id: planVersion.id,
       name: planVersion.name,
       description: planVersion.description,
-      createdAt: planVersion.createdAt,
+      createdAtMillis: BigInt(planVersion.createdAt),
     }),
     assignments: assignmentsToProto(planVersion.assignments, planVersion.id),
     absences: absencesToProto(planVersion.absences, planVersion.id),
@@ -821,7 +835,7 @@ export function oneOnOneSessionFromProto(session: OneOnOneSessionProto): OneOnOn
   return {
     id: session.id,
     employeeId: session.employeeId,
-    date: session.date,
+    date: Number(session.dateMillis),
     status: requiredEnumFromProto(sessionStatusMapping, session.status, 'OneOnOneSession', session.id, 'status'),
     sentiment: requiredEnumFromProto(sentimentMapping, session.sentiment, 'OneOnOneSession', session.id, 'sentiment'),
     notes: session.notes,
@@ -834,7 +848,7 @@ export function oneOnOneSessionToProto(session: OneOnOneSession): OneOnOneSessio
   return create(OneOnOneSessionSchema, {
     id: session.id,
     employeeId: session.employeeId,
-    date: session.date,
+    dateMillis: BigInt(session.date),
     status: requiredEnumToProto(sessionStatusMapping, session.status),
     sentiment: requiredEnumToProto(sentimentMapping, session.sentiment),
     notes: session.notes,

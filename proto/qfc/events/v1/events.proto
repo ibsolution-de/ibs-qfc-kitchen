@@ -56,7 +56,24 @@ message WatchRequest {
   int64 since_seq = 1;
 }
 
+message GetEventsStateRequest {
+}
+
+message GetEventsStateResponse {
+  // The highest seq currently committed to the change log (0 when empty).
+  // Clients read this BEFORE a full (re)load and pass it as WatchRequest.since_seq
+  // afterwards: everything committed before the mark is covered by the fresh
+  // snapshot, everything after it arrives via replay-then-live. This closes the
+  // gap between the load RPCs and the Watch subscription.
+  int64 max_seq = 1;
+}
+
 // The live-sync spine. The server replays the change log above since_seq, then streams live, so a reconnecting client loses nothing.
 service EventService {
+  // Streaming responses intentionally carry the element type, not a
+  // WatchResponse wrapper — the stream ITEM is the contract here (lint
+  // exception configured in proto/buf.yaml).
   rpc Watch(WatchRequest) returns (stream ChangeEvent);
+  // High-water mark for gap-free full reloads (see GetEventsStateResponse.max_seq).
+  rpc GetEventsState(GetEventsStateRequest) returns (GetEventsStateResponse);
 }

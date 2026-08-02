@@ -77,7 +77,8 @@ impl Config {
             Err(_) => None,
         };
 
-        let default_role_raw = env::var("QFC_DEFAULT_ROLE").unwrap_or_else(|_| DEFAULT_ROLE.to_string());
+        let default_role_raw =
+            env::var("QFC_DEFAULT_ROLE").unwrap_or_else(|_| DEFAULT_ROLE.to_string());
         let default_role = parse_default_role(&default_role_raw)?;
 
         let admin_emails = env::var("QFC_ADMIN_EMAILS")
@@ -180,7 +181,10 @@ mod tests {
 
     #[test]
     fn default_role_constant_resolves_to_employee_not_pm() {
-        assert_eq!(parse_default_role(DEFAULT_ROLE).unwrap(), UserRole::Employee);
+        assert_eq!(
+            parse_default_role(DEFAULT_ROLE).unwrap(),
+            UserRole::Employee
+        );
     }
 
     #[test]

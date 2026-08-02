@@ -1,27 +1,34 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build-Stage: Cargo Release Build ----
-FROM rust:1-slim-trixie AS build
+# Multi-Arch manifest-list digest (linux/amd64 + linux/arm64), aktualisiert via Dependabot.
+FROM rust:1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c AS build
 WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Dependency layer: compile deps once, cached independently of source changes
+# Dependency layer: compile deps once, cached independently of source changes.
+# build.rs is copied as well: without it Cargo skips the build script entirely,
+# so build-dependencies like connectrpc-build would recompile on every source
+# change. proto/ comes BEFORE the stub build because build.rs references
+# ../proto — protos change rarely, so this barely hurts cache locality.
 COPY api/Cargo.toml api/Cargo.lock api/
+COPY api/build.rs api/build.rs
+COPY proto/ proto/
 RUN mkdir -p api/src \
     && echo "fn main() {}" > api/src/main.rs \
     && cargo build --manifest-path api/Cargo.toml --release \
     && rm -rf api/src
 
-# Source layer: real sources + proto/ consumed by build.rs
-COPY proto/ proto/
+# Source layer: real sources (proto/ already in place from the dep layer)
 COPY api/ api/
 RUN cargo build --manifest-path api/Cargo.toml --release
 
 # ---- Runtime-Stage: debian-slim (unprivileged) ----
-FROM debian:trixie-slim AS runtime
+# Multi-Arch manifest-list digest (linux/amd64 + linux/arm64), aktualisiert via Dependabot.
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS runtime
 LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.authors="nazar.kulyk@ibsolution.de" \
     org.opencontainers.image.url="https://github.com/ibsolution-de/ibs-qfc-kitchen" \

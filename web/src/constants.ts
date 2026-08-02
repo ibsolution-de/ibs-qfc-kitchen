@@ -1,6 +1,6 @@
 
 
-import { Project, Employee, QuarterData, Assignment, PlanVersion, Customer, Absence, PublicHoliday, StrategicGoal, NorthStarMetric, OneOnOneSession } from './types';
+import { Project, Employee, QuarterData, Assignment, PlanVersion, Customer, Absence, PublicHoliday, StrategicGoal, NorthStarMetric } from './types';
 import { eachDayOfInterval, format, getDay, isWeekend, getISOWeek } from 'date-fns';
 
 export const PASTEL_VARIANTS = {
@@ -21,49 +21,8 @@ export const PASTEL_HEX: Record<keyof typeof PASTEL_VARIANTS, string> = {
   gray: '#616161',
 };
 
-// MOCK 1:1 SESSIONS
-export const MOCK_1ON1S: OneOnOneSession[] = [
-    {
-        id: '1o1_1',
-        employeeId: 'e2',
-        date: '2026-02-01T10:00:00Z',
-        status: 'completed',
-        sentiment: 'great',
-        notes: 'Max is happy with the backend progress. Wants to look into Go for the new microservice.',
-        commitments: ['Provide Go learning resources', 'Schedule architecture review'],
-        agenda: ['Project Status', 'Tech Stack Discussion', 'Feedback']
-    },
-    {
-        id: '1o1_2',
-        employeeId: 'e2',
-        date: '2026-03-01T10:00:00Z',
-        status: 'scheduled',
-        sentiment: 'okay',
-        notes: '',
-        commitments: [], // Will be populated from previous
-        agenda: []
-    },
-    {
-        id: '1o1_3',
-        employeeId: 'e3',
-        date: '2026-02-15T14:00:00Z',
-        status: 'completed',
-        sentiment: 'stressful',
-        notes: 'Dana feels overwhelmed by the design changes requests from the client. Needs a shield.',
-        commitments: ['Talk to client about scope creep', 'Reduce sprint load'],
-        agenda: ['Workload', 'Client Communication']
-    },
-    {
-        id: '1o1_4',
-        employeeId: 'e3',
-        date: '2026-03-15T14:00:00Z',
-        status: 'scheduled',
-        sentiment: 'unknown',
-        notes: '',
-        commitments: [],
-        agenda: []
-    }
-];
+// MOCK 1:1 sessions and the company directory live in `./mocks` (demo/
+// fallback data, not backed by an API yet) - do not re-add them here.
 
 // MOCK NORTH STAR METRICS
 export const MOCK_NORTH_STARS: NorthStarMetric[] = [
@@ -248,46 +207,6 @@ export const MOCK_EMPLOYEES: Employee[] = [
     ],
     ikigaiItems: []
   },
-];
-
-// Pool of employees for Smart Suggestions (simulated external directory)
-export const MOCK_COMPANY_DIRECTORY: Employee[] = [
-    {
-        id: 'ext1',
-        name: 'Sarah Data',
-        role: 'Data Scientist',
-        avatar: 'https://ui-avatars.com/api/?name=Sarah+Data&background=1e293b&color=fff',
-        skills: ['Python', 'AI/ML', 'Data Lake', 'SQL'],
-        availability: 100,
-        email: 'sarah.data@ibs.com',
-        location: 'DE',
-        type: 'external',
-        department: 'Data & Analytics'
-    },
-    {
-        id: 'ext2',
-        name: 'James Cloud',
-        role: 'Cloud Architect',
-        avatar: 'https://ui-avatars.com/api/?name=James+Cloud&background=3b82f6&color=fff',
-        skills: ['AWS', 'Azure', 'Terraform', 'Security'],
-        availability: 50,
-        email: 'james.cloud@ibs.com',
-        location: 'UK',
-        type: 'external',
-        department: 'Infrastructure'
-    },
-    {
-        id: 'ext3',
-        name: 'Elena Design',
-        role: 'Product Designer',
-        avatar: 'https://ui-avatars.com/api/?name=Elena+Design&background=ec4899&color=fff',
-        skills: ['Figma', 'Prototyping', 'UX Research'],
-        availability: 20,
-        email: 'elena@ibs.com',
-        location: 'DE',
-        type: 'external',
-        department: 'Product'
-    }
 ];
 
 // Helper to find projects
@@ -491,7 +410,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
   {
     id: 'v1',
     name: 'Initial Q1 2026 Plan',
-    createdAt: '2025-12-15T10:00:00Z',
+    createdAt: 1765792800000, // 2025-12-15T10:00:00Z
     assignments: ASSIGNMENTS_Q1_2026_INITIAL,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q1_2026_INITIAL
@@ -499,7 +418,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
   {
     id: 'v2',
     name: 'Adjusted Q1 2026 Plan after QFC Call',
-    createdAt: '2026-01-20T14:30:00Z',
+    createdAt: 1768919400000, // 2026-01-20T14:30:00Z
     assignments: ASSIGNMENTS_Q1_2026_ADJUSTED,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q1_2026_ADJUSTED
@@ -507,7 +426,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
   {
     id: 'v3',
     name: 'Draft Q2 2026 Plan',
-    createdAt: '2026-02-28T09:15:00Z',
+    createdAt: 1772270100000, // 2026-02-28T09:15:00Z
     assignments: ASSIGNMENTS_Q2_2026,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q2_2026
@@ -515,7 +434,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
   {
     id: 'v4',
     name: 'Current Q2 2026 Plan (Reduced March Load)',
-    createdAt: '2026-03-03T09:00:00Z',
+    createdAt: 1772528400000, // 2026-03-03T09:00:00Z
     assignments: ASSIGNMENTS_Q2_2026_CURRENT,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q2_2026

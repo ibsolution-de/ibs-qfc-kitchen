@@ -30,6 +30,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [devRoleOverride, setDevRoleOverride] = useState<UserRole[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The proxy session is gone (an RPC failed UNAUTHENTICATED); the app
+  // shows a dedicated screen with Retry/Reload instead of a broken UI.
+  const [sessionExpired, setSessionExpired] = useState(false);
+  // Bump to re-run the session fetch (Retry button on both error screens).
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,15 +47,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           throw new Error('GetSession: server returned no user');
         }
         setUser(userFromProto(response.user));
+        setError(null);
+        setSessionExpired(false);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        // If the failure was UNAUTHENTICATED, the transport interceptor
+        // also fires `qfc:unauthenticated`; the listener below then swaps
+        // this generic error for the session-expired screen.
         setError(err instanceof Error ? err.message : String(err));
       });
 
     return () => {
       cancelled = true;
     };
+  }, [retryNonce]);
+
+  // Central session-expiry signal: the transport interceptor fires this on
+  // any UNAUTHENTICATED RPC, so expiry surfacing mid-session (not just at
+  // boot) lands here too. Dropping the user unmounts the app behind the
+  // session-expired screen.
+  useEffect(() => {
+    const onUnauthenticated = () => {
+      setUser(null);
+      setError(null);
+      setSessionExpired(true);
+    };
+    window.addEventListener('qfc:unauthenticated', onUnauthenticated);
+    return () => window.removeEventListener('qfc:unauthenticated', onUnauthenticated);
+  }, []);
+
+  const retrySession = useCallback(() => {
+    setError(null);
+    setSessionExpired(false);
+    setRetryNonce(nonce => nonce + 1);
   }, []);
 
   // Dev-only role switch: identity/roles come from the server (proxy
@@ -81,10 +111,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [devRoleOverride, user]
   );
 
+  if (sessionExpired) {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-charcoal-50 text-charcoal-600 gap-3">
+        <span className="text-sm font-medium">{t('common.sessionExpired')}</span>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={retrySession}
+            className="rounded-md bg-charcoal-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-charcoal-700"
+          >
+            {t('common.retry')}
+          </button>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-md border border-charcoal-300 px-3 py-1.5 text-sm font-medium hover:bg-charcoal-100"
+          >
+            {t('common.reload')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-charcoal-50 text-charcoal-600 gap-2">
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-charcoal-50 text-charcoal-600 gap-3">
         <span className="text-sm font-medium">{t('common.loadError')}</span>
+        <button
+          type="button"
+          onClick={retrySession}
+          className="rounded-md bg-charcoal-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-charcoal-700"
+        >
+          {t('common.retry')}
+        </button>
       </div>
     );
   }

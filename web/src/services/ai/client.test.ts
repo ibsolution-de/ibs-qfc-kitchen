@@ -27,13 +27,9 @@ function createLocalStorageStub() {
 
 const stub = createLocalStorageStub();
 
-const originalEnv = { ...process.env };
-
 beforeEach(() => {
   vi.stubGlobal('localStorage', stub);
   stub.clear();
-  process.env = { ...originalEnv };
-  delete process.env.API_KEY;
 });
 
 describe('AI client', () => {
@@ -66,25 +62,21 @@ describe('AI client', () => {
     expect(client).toBeDefined();
   });
 
-  it('prefers explicit parameter over localStorage and env', () => {
+  it('prefers explicit parameter over localStorage', () => {
     stub.setItem('gemini_api_key', 'ls-test-key');
-    process.env.API_KEY = 'env-test-key';
 
     const client = createClient('explicit-test-key');
     expect(client).toBeDefined();
   });
 
-  it('prefers localStorage over process.env.API_KEY', () => {
-    stub.setItem('gemini_api_key', 'ls-test-key');
+  it('has no env fallback — a build-time key would ship in the public bundle', () => {
+    // Even if the environment provides a key, resolveApiKey must ignore it;
+    // the only sources are the explicit parameter and localStorage.
     process.env.API_KEY = 'env-test-key';
-
-    const client = createClient();
-    expect(client).toBeDefined();
-  });
-
-  it('falls back to process.env.API_KEY when localStorage is empty', () => {
-    process.env.API_KEY = 'env-test-key';
-    const client = createClient();
-    expect(client).toBeDefined();
+    try {
+      expect(() => createClient()).toThrow(AiNotConfiguredError);
+    } finally {
+      delete process.env.API_KEY;
+    }
   });
 });

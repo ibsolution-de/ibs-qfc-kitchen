@@ -15,3 +15,8 @@ pub mod proto;
 pub mod seed;
 pub mod services;
 pub mod store;
+
+// Crate-private: shared wall-clock helper (`now_millis`), an
+// implementation detail of the modules above, not part of the API the
+// integration tests exercise.
+pub(crate) mod time;

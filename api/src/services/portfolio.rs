@@ -46,7 +46,11 @@ impl ProjectService for ProjectServiceImpl {
         request: ServiceRequest<'_, UpsertProjectRequest>,
     ) -> ServiceResult<UpsertProjectResponse> {
         let current = auth::require(&ctx)?;
-        let entity = request.to_owned_message().project.into_option().unwrap_or_default();
+        let entity = request
+            .to_owned_message()
+            .project
+            .into_option()
+            .unwrap_or_default();
         let spec = crud::EntitySpec {
             table: Table::Project,
             kind: EntityKind::Project,
@@ -86,7 +90,9 @@ impl ProjectService for ProjectServiceImpl {
 
 fn validate_project(project: &Project) -> AppResult<()> {
     if project.name.trim().is_empty() {
-        return Err(AppError::InvalidArgument("project.name must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "project.name must not be empty".to_string(),
+        ));
     }
     Ok(())
 }

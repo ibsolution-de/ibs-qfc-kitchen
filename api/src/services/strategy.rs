@@ -51,7 +51,11 @@ impl StrategyService for StrategyServiceImpl {
         request: ServiceRequest<'_, UpsertGoalRequest>,
     ) -> ServiceResult<UpsertGoalResponse> {
         let current = auth::require(&ctx)?;
-        let entity = request.to_owned_message().goal.into_option().unwrap_or_default();
+        let entity = request
+            .to_owned_message()
+            .goal
+            .into_option()
+            .unwrap_or_default();
         let spec = crud::EntitySpec {
             table: Table::StrategicGoal,
             kind: EntityKind::StrategicGoal,
@@ -106,7 +110,11 @@ impl StrategyService for StrategyServiceImpl {
         request: ServiceRequest<'_, UpsertNorthStarMetricRequest>,
     ) -> ServiceResult<UpsertNorthStarMetricResponse> {
         let current = auth::require(&ctx)?;
-        let entity = request.to_owned_message().metric.into_option().unwrap_or_default();
+        let entity = request
+            .to_owned_message()
+            .metric
+            .into_option()
+            .unwrap_or_default();
         let spec = crud::EntitySpec {
             table: Table::NorthStar,
             kind: EntityKind::NorthStarMetric,
@@ -148,7 +156,9 @@ impl StrategyService for StrategyServiceImpl {
 /// display string, so that's what's validated non-empty here.
 fn validate_goal(goal: &StrategicGoal) -> AppResult<()> {
     if goal.title.trim().is_empty() {
-        return Err(AppError::InvalidArgument("goal.title must not be empty".to_string()));
+        return Err(AppError::InvalidArgument(
+            "goal.title must not be empty".to_string(),
+        ));
     }
     Ok(())
 }

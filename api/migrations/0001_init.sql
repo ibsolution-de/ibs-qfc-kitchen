@@ -63,12 +63,13 @@ CREATE TABLE one_on_one (
 CREATE INDEX idx_one_on_one_employee_id ON one_on_one (employee_id);
 
 -- A named, versioned planning scenario. Assignments, absences, and
--- quarter_data all hang off a plan_version.
+-- quarter_data all hang off a plan_version. `created_at`/`updated_at` are
+-- epoch-millis INTEGERs, matching `PlanVersionMeta.created_at_millis`.
 CREATE TABLE plan_version (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    created_at TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
 

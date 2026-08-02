@@ -49,7 +49,7 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
   const myProjects = projects.filter(p => myProjectsIds.includes(p.id));
 
   // Find next upcoming 1:1
-  const my1on1s = oneOnOnes.filter(s => s.employeeId === displayId && s.status === 'scheduled').sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const my1on1s = oneOnOnes.filter(s => s.employeeId === displayId && s.status === 'scheduled').sort((a,b) => a.date - b.date);
   const nextSession = my1on1s.length > 0 ? my1on1s[0] : null;
 
   // Current Week Calendar
