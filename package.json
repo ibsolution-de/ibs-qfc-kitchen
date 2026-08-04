@@ -1,7 +1,7 @@
 {
   "name": "ibs-qfc-kitchen",
   "private": true,
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "pnpm@11.20.0",
   "scripts": {
     "dev": "pnpm -C web dev",
     "build": "pnpm -C web build",
