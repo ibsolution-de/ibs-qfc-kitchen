@@ -5,3 +5,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingressroute.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - api-pvc.yaml
+  - api-backup-cronjob.yaml

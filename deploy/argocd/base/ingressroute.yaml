@@ -8,13 +8,22 @@ spec:
   entryPoints:
     - websecure
   routes:
-    #- kind: Rule
-    #  match: Host(`qfc-kitchen.dev.apps.ibsolution.cloud`) && PathPrefix(`/api`)
-    #  services:
-    #    - name: ibs-qfc-kitchen
-    #      port: 8080
+    - kind: Rule
+      match: Host(`qfc-kitchen.dev.apps.ibsolution.cloud`) && PathPrefix(`/api`)
+      priority: 20
+      # Same OIDC gate as the SPA route: the API has no auth of its own and
+      # trusts the X-Auth-Request-* headers this middleware injects.
+      middlewares:
+        - name: oauth2-errors
+          namespace: ibs-id
+        - name: oauth2-auth
+          namespace: ibs-id
+      services:
+        - name: ibs-qfc-kitchen-api
+          port: 8080
     - kind: Rule
       match: Host(`qfc-kitchen.dev.apps.ibsolution.cloud`)
+      priority: 10
       middlewares:
         - name: oauth2-errors
           namespace: ibs-id

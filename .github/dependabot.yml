@@ -1,0 +1,29 @@
+# Weekly dependency updates. Docker entries also bump the pinned base-image
+# digests in the Dockerfiles (tag@sha256:...) so the pins stay fresh.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /deploy/images/api
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /deploy/images/web
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: cargo
+    directory: /api
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # pnpm workspaces are covered by the npm ecosystem.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly

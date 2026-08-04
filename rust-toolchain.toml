@@ -1,0 +1,9 @@
+# Pinned Rust toolchain for local development and CI (.github/workflows/ci.yml,
+# `rust` job). api/Cargo.toml uses edition = "2024", which requires
+# rustc >= 1.85 — "stable" tracks the current stable channel and always
+# satisfies that. rustfmt/clippy are declared here so `cargo fmt` /
+# `cargo clippy` work out of the box; dtolnay/rust-toolchain in CI installs
+# the same components explicitly.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

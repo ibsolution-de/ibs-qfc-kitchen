@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ibs-qfc-kitchen-api
+  labels:
+    app.kubernetes.io/part-of: ibs-qfc-kitchen
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ibs-qfc-kitchen-api
+  ports:
+    - { name: http, port: 8080, targetPort: http }

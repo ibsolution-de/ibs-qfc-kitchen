@@ -1,0 +1,15 @@
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+  # Watch returns `stream ChangeEvent`: a streaming RPC's contract is the
+  # stream item, not a response wrapper, so the STANDARD naming rule does
+  # not apply to it. Scoped to the events package only.
+  ignore_only:
+    RPC_RESPONSE_STANDARD_NAME:
+      - qfc/events/v1/events.proto
+breaking:
+  use:
+    - FILE

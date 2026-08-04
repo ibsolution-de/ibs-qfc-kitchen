@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package qfc.team.v1;
+
+enum EmploymentType {
+  EMPLOYMENT_TYPE_UNSPECIFIED = 0;
+  EMPLOYMENT_TYPE_INTERNAL = 1;
+  EMPLOYMENT_TYPE_EXTERNAL = 2;
+  EMPLOYMENT_TYPE_FUTURE = 3;
+}
+
+enum IkigaiZone {
+  IKIGAI_ZONE_UNSPECIFIED = 0;
+  IKIGAI_ZONE_LOVE = 1;
+  IKIGAI_ZONE_GOOD = 2;
+  IKIGAI_ZONE_PAID = 3;
+  IKIGAI_ZONE_NEEDED = 4;
+  IKIGAI_ZONE_IKIGAI = 5;
+  IKIGAI_ZONE_BURNOUT = 6;
+  IKIGAI_ZONE_BOREOUT = 7;
+}
+
+message Competency {
+  string skill = 1;
+  // 0-5
+  int32 self_rating = 2;
+  // 0-5
+  int32 manager_rating = 3;
+}
+
+message IkigaiItem {
+  string id = 1;
+  string text = 2;
+  IkigaiZone zone = 3;
+}
+
+message Employee {
+  string id = 1;
+  string name = 2;
+  string role = 3;
+  string avatar = 4;
+  repeated string skills = 5;
+  // 0-100%
+  int32 availability = 6;
+  optional string email = 7;
+  optional string phone = 8;
+  optional string notes = 9;
+  // e.g. 'DE', 'US', 'UK'
+  string location = 10;
+  // For grouping
+  optional string team_id = 11;
+  EmploymentType employment_type = 12;
+  optional string department = 13;
+  repeated Competency competencies = 14;
+  repeated IkigaiItem ikigai_items = 15;
+}
+
+message ListEmployeesRequest {}
+
+message ListEmployeesResponse {
+  repeated Employee employees = 1;
+}
+
+message UpsertEmployeeRequest {
+  Employee employee = 1;
+}
+
+message UpsertEmployeeResponse {
+  Employee employee = 1;
+}
+
+message DeleteEmployeeRequest {
+  string id = 1;
+}
+
+message DeleteEmployeeResponse {}
+
+service TeamService {
+  rpc ListEmployees(ListEmployeesRequest) returns (ListEmployeesResponse);
+  rpc UpsertEmployee(UpsertEmployeeRequest) returns (UpsertEmployeeResponse);
+  rpc DeleteEmployee(DeleteEmployeeRequest) returns (DeleteEmployeeResponse);
+}

@@ -58,7 +58,6 @@ jobs:
           registry: ${{ vars.DOCKER_REGISTRY_URI }}
           username: ${{ vars.DOCKER_REGISTRY_USER }}
           password: ${{ secrets.DOCKER_REGISTRY_KEY }}
-          cache-key-prefix: docker-${{ inputs.services }}-${{ matrix.arch }}
           checkout: "false"
 
       - name: Checkout source repo
@@ -92,7 +91,6 @@ jobs:
         if: ${{ inputs.pre-build-services != '' }}
         env:
           BUILDKIT_PROGRESS: plain
-          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
         working-directory: ./${{ inputs.working-directory }}
         run: |
           for svc in ${{ inputs.pre-build-services }}; do
@@ -105,17 +103,39 @@ jobs:
       # auf Dateien außerhalb des working-directory zugreifen) eine fs.read-Erlaubnis.
       # --allow=fs.read="$GITHUB_WORKSPACE" deckt beide Fälle ab: für nodejs (Context .)
       # ist es wirkungslos, aber unschädlich; ein einziges Flag vereinfacht den Helper.
+      # Attestierungen sind jetzt explizit statt unterdrückt: provenance + SBOM
+      # werden nur auf dem Registry-Pfad gesetzt — der docker-Exporter (--load,
+      # dry runs) kann keine Attestierungen speichern und würde fehlschlagen.
       - name: Build images
         env:
           BUILDKIT_PROGRESS: plain
-          BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
         working-directory: ./${{ inputs.working-directory }}
         run: |
           docker buildx bake --allow=fs.read="$GITHUB_WORKSPACE" \
             --file compose.yaml --file compose-cache.json \
             --set "*.platform=${{ matrix.platform }}" \
-            ${{ inputs.dry && '--load' || '--set "*.output=type=registry,oci-mediatypes=true"' }} \
+            ${{ inputs.dry && '--load' || '--set "*.output=type=registry,oci-mediatypes=true" --set "*.attest=type=provenance,mode=max" --set "*.attest=type=sbom"' }} \
             ${{ inputs.services }}
+
+      # Das Arch-spezifische Image-Ref, das bake gerade gebaut (dry) bzw.
+      # gepusht hat — gleiche Ableitung wie in compose.yaml.
+      - name: Compute built image ref
+        run: |
+          echo "BUILT_IMAGE_REF=${REGISTRY}/${REG_REPO}/${IMAGE}:${TAG}${RELEASE:+-r${RELEASE}}${ARCH_SUFFIX}" >> "$GITHUB_ENV"
+
+      # Vulnerability-Gate NACH dem Build, VOR dem Multi-Arch-Manifest (Job
+      # `manifest` unten, needs: build): ein Fund mit CRITICAL/HIGH lässt den
+      # Lauf scheitern, bevor das Arch-Image ins konsumierbare Manifest
+      # gemergt wird. Scan vor dem Push wäre nur mit separatem --load-Build +
+      # Re-Push möglich und würde den Bake-Cache doppelt durchlaufen — deshalb
+      # Gate danach.
+      - name: Scan image (trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BUILT_IMAGE_REF }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
 
   manifest:
     runs-on: ubuntu-24.04

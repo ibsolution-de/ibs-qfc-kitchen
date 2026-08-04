@@ -1,0 +1,52 @@
+[package]
+name = "qfc-api"
+version = "1.4.0"
+edition = "2024"
+
+[lints.rust]
+# Every service impl in src/services/ refines the generated trait's return
+# type (async fn desugars to a broader capture set than the trait's
+# `use<'a, Self>`), so this fires once per RPC method — it's the generated
+# connectrpc pattern, not sloppy code. Crate-wide allow with this note beats
+# 30+ scattered #[allow] attributes.
+refining_impl_trait = "allow"
+
+[profile.release]
+# Smaller, faster binary for the slim runtime image — the 256Mi memory limit
+# in deploy/argocd/base/api-deployment.yaml makes binary size worth the
+# longer compile times in CI.
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[dependencies]
+connectrpc = { version = "0.8.1", features = ["axum", "server"] }
+buffa = { version = "0.8.1", features = ["json"] }
+# The generated `serde::{Serialize, Deserialize}` impls (from buffa's "json"
+# feature, via connectrpc-build's default `generate_json(true)`) are `include!`d
+# directly into this crate, so they resolve `::serde::...` against qfc-api's
+# own extern prelude — buffa's own (optional, re-export-less) serde dependency
+# does not cover that. Required for the build to succeed with `features = ["json"]`.
+serde = "1"
+# Plain `serde_json`, for `seed.rs`'s own `seed/seed.json` -> `SeedData`
+# parse. buffa's "json" feature (above) already pulls in `serde_json` for
+# its own per-message `to`/`from` JSON helpers, but that copy is buffa's
+# private dependency, not re-exported for downstream use, so this crate
+# needs its own.
+serde_json = "1"
+axum = { version = "0.8.9", features = ["tokio", "http1"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1.19", features = ["sync"] }
+futures = "0.3.33"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
+tower = "0.5.3"
+tower-http = { version = "0.7.0", features = ["trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+thiserror = "2.0.19"
+uuid = { version = "1.24.0", features = ["v4"] }
+http = "1"
+bytes = "1.12.1"
+
+[build-dependencies]
+connectrpc-build = "0.8.0"
