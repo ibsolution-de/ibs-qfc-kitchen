@@ -219,6 +219,19 @@ export const translations = {
       title: 'CHANGELOG.SYS',
       systemOnline: 'SYSTEM ONLINE',
       id: 'ID: QFC-KITCHEN-CORE',
+      v140: {
+        title: 'BACKEND & MULTI-USER',
+        serverStorage: 'Shared Server Storage',
+        serverStorageDesc: 'Plans, teams, customers and forecasts now live in a server database instead of a single browser — everyone works on the same data.',
+        liveUpdates: 'Live Updates',
+        liveUpdatesDesc: 'Changes made by others show up without a reload; the app subscribes to a server-push event stream.',
+        signIn: 'Real Sign-In Identity',
+        signInDesc: 'Your account and roles come from the company sign-in instead of a hardcoded demo user.',
+        multiRole: 'Multiple Roles per User',
+        multiRoleDesc: 'One user can hold employee, PM, BL, sales and admin at once; the landing page follows the highest role.',
+        adminArea: 'Admin Area',
+        adminAreaDesc: 'Admins manage users and roles, application defaults, and watch live system status under Administration.'
+      },
       v132: {
         title: 'DEPLOYMENT & INFRASTRUCTURE',
         containerized: 'Containerized Delivery',
@@ -849,6 +862,19 @@ export const translations = {
       title: 'CHANGELOG.SYS',
       systemOnline: 'SYSTEM ONLINE',
       id: 'ID: QFC-KITCHEN-CORE',
+      v140: {
+        title: 'BACKEND & MEHRBENUTZER',
+        serverStorage: 'Gemeinsame Server-Speicherung',
+        serverStorageDesc: 'Pläne, Teams, Kunden und Forecasts liegen jetzt in einer Server-Datenbank statt in einem einzelnen Browser — alle arbeiten auf denselben Daten.',
+        liveUpdates: 'Live-Aktualisierung',
+        liveUpdatesDesc: 'Änderungen anderer erscheinen ohne Neuladen; die App abonniert einen Server-Push-Eventstream.',
+        signIn: 'Echte Anmelde-Identität',
+        signInDesc: 'Dein Konto und deine Rollen kommen aus der Firmenanmeldung statt von einem fest verdrahteten Demo-Benutzer.',
+        multiRole: 'Mehrere Rollen pro Benutzer',
+        multiRoleDesc: 'Ein Benutzer kann Mitarbeiter, PM, BL, Sales und Admin gleichzeitig haben; die Startseite folgt der höchsten Rolle.',
+        adminArea: 'Administrationsbereich',
+        adminAreaDesc: 'Admins verwalten Benutzer und Rollen, Anwendungs-Standards und sehen den Live-Systemstatus unter Administration.'
+      },
       v132: {
         title: 'DEPLOYMENT & INFRASTRUKTUR',
         containerized: 'Containerisierte Auslieferung',

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket, Check, X as XIcon } from 'lucide-react';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket, Server, Check, X as XIcon } from 'lucide-react';
 import { PlanVersion, Employee, Project } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -639,16 +639,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Terminal Content */}
             <div className="relative z-10 p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                {/* v1.3.2 Deployment Block */}
+                {/* v1.4.0 Backend Block */}
                 <div className="space-y-3 animate-fade-in-up">
                     <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 border-b border-emerald-100 pb-1 mb-2">
+                        <Server className="w-4 h-4" />
+                        <span>{t('changelog.v140.title')} — v{__APP_VERSION__}</span>
+                    </div>
+                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
+                        {(['serverStorage', 'liveUpdates', 'signIn', 'multiRole', 'adminArea'] as const).map(item => (
+                            <li key={item} className="flex gap-3 items-start group">
+                                <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
+                                <div>
+                                    <strong className="text-charcoal-900 block mb-0.5">{t(`changelog.v140.${item}`)}</strong>
+                                    {t(`changelog.v140.${item}Desc`)}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* v1.3.2 Deployment Block */}
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+                    <div className="flex items-center gap-2 text-sm font-bold text-violet-700 border-b border-violet-100 pb-1 mb-2">
                         <Rocket className="w-4 h-4" />
-                        <span>{t('changelog.v132.title')} — v{__APP_VERSION__}</span>
+                        <span>{t('changelog.v132.title')} — v1.3.2</span>
                     </div>
                     <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
                         {(['containerized', 'hardened', 'gitops'] as const).map(item => (
                             <li key={item} className="flex gap-3 items-start group">
-                                <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
+                                <span className="text-violet-600 mt-0.5 group-hover:text-violet-500 transition-colors">➜</span>
                                 <div>
                                     <strong className="text-charcoal-900 block mb-0.5">{t(`changelog.v132.${item}`)}</strong>
                                     {t(`changelog.v132.${item}Desc`)}
@@ -659,7 +678,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {/* v1.3.1 Stability Block */}
-                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                     <div className="flex items-center gap-2 text-sm font-bold text-blue-700 border-b border-blue-100 pb-1 mb-2">
                         <ShieldCheck className="w-4 h-4" />
                         <span>{t('changelog.v131.title')} — v1.3.1</span>
@@ -678,7 +697,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
 
                 {/* Sales Feature Block */}
-                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
                     <div className="flex items-center gap-2 text-sm font-bold text-orange-700 border-b border-orange-100 pb-1 mb-2">
                         <Target className="w-4 h-4" />
                         <span>{t('changelog.salesModuleActivated')}</span>
