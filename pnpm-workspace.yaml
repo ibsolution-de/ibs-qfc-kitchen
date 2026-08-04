@@ -4,9 +4,15 @@ allowBuilds:
   esbuild: true
   '@google/genai': true
   protobufjs: true
+  # Same pattern as esbuild: the postinstall swaps the JS shim in ./bin for the
+  # native binary of the matching @bufbuild/buf-<platform> package. Without an
+  # entry here pnpm 11 aborts the install with ERR_PNPM_IGNORED_BUILDS on any
+  # fresh node_modules — which is every CI runner and every image build.
+  '@bufbuild/buf': true
 minimumReleaseAgeExclude:
   - lucide-react@1.25.0
   - '@google/genai@2.14.0'
   - jsdom@30.0.1
   - react-router-dom@7.18.2
   - react-router@7.18.2
+  - '@testing-library/user-event@14.6.3'
