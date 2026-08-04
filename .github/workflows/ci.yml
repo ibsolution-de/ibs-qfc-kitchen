@@ -50,12 +50,28 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin main:main
-            echo "BUF_AGAINST=.git#branch=main,subdir=proto" >> "$GITHUB_ENV"
+            base_ref=main
+            against=".git#branch=main,subdir=proto"
           else
-            echo "BUF_AGAINST=.git#commit=$(git rev-parse HEAD~1),subdir=proto" >> "$GITHUB_ENV"
+            base_ref="$(git rev-parse HEAD~1)"
+            against=".git#commit=${base_ref},subdir=proto"
+          fi
+
+          # proto/ does not exist on main at all until the first PR that
+          # introduces it gets merged — before that, buf breaking has no
+          # proto/buf.yaml to resolve on the base ref and fails outright.
+          # Skip the gate in that case; the merge that adds proto/ re-arms it
+          # for every PR after that.
+          if git cat-file -e "${base_ref}:proto/buf.yaml" 2>/dev/null; then
+            echo "BUF_AGAINST=${against}" >> "$GITHUB_ENV"
+          else
+            echo "BUF_AGAINST=" >> "$GITHUB_ENV"
           fi
 
       - name: Check protobuf breaking changes
+        # Skipped until proto/ exists on the base branch (see comment above) —
+        # the first merge that adds it re-arms this check for all following PRs.
+        if: env.BUF_AGAINST != ''
         run: pnpm -C web exec buf breaking ../proto --against "${BUF_AGAINST}"
 
       - name: Lint
