@@ -80,7 +80,14 @@ describe('ApplicationSetup', () => {
   it('saves normalized values (lowercased emails, blank lines dropped) with the proto role', async () => {
     renderPage();
 
-    fireEvent.change(await screen.findByLabelText(/admin emails/i), {
+    // Gate on the value the load effect writes, not just on the field being
+    // present: the textarea renders as soon as status is "ready", but the
+    // effect that copies the loaded settings into form state can flush after
+    // that. Editing before it does gets silently overwritten - which is
+    // exactly how this test failed on CI while passing locally.
+    await screen.findByDisplayValue('ada@example.com');
+
+    fireEvent.change(screen.getByLabelText(/admin emails/i), {
       target: { value: '  ADA@Example.com\n\ngrace@example.com \n' },
     });
     fireEvent.change(screen.getByLabelText(/default role/i), { target: { value: 'bl' } });
@@ -99,7 +106,11 @@ describe('ApplicationSetup', () => {
   it('blocks saving when an email line is invalid', async () => {
     renderPage();
 
-    fireEvent.change(await screen.findByLabelText(/admin emails/i), {
+    // Same ordering guard as above: without it a late-flushing load effect
+    // restores the valid fixture email and the save would go through.
+    await screen.findByDisplayValue('ada@example.com');
+
+    fireEvent.change(screen.getByLabelText(/admin emails/i), {
       target: { value: 'not-an-email' },
     });
     fireEvent.click(screen.getByRole('button', { name: /save settings/i }));
