@@ -11,6 +11,14 @@ updates:
     directory: /deploy/images/web
     schedule:
       interval: weekly
+    # Node 24 is Active LTS; 26 stays Current until Oct 2026. The docker
+    # ecosystem has no LTS notion and would re-propose the major every week.
+    # Digest and patch refreshes for 24-alpine still come through, as do
+    # nginx-unprivileged bumps — the rule is scoped to node.
+    ignore:
+      - dependency-name: "node"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: cargo
     directory: /api
