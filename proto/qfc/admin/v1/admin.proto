@@ -40,6 +40,85 @@ message DeleteUserRequest {
 
 message DeleteUserResponse {}
 
+// Runtime-editable application settings. Stored in the `meta` key/value
+// table; values not yet overridden there fall back to the startup
+// environment (QFC_DEFAULT_ROLE / QFC_ADMIN_EMAILS), which is what the
+// `environment` field of GetAppSettingsResponse exposes for comparison.
+message AppSettings {
+  // Role assigned the first time a user is seen. Must not be
+  // USER_ROLE_ADMIN (same rule as QFC_DEFAULT_ROLE).
+  qfc.session.v1.UserRole default_role = 1;
+  // Addresses seeded with USER_ROLE_ADMIN on first sighting.
+  repeated string admin_emails = 2;
+}
+
+message GetAppSettingsRequest {}
+
+message GetAppSettingsResponse {
+  // Effective values: DB override when present, startup environment
+  // otherwise.
+  AppSettings effective = 1;
+  // Startup-environment values, so the UI can show what an override shadows.
+  AppSettings environment = 2;
+  bool default_role_overridden = 3;
+  bool admin_emails_overridden = 4;
+}
+
+message UpdateAppSettingsRequest {
+  AppSettings settings = 1;
+}
+
+message UpdateAppSettingsResponse {
+  // Effective values after the update.
+  AppSettings effective = 1;
+}
+
+message EntityCounts {
+  int64 users = 1;
+  int64 employees = 2;
+  int64 customers = 3;
+  int64 projects = 4;
+  int64 plan_versions = 5;
+  int64 assignments = 6;
+  int64 absences = 7;
+  int64 quarter_data = 8;
+  int64 strategic_goals = 9;
+  int64 north_star_metrics = 10;
+  int64 one_on_one_sessions = 11;
+  int64 public_holidays = 12;
+}
+
+message ChangeLogStats {
+  int64 rows = 1;
+  // 0 when the log is empty.
+  int64 oldest_seq = 2;
+  int64 newest_seq = 3;
+  // Configured retention cap (server-side constant).
+  int64 retention_rows = 4;
+}
+
+message SystemStatus {
+  int64 server_started_at_millis = 1;
+  int64 server_time_millis = 2;
+  // CARGO_PKG_VERSION of the running binary.
+  string version = 3;
+  string db_path = 4;
+  // page_count * page_size.
+  int64 db_size_bytes = 5;
+  // QFC_DEV_USER set — must never be true in production.
+  bool dev_user_mode = 6;
+  // Live Watch-stream subscriptions (connected clients).
+  int64 active_watch_subscriptions = 7;
+  EntityCounts entities = 8;
+  ChangeLogStats change_log = 9;
+}
+
+message GetSystemStatusRequest {}
+
+message GetSystemStatusResponse {
+  SystemStatus status = 1;
+}
+
 // Account and role administration. Every RPC requires the caller to hold
 // USER_ROLE_ADMIN; everyone else gets permission_denied. This is the only
 // role-enforced service.
@@ -47,4 +126,9 @@ service AdminService {
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc UpsertUser(UpsertUserRequest) returns (UpsertUserResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  // Application setup: runtime settings with startup-env fallback.
+  rpc GetAppSettings(GetAppSettingsRequest) returns (GetAppSettingsResponse);
+  rpc UpdateAppSettings(UpdateAppSettingsRequest) returns (UpdateAppSettingsResponse);
+  // System monitoring: uptime, storage, entity counts, live watchers.
+  rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse);
 }

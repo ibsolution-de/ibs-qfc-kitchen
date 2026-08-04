@@ -112,6 +112,13 @@ impl Hub {
             let _ = self.tx.send(event);
         }
     }
+
+    /// How many receivers are currently subscribed to the live stream —
+    /// surfaced by `AdminService::GetSystemStatus` as the connected-watch
+    /// client count. Purely observational; nothing here gates on it.
+    pub fn active_subscriptions(&self) -> usize {
+        self.tx.receiver_count()
+    }
 }
 
 impl Default for Hub {
@@ -340,6 +347,13 @@ fn op_from_db(value: i32) -> AppResult<ChangeOp> {
 }
 
 use crate::time::now_millis;
+
+/// The configured retention cap on `change_log` rows, exposed for
+/// `AdminService::GetSystemStatus` so the monitoring surface can show the
+/// window the log is pruned to (see [`prune`]).
+pub(crate) fn retention_rows() -> i64 {
+    RETENTION_ROWS
+}
 
 /// Delete `change_log` rows beyond the most recent [`RETENTION_ROWS`]. Safe
 /// to call concurrently with writers: it only ever removes rows older than

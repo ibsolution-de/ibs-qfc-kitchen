@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use axum::routing::get;
-use qfc_api::{auth, config, db, events, seed, services};
+use qfc_api::{auth, config, db, events, seed, services, time};
 use tracing_subscriber::EnvFilter;
 
 /// Process-wide shared state: every business service is built against this,
@@ -49,6 +49,11 @@ async fn main() {
     // the process — see `events::spawn_pruning_task`.
     events::spawn_pruning_task(pool.clone());
 
+    // Captured once here (not in the service constructor) so the uptime
+    // `GetSystemStatus` reports measures from process start, including
+    // seed/migration time, not from router assembly.
+    let started_at_millis = time::now_millis();
+
     let state = AppState {
         pool,
         hub: events::Hub::new(),
@@ -59,6 +64,14 @@ async fn main() {
         .add_service(Arc::new(services::session::SessionServiceImpl))
         .add_service(Arc::new(services::admin::AdminServiceImpl::new(
             state.pool.clone(),
+            services::admin::AdminServiceConfig {
+                hub: state.hub.clone(),
+                started_at_millis,
+                db_path: state.config.db_path.clone(),
+                dev_user_mode: state.config.dev_user.is_some(),
+                env_default_role: state.config.default_role,
+                env_admin_emails: state.config.admin_emails.clone(),
+            },
         )))
         .add_service(Arc::new(services::events::EventServiceImpl::new(
             state.pool.clone(),

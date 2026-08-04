@@ -14,9 +14,17 @@ use buffa::view::HasMessageView;
 use bytes::Bytes;
 use connectrpc::{ConnectError, ErrorCode, RequestContext, ServiceRequest};
 use qfc_api::auth::{self, CurrentUser};
-use qfc_api::proto::admin::{AdminService, DeleteUserRequest, ListUsersRequest, UpsertUserRequest};
+use qfc_api::events::{self, Hub};
+use qfc_api::proto::admin::{
+    AdminService, AppSettings, DeleteUserRequest, GetAppSettingsRequest, GetAppSettingsResponse,
+    GetSystemStatusRequest, ListUsersRequest, SystemStatus, UpdateAppSettingsRequest,
+    UpdateAppSettingsResponse, UpsertUserRequest,
+};
+use qfc_api::proto::events::{ChangeOp, EntityKind};
 use qfc_api::proto::session::{User, UserRole};
-use qfc_api::services::admin::AdminServiceImpl;
+use qfc_api::proto::team;
+use qfc_api::services::admin::{AdminServiceConfig, AdminServiceImpl};
+use qfc_api::store;
 use sqlx::SqlitePool;
 use tokio::sync::Mutex;
 
@@ -32,6 +40,28 @@ fn ctx_for(email: &str, roles: Vec<UserRole>) -> RequestContext {
         employee_id: None,
     });
     RequestContext::new(http::HeaderMap::new()).with_extensions(extensions)
+}
+
+/// A service over `pool` with an environment-only settings baseline
+/// (employee default, no seed admins, no dev-user mode) and a fixed
+/// `started_at` so uptime assertions stay deterministic — tests that care
+/// about specific environment values build their own `AdminServiceConfig`.
+fn svc(pool: &SqlitePool) -> AdminServiceImpl {
+    svc_with(
+        pool,
+        AdminServiceConfig {
+            hub: Hub::new(),
+            started_at_millis: 1_000,
+            db_path: "test.db".to_string(),
+            dev_user_mode: false,
+            env_default_role: UserRole::Employee,
+            env_admin_emails: vec![],
+        },
+    )
+}
+
+fn svc_with(pool: &SqlitePool, config: AdminServiceConfig) -> AdminServiceImpl {
+    AdminServiceImpl::new(pool.clone(), config)
 }
 
 async fn list_users(
@@ -73,6 +103,89 @@ async fn delete_user(
     let req = ServiceRequest::<DeleteUserRequest>::from_parts(&view, &body);
     svc.delete_user(ctx, req).await?;
     Ok(())
+}
+
+async fn get_app_settings(
+    svc: &AdminServiceImpl,
+    ctx: RequestContext,
+) -> Result<GetAppSettingsResponse, ConnectError> {
+    let body = Bytes::from(GetAppSettingsRequest::default().encode_to_vec());
+    let view = GetAppSettingsRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<GetAppSettingsRequest>::from_parts(&view, &body);
+    let resp = svc.get_app_settings(ctx, req).await?;
+    Ok(resp.body)
+}
+
+async fn update_app_settings(
+    svc: &AdminServiceImpl,
+    ctx: RequestContext,
+    settings: AppSettings,
+) -> Result<UpdateAppSettingsResponse, ConnectError> {
+    let body = Bytes::from(
+        UpdateAppSettingsRequest {
+            settings: settings.into(),
+            ..Default::default()
+        }
+        .encode_to_vec(),
+    );
+    let view = UpdateAppSettingsRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<UpdateAppSettingsRequest>::from_parts(&view, &body);
+    let resp = svc.update_app_settings(ctx, req).await?;
+    Ok(resp.body)
+}
+
+async fn get_system_status(
+    svc: &AdminServiceImpl,
+    ctx: RequestContext,
+) -> Result<SystemStatus, ConnectError> {
+    let body = Bytes::from(GetSystemStatusRequest::default().encode_to_vec());
+    let view = GetSystemStatusRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<GetSystemStatusRequest>::from_parts(&view, &body);
+    let resp = svc.get_system_status(ctx, req).await?;
+    Ok(resp.body.status.into_option().unwrap_or_default())
+}
+
+/// The `(default_role, admin_emails)` of an [`AppSettings`] message as
+/// plain values, for direct assertion.
+fn settings_parts(settings: AppSettings) -> (UserRole, Vec<String>) {
+    (
+        settings
+            .default_role
+            .as_known()
+            .unwrap_or(UserRole::Unspecified),
+        settings.admin_emails,
+    )
+}
+
+async fn meta_value(pool: &SqlitePool, key: &str) -> Option<String> {
+    sqlx::query_scalar("SELECT value FROM meta WHERE key = ?1")
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .expect("read meta value")
+}
+
+/// Commit one `Employee` upsert with its `change_log` entry, the way a
+/// business service would (row + log atomically), so `GetSystemStatus`
+/// tests observe a real mutation rather than a hand-crafted log row.
+async fn write_employee(pool: &SqlitePool, id: &str) {
+    let employee = team::Employee::default();
+    let mut tx = pool.begin().await.expect("begin tx");
+    store::upsert_blob(&mut tx, store::Table::Employee, id, &employee)
+        .await
+        .expect("upsert_blob");
+    events::record(
+        &mut tx,
+        "test@example.com",
+        EntityKind::Employee,
+        ChangeOp::Upsert,
+        id,
+        None,
+        Some(employee.encode_to_vec()),
+    )
+    .await
+    .expect("record change event");
+    tx.commit().await.expect("commit");
 }
 
 async fn user_row_count(pool: &SqlitePool) -> i64 {
@@ -155,7 +268,7 @@ async fn current_user_via_middleware(
 #[tokio::test]
 async fn non_admin_caller_gets_permission_denied_from_every_rpc() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
 
     let err = list_users(&svc, ctx_for("caller@example.com", vec![UserRole::Pm]))
         .await
@@ -184,13 +297,35 @@ async fn non_admin_caller_gets_permission_denied_from_every_rpc() {
     .expect_err("DeleteUser must be denied for a non-admin");
     assert_eq!(err.code, ErrorCode::PermissionDenied);
 
+    let err = get_app_settings(&svc, ctx_for("caller@example.com", vec![UserRole::Pm]))
+        .await
+        .expect_err("GetAppSettings must be denied for a non-admin");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
+
+    let err = update_app_settings(
+        &svc,
+        ctx_for("caller@example.com", vec![UserRole::Pm]),
+        AppSettings {
+            default_role: UserRole::Pm.into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("UpdateAppSettings must be denied for a non-admin");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
+
+    let err = get_system_status(&svc, ctx_for("caller@example.com", vec![UserRole::Pm]))
+        .await
+        .expect_err("GetSystemStatus must be denied for a non-admin");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
+
     db.cleanup(pool).await;
 }
 
 #[tokio::test]
 async fn admin_caller_can_list_upsert_and_delete() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
     let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
 
     let created = upsert_user(
@@ -225,7 +360,7 @@ async fn admin_caller_can_list_upsert_and_delete() {
 #[tokio::test]
 async fn upsert_with_empty_roles_is_invalid_argument_and_writes_nothing() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
     let rows_before = user_row_count(&pool).await;
 
     let err = upsert_user(
@@ -252,7 +387,7 @@ async fn upsert_with_empty_roles_is_invalid_argument_and_writes_nothing() {
 #[tokio::test]
 async fn pre_creation_then_first_login_carries_the_admin_assigned_roles() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
 
     upsert_user(
         &svc,
@@ -285,7 +420,7 @@ async fn pre_creation_then_first_login_carries_the_admin_assigned_roles() {
 #[tokio::test]
 async fn later_login_updates_name_but_leaves_roles_untouched() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
 
     upsert_user(
         &svc,
@@ -322,7 +457,7 @@ async fn later_login_updates_name_but_leaves_roles_untouched() {
 #[tokio::test]
 async fn deleting_the_last_admin_is_refused_but_a_non_admin_can_be_deleted() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
     // The calling operator is authenticated via a synthetic admin context
     // (as every other test here does) and deliberately has no `users` row
     // of its own, so it never interferes with the "last remaining admin"
@@ -371,7 +506,7 @@ async fn deleting_the_last_admin_is_refused_but_a_non_admin_can_be_deleted() {
 #[tokio::test]
 async fn admin_cannot_delete_their_own_account() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
     let admin_ctx = || ctx_for("self@example.com", vec![UserRole::Admin]);
 
     upsert_user(
@@ -397,7 +532,7 @@ async fn admin_cannot_delete_their_own_account() {
 #[tokio::test]
 async fn ensure_admins_is_idempotent_and_does_not_clobber_existing_extra_roles() {
     let (pool, db) = common::temp_pool("admin").await;
-    let svc = AdminServiceImpl::new(pool.clone());
+    let svc = svc(&pool);
 
     upsert_user(
         &svc,
@@ -455,6 +590,354 @@ async fn ensure_admins_creates_a_placeholder_row_for_a_never_seen_email() {
     assert_eq!(
         name, "brand-new-admin@example.com",
         "placeholder name must be the email itself"
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn update_app_settings_persists_and_get_reflects_db_over_env() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc_with(
+        &pool,
+        AdminServiceConfig {
+            hub: Hub::new(),
+            started_at_millis: 1_000,
+            db_path: "test.db".to_string(),
+            dev_user_mode: false,
+            env_default_role: UserRole::Employee,
+            env_admin_emails: vec!["env-admin@example.com".to_string()],
+        },
+    );
+    let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
+
+    // Baseline: nothing stored in `meta`, so the environment is effective
+    // and nothing is flagged as overridden.
+    let baseline = get_app_settings(&svc, admin_ctx())
+        .await
+        .expect("get baseline settings");
+    assert_eq!(
+        settings_parts(baseline.effective.into_option().unwrap_or_default()),
+        (
+            UserRole::Employee,
+            vec!["env-admin@example.com".to_string()]
+        )
+    );
+    assert!(!baseline.default_role_overridden);
+    assert!(!baseline.admin_emails_overridden);
+
+    let updated = update_app_settings(
+        &svc,
+        admin_ctx(),
+        AppSettings {
+            default_role: UserRole::Pm.into(),
+            admin_emails: vec![" Boss@Example.com ".to_string()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("update settings");
+    assert_eq!(
+        settings_parts(updated.effective.into_option().unwrap_or_default()),
+        (UserRole::Pm, vec!["boss@example.com".to_string()]),
+        "the response must show the normalized values now in effect"
+    );
+
+    // Both `meta` keys written (lower-case role name, normalized email
+    // list) — the same keys `auth`'s first-seen path reads.
+    assert_eq!(
+        meta_value(&pool, "settings.default_role").await.as_deref(),
+        Some("pm")
+    );
+    assert_eq!(
+        meta_value(&pool, "settings.admin_emails").await.as_deref(),
+        Some("boss@example.com")
+    );
+
+    let after = get_app_settings(&svc, admin_ctx())
+        .await
+        .expect("get settings after update");
+    assert_eq!(
+        settings_parts(after.effective.into_option().unwrap_or_default()),
+        (UserRole::Pm, vec!["boss@example.com".to_string()])
+    );
+    assert_eq!(
+        settings_parts(after.environment.into_option().unwrap_or_default()),
+        (
+            UserRole::Employee,
+            vec!["env-admin@example.com".to_string()]
+        ),
+        "the environment half must keep showing what the override shadows"
+    );
+    assert!(after.default_role_overridden);
+    assert!(after.admin_emails_overridden);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn update_app_settings_rejects_invalid_values_and_writes_nothing() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc(&pool);
+    let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
+
+    for (label, settings) in [
+        (
+            "admin as default role",
+            AppSettings {
+                default_role: UserRole::Admin.into(),
+                ..Default::default()
+            },
+        ),
+        (
+            "unspecified as default role",
+            AppSettings {
+                default_role: UserRole::Unspecified.into(),
+                ..Default::default()
+            },
+        ),
+        (
+            "admin email without '@'",
+            AppSettings {
+                default_role: UserRole::Pm.into(),
+                admin_emails: vec!["not-an-email".to_string()],
+                ..Default::default()
+            },
+        ),
+    ] {
+        let err = update_app_settings(&svc, admin_ctx(), settings)
+            .await
+            .expect_err(&format!("{label} must be rejected"));
+        assert_eq!(err.code, ErrorCode::InvalidArgument, "{label}");
+    }
+
+    assert_eq!(
+        meta_value(&pool, "settings.default_role").await,
+        None,
+        "rejected updates must not write either key"
+    );
+    assert_eq!(meta_value(&pool, "settings.admin_emails").await, None);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn invalid_db_values_fall_back_to_the_environment_per_key() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc_with(
+        &pool,
+        AdminServiceConfig {
+            hub: Hub::new(),
+            started_at_millis: 1_000,
+            db_path: "test.db".to_string(),
+            dev_user_mode: false,
+            env_default_role: UserRole::Sales,
+            env_admin_emails: vec![],
+        },
+    );
+    let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
+
+    // A hand-edited (or future-version) `meta` row with a role name this
+    // build doesn't recognize: warn + fall back, never fail the read.
+    sqlx::query("INSERT INTO meta (key, value) VALUES ('settings.default_role', 'bogus')")
+        .execute(&pool)
+        .await
+        .expect("hand-insert bogus role");
+    let resp = get_app_settings(&svc, admin_ctx())
+        .await
+        .expect("get settings with bogus db value");
+    let effective = resp.effective.into_option().unwrap_or_default();
+    assert_eq!(
+        effective.default_role.as_known(),
+        Some(UserRole::Sales),
+        "an unrecognized stored role must fall back to the environment"
+    );
+    assert!(!resp.default_role_overridden);
+
+    // `admin` parses fine but is forbidden as a default everywhere — a
+    // hand-inserted one must fall back just the same.
+    sqlx::query("UPDATE meta SET value = 'admin' WHERE key = 'settings.default_role'")
+        .execute(&pool)
+        .await
+        .expect("set admin as stored default role");
+    let resp = get_app_settings(&svc, admin_ctx())
+        .await
+        .expect("get settings with admin db value");
+    assert_eq!(
+        resp.effective
+            .into_option()
+            .unwrap_or_default()
+            .default_role
+            .as_known(),
+        Some(UserRole::Sales)
+    );
+    assert!(!resp.default_role_overridden);
+
+    // Per-key independence: a valid admin-emails override alongside the
+    // invalid default role still takes effect (and is normalized).
+    sqlx::query(
+        "INSERT INTO meta (key, value) VALUES ('settings.admin_emails', ' Db@Admin.com , x@y.z')
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    )
+    .execute(&pool)
+    .await
+    .expect("store admin emails override");
+    let resp = get_app_settings(&svc, admin_ctx())
+        .await
+        .expect("get settings with mixed validity");
+    assert!(resp.admin_emails_overridden);
+    assert_eq!(
+        resp.effective
+            .into_option()
+            .unwrap_or_default()
+            .admin_emails,
+        vec!["db@admin.com".to_string(), "x@y.z".to_string()]
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn get_system_status_reports_plausible_values() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let hub = Hub::new();
+    let svc = svc_with(
+        &pool,
+        AdminServiceConfig {
+            hub: hub.clone(),
+            started_at_millis: 1_000,
+            db_path: "test.db".to_string(),
+            dev_user_mode: true,
+            env_default_role: UserRole::Employee,
+            env_admin_emails: vec![],
+        },
+    );
+    let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
+    // One live Watch subscriber, held for the rest of the test so the
+    // subscriber count below observes exactly one receiver.
+    let _watch = hub.subscribe();
+
+    upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "one@example.com".to_string(),
+            roles: vec![UserRole::Pm.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create user one");
+    upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "two@example.com".to_string(),
+            roles: vec![UserRole::Bl.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create user two");
+
+    let before = get_system_status(&svc, admin_ctx())
+        .await
+        .expect("get system status");
+    assert!(!before.version.is_empty(), "version must be populated");
+    assert!(before.db_size_bytes > 0, "a migrated db occupies pages");
+    assert_eq!(before.server_started_at_millis, 1_000);
+    assert!(
+        before.server_time_millis >= before.server_started_at_millis,
+        "server time must not precede the start time"
+    );
+    assert_eq!(before.db_path, "test.db");
+    assert!(before.dev_user_mode);
+    assert_eq!(before.active_watch_subscriptions, 1);
+
+    let entities = before.entities.into_option().unwrap_or_default();
+    assert_eq!(entities.users, 2);
+    assert_eq!(entities.employees, 0);
+    assert_eq!(entities.customers, 0);
+    assert_eq!(entities.projects, 0);
+    assert_eq!(entities.plan_versions, 0);
+    assert_eq!(entities.assignments, 0);
+    assert_eq!(entities.absences, 0);
+    assert_eq!(entities.quarter_data, 0);
+    assert_eq!(entities.strategic_goals, 0);
+    assert_eq!(entities.north_star_metrics, 0);
+    assert_eq!(entities.one_on_one_sessions, 0);
+    assert_eq!(entities.public_holidays, 0);
+
+    let change_log = before.change_log.into_option().unwrap_or_default();
+    assert_eq!(change_log.rows, 0, "no mutation recorded yet");
+    assert_eq!(change_log.oldest_seq, 0);
+    assert_eq!(change_log.newest_seq, 0);
+    assert_eq!(change_log.retention_rows, 20_000);
+
+    // One real mutation: the entity count and the log grow together.
+    write_employee(&pool, "emp-1").await;
+
+    let after = get_system_status(&svc, admin_ctx())
+        .await
+        .expect("get system status after mutation");
+    assert_eq!(
+        after.entities.into_option().unwrap_or_default().employees,
+        1
+    );
+    let change_log = after.change_log.into_option().unwrap_or_default();
+    assert_eq!(change_log.rows, 1, "the mutation must appear in the log");
+    assert!(change_log.oldest_seq >= 1);
+    assert_eq!(change_log.newest_seq, change_log.oldest_seq);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn first_seen_users_get_the_db_overridden_default_role() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc(&pool);
+
+    // Seen BEFORE the override exists: seeded from the environment
+    // (employee, per `current_user_via_middleware`'s AuthState).
+    let early = current_user_via_middleware(&pool, &[], "early@example.com", "Early Bird").await;
+    assert_eq!(early.roles, vec![UserRole::Employee]);
+
+    update_app_settings(
+        &svc,
+        ctx_for("admin@example.com", vec![UserRole::Admin]),
+        AppSettings {
+            default_role: UserRole::Pm.into(),
+            admin_emails: vec!["seed-admin@example.com".to_string()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("store default-role override");
+
+    // A brand-new login now seeds from the database override, not the
+    // environment; an overridden admin-emails entry seeds admin.
+    let late = current_user_via_middleware(&pool, &[], "late@example.com", "Late Comer").await;
+    assert_eq!(
+        late.roles,
+        vec![UserRole::Pm],
+        "first-seen seeding must honor the settings.default_role override"
+    );
+    let seeded_admin =
+        current_user_via_middleware(&pool, &[], "seed-admin@example.com", "Seed Admin").await;
+    assert_eq!(
+        seeded_admin.roles,
+        vec![UserRole::Admin],
+        "first-seen seeding must honor the settings.admin_emails override"
+    );
+
+    // First-seen-only: the override must not retroactively touch users who
+    // already exist.
+    let early_again =
+        current_user_via_middleware(&pool, &[], "early@example.com", "Early Bird").await;
+    assert_eq!(
+        early_again.roles,
+        vec![UserRole::Employee],
+        "an existing user's roles are admin-managed and never re-seeded"
     );
 
     db.cleanup(pool).await;

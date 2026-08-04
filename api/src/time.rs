@@ -11,7 +11,7 @@
 /// INTEGER` columns. `unwrap_or_default`: a system clock set before 1970
 /// yields 0 rather than panicking a write path that has no meaningful
 /// recovery for "clock is broken" anyway.
-pub(crate) fn now_millis() -> i64 {
+pub fn now_millis() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

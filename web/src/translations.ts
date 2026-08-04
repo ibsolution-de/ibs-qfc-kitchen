@@ -399,7 +399,57 @@ export const translations = {
       errorInvalidRoles: 'This user needs at least one role.',
       errorDeleteGuard: 'Cannot delete the last admin or your own account.',
       errorUserNotFound: 'This user no longer exists.',
-      errorPermissionDenied: 'You do not have permission to manage users.'
+      errorPermissionDenied: 'You do not have permission to manage users.',
+      tabs: {
+        users: 'Users & Roles',
+        setup: 'Application Setup',
+        monitoring: 'System & KPIs'
+      },
+      setup: {
+        title: 'Application Setup',
+        subtitle: 'Runtime-editable application settings',
+        defaultRoleLabel: 'Default Role',
+        adminEmailsLabel: 'Admin Emails',
+        adminEmailsPlaceholder: 'name@company.com',
+        environmentLabel: 'Environment',
+        environmentEmpty: 'none configured',
+        overrideBadge: 'DB Override',
+        firstSeenHint: 'Changes only affect users the server sees for the first time afterwards. Existing accounts keep their current roles.',
+        save: 'Save Settings',
+        saving: 'Saving…',
+        validationInvalidEmail: 'Every line must be a valid email address.',
+        errorInvalidSettings: 'The server rejected these settings. Please check the values.'
+      },
+      monitoring: {
+        title: 'System & KPIs',
+        subtitle: 'Server status and database metrics',
+        uptime: 'Uptime',
+        version: 'Version',
+        dbSize: 'Database Size',
+        liveClients: 'Live Clients',
+        devModeWarning: 'Dev-user mode is active (QFC_DEV_USER) - never enable this in production.',
+        entitiesTitle: 'Entities',
+        entities: {
+          users: 'Users',
+          employees: 'Employees',
+          customers: 'Customers',
+          projects: 'Projects',
+          planVersions: 'Plan Versions',
+          assignments: 'Assignments',
+          absences: 'Absences',
+          quarterData: 'Forecast Quarters',
+          strategicGoals: 'Strategic Goals',
+          northStarMetrics: 'North Star Metrics',
+          oneOnOneSessions: '1:1 Sessions',
+          publicHolidays: 'Public Holidays'
+        },
+        changeLogTitle: 'Change Log',
+        changeLogRows: 'Rows',
+        changeLogSeqRange: 'Sequence Range',
+        changeLogRetention: 'Retention Cap',
+        lastUpdated: 'Last updated',
+        autoRefresh: 'Auto-refresh'
+      }
     },
     development: {
       title: 'Positioning & Development',
@@ -577,7 +627,8 @@ export const translations = {
       versionCreated: 'New version created successfully.',
       csvExported: 'CSV exported successfully.',
       userSaved: 'User saved successfully.',
-      userDeleted: 'User deleted successfully.'
+      userDeleted: 'User deleted successfully.',
+      settingsSaved: 'Settings saved successfully.'
     }
   },
   de: {
@@ -978,7 +1029,57 @@ export const translations = {
       errorInvalidRoles: 'Dieser Benutzer benötigt mindestens eine Rolle.',
       errorDeleteGuard: 'Der letzte Administrator oder das eigene Konto kann nicht gelöscht werden.',
       errorUserNotFound: 'Dieser Benutzer existiert nicht mehr.',
-      errorPermissionDenied: 'Sie haben keine Berechtigung, Benutzer zu verwalten.'
+      errorPermissionDenied: 'Sie haben keine Berechtigung, Benutzer zu verwalten.',
+      tabs: {
+        users: 'Benutzer & Rollen',
+        setup: 'Anwendungseinstellungen',
+        monitoring: 'System & KPIs'
+      },
+      setup: {
+        title: 'Anwendungseinstellungen',
+        subtitle: 'Zur Laufzeit änderbare Anwendungseinstellungen',
+        defaultRoleLabel: 'Standardrolle',
+        adminEmailsLabel: 'Admin-E-Mails',
+        adminEmailsPlaceholder: 'name@firma.de',
+        environmentLabel: 'Umgebung',
+        environmentEmpty: 'keine konfiguriert',
+        overrideBadge: 'DB-Override',
+        firstSeenHint: 'Änderungen wirken nur auf Benutzer, die der Server danach zum ersten Mal sieht. Bestehende Konten behalten ihre aktuellen Rollen.',
+        save: 'Einstellungen speichern',
+        saving: 'Speichern…',
+        validationInvalidEmail: 'Jede Zeile muss eine gültige E-Mail-Adresse sein.',
+        errorInvalidSettings: 'Der Server hat diese Einstellungen abgelehnt. Bitte prüfen Sie die Werte.'
+      },
+      monitoring: {
+        title: 'System & KPIs',
+        subtitle: 'Serverstatus und Datenbankmetriken',
+        uptime: 'Laufzeit',
+        version: 'Version',
+        dbSize: 'Datenbankgröße',
+        liveClients: 'Aktive Clients',
+        devModeWarning: 'Dev-User-Modus ist aktiv (QFC_DEV_USER) - niemals in der Produktion aktivieren.',
+        entitiesTitle: 'Entitäten',
+        entities: {
+          users: 'Benutzer',
+          employees: 'Mitarbeiter',
+          customers: 'Kunden',
+          projects: 'Projekte',
+          planVersions: 'Planversionen',
+          assignments: 'Zuordnungen',
+          absences: 'Abwesenheiten',
+          quarterData: 'Forecast-Quartale',
+          strategicGoals: 'Strategische Ziele',
+          northStarMetrics: 'North-Star-Metriken',
+          oneOnOneSessions: '1:1-Gespräche',
+          publicHolidays: 'Feiertage'
+        },
+        changeLogTitle: 'Change Log',
+        changeLogRows: 'Zeilen',
+        changeLogSeqRange: 'Sequenzbereich',
+        changeLogRetention: 'Retention-Limit',
+        lastUpdated: 'Zuletzt aktualisiert',
+        autoRefresh: 'Auto-Aktualisierung'
+      }
     },
     development: {
       title: 'Standortbestimmung & Entwicklung',
@@ -1156,7 +1257,8 @@ export const translations = {
       versionCreated: 'Neue Version erfolgreich erstellt.',
       csvExported: 'CSV erfolgreich exportiert.',
       userSaved: 'Benutzer erfolgreich gespeichert.',
-      userDeleted: 'Benutzer erfolgreich gelöscht.'
+      userDeleted: 'Benutzer erfolgreich gelöscht.',
+      settingsSaved: 'Einstellungen erfolgreich gespeichert.'
     }
   }
 };

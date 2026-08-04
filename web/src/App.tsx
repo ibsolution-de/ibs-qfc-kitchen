@@ -24,7 +24,7 @@ const FinancialOverview = React.lazy(() => import('./components/FinancialOvervie
 const StrategyModule = React.lazy(() => import('./components/StrategyModule').then(m => ({ default: m.StrategyModule })));
 const MyOverview = React.lazy(() => import('./components/MyOverview').then(m => ({ default: m.MyOverview })));
 const SalesPipeline = React.lazy(() => import('./components/SalesPipeline').then(m => ({ default: m.SalesPipeline })));
-const ManageUsers = React.lazy(() => import('./components/ManageUsers').then(m => ({ default: m.ManageUsers })));
+const AdminArea = React.lazy(() => import('./components/admin/AdminArea').then(m => ({ default: m.AdminArea })));
 
 // Animated Page Wrapper
 const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -374,11 +374,11 @@ const AppContent: React.FC = () => {
                 </AnimatedPage>
             } />
 
-            {/* User Administration: Admin Only */}
+            {/* Administration: Admin Only (users, application setup, system monitoring) */}
             {isRole('admin') && (
                 <Route path="/admin" element={
                     <AnimatedPage>
-                        <ManageUsers employees={employees} />
+                        <AdminArea employees={employees} />
                     </AnimatedPage>
                 } />
             )}

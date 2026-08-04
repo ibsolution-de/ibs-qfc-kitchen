@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file qfc/admin/v1/admin.proto.
  */
 export const file_qfc_admin_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChhxZmMvYWRtaW4vdjEvYWRtaW4ucHJvdG8SDHFmYy5hZG1pbi52MSISChBMaXN0VXNlcnNSZXF1ZXN0IjgKEUxpc3RVc2Vyc1Jlc3BvbnNlEiMKBXVzZXJzGAEgAygLMhQucWZjLnNlc3Npb24udjEuVXNlciJ1ChFVcHNlcnRVc2VyUmVxdWVzdBINCgVlbWFpbBgBIAEoCRInCgVyb2xlcxgCIAMoDjIYLnFmYy5zZXNzaW9uLnYxLlVzZXJSb2xlEhgKC2VtcGxveWVlX2lkGAMgASgJSACIAQFCDgoMX2VtcGxveWVlX2lkIjgKElVwc2VydFVzZXJSZXNwb25zZRIiCgR1c2VyGAEgASgLMhQucWZjLnNlc3Npb24udjEuVXNlciIiChFEZWxldGVVc2VyUmVxdWVzdBINCgVlbWFpbBgBIAEoCSIUChJEZWxldGVVc2VyUmVzcG9uc2Uy/gEKDEFkbWluU2VydmljZRJMCglMaXN0VXNlcnMSHi5xZmMuYWRtaW4udjEuTGlzdFVzZXJzUmVxdWVzdBofLnFmYy5hZG1pbi52MS5MaXN0VXNlcnNSZXNwb25zZRJPCgpVcHNlcnRVc2VyEh8ucWZjLmFkbWluLnYxLlVwc2VydFVzZXJSZXF1ZXN0GiAucWZjLmFkbWluLnYxLlVwc2VydFVzZXJSZXNwb25zZRJPCgpEZWxldGVVc2VyEh8ucWZjLmFkbWluLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GiAucWZjLmFkbWluLnYxLkRlbGV0ZVVzZXJSZXNwb25zZWIGcHJvdG8z", [file_qfc_session_v1_session]);
+  fileDesc("ChhxZmMvYWRtaW4vdjEvYWRtaW4ucHJvdG8SDHFmYy5hZG1pbi52MSISChBMaXN0VXNlcnNSZXF1ZXN0IjgKEUxpc3RVc2Vyc1Jlc3BvbnNlEiMKBXVzZXJzGAEgAygLMhQucWZjLnNlc3Npb24udjEuVXNlciJ1ChFVcHNlcnRVc2VyUmVxdWVzdBINCgVlbWFpbBgBIAEoCRInCgVyb2xlcxgCIAMoDjIYLnFmYy5zZXNzaW9uLnYxLlVzZXJSb2xlEhgKC2VtcGxveWVlX2lkGAMgASgJSACIAQFCDgoMX2VtcGxveWVlX2lkIjgKElVwc2VydFVzZXJSZXNwb25zZRIiCgR1c2VyGAEgASgLMhQucWZjLnNlc3Npb24udjEuVXNlciIiChFEZWxldGVVc2VyUmVxdWVzdBINCgVlbWFpbBgBIAEoCSIUChJEZWxldGVVc2VyUmVzcG9uc2UiUwoLQXBwU2V0dGluZ3MSLgoMZGVmYXVsdF9yb2xlGAEgASgOMhgucWZjLnNlc3Npb24udjEuVXNlclJvbGUSFAoMYWRtaW5fZW1haWxzGAIgAygJIhcKFUdldEFwcFNldHRpbmdzUmVxdWVzdCK4AQoWR2V0QXBwU2V0dGluZ3NSZXNwb25zZRIsCgllZmZlY3RpdmUYASABKAsyGS5xZmMuYWRtaW4udjEuQXBwU2V0dGluZ3MSLgoLZW52aXJvbm1lbnQYAiABKAsyGS5xZmMuYWRtaW4udjEuQXBwU2V0dGluZ3MSHwoXZGVmYXVsdF9yb2xlX292ZXJyaWRkZW4YAyABKAgSHwoXYWRtaW5fZW1haWxzX292ZXJyaWRkZW4YBCABKAgiRwoYVXBkYXRlQXBwU2V0dGluZ3NSZXF1ZXN0EisKCHNldHRpbmdzGAEgASgLMhkucWZjLmFkbWluLnYxLkFwcFNldHRpbmdzIkkKGVVwZGF0ZUFwcFNldHRpbmdzUmVzcG9uc2USLAoJZWZmZWN0aXZlGAEgASgLMhkucWZjLmFkbWluLnYxLkFwcFNldHRpbmdzIpQCCgxFbnRpdHlDb3VudHMSDQoFdXNlcnMYASABKAMSEQoJZW1wbG95ZWVzGAIgASgDEhEKCWN1c3RvbWVycxgDIAEoAxIQCghwcm9qZWN0cxgEIAEoAxIVCg1wbGFuX3ZlcnNpb25zGAUgASgDEhMKC2Fzc2lnbm1lbnRzGAYgASgDEhAKCGFic2VuY2VzGAcgASgDEhQKDHF1YXJ0ZXJfZGF0YRgIIAEoAxIXCg9zdHJhdGVnaWNfZ29hbHMYCSABKAMSGgoSbm9ydGhfc3Rhcl9tZXRyaWNzGAogASgDEhsKE29uZV9vbl9vbmVfc2Vzc2lvbnMYCyABKAMSFwoPcHVibGljX2hvbGlkYXlzGAwgASgDIl4KDkNoYW5nZUxvZ1N0YXRzEgwKBHJvd3MYASABKAMSEgoKb2xkZXN0X3NlcRgCIAEoAxISCgpuZXdlc3Rfc2VxGAMgASgDEhYKDnJldGVudGlvbl9yb3dzGAQgASgDIqACCgxTeXN0ZW1TdGF0dXMSIAoYc2VydmVyX3N0YXJ0ZWRfYXRfbWlsbGlzGAEgASgDEhoKEnNlcnZlcl90aW1lX21pbGxpcxgCIAEoAxIPCgd2ZXJzaW9uGAMgASgJEg8KB2RiX3BhdGgYBCABKAkSFQoNZGJfc2l6ZV9ieXRlcxgFIAEoAxIVCg1kZXZfdXNlcl9tb2RlGAYgASgIEiIKGmFjdGl2ZV93YXRjaF9zdWJzY3JpcHRpb25zGAcgASgDEiwKCGVudGl0aWVzGAggASgLMhoucWZjLmFkbWluLnYxLkVudGl0eUNvdW50cxIwCgpjaGFuZ2VfbG9nGAkgASgLMhwucWZjLmFkbWluLnYxLkNoYW5nZUxvZ1N0YXRzIhgKFkdldFN5c3RlbVN0YXR1c1JlcXVlc3QiRQoXR2V0U3lzdGVtU3RhdHVzUmVzcG9uc2USKgoGc3RhdHVzGAEgASgLMhoucWZjLmFkbWluLnYxLlN5c3RlbVN0YXR1czKhBAoMQWRtaW5TZXJ2aWNlEkwKCUxpc3RVc2VycxIeLnFmYy5hZG1pbi52MS5MaXN0VXNlcnNSZXF1ZXN0Gh8ucWZjLmFkbWluLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlEk8KClVwc2VydFVzZXISHy5xZmMuYWRtaW4udjEuVXBzZXJ0VXNlclJlcXVlc3QaIC5xZmMuYWRtaW4udjEuVXBzZXJ0VXNlclJlc3BvbnNlEk8KCkRlbGV0ZVVzZXISHy5xZmMuYWRtaW4udjEuRGVsZXRlVXNlclJlcXVlc3QaIC5xZmMuYWRtaW4udjEuRGVsZXRlVXNlclJlc3BvbnNlElsKDkdldEFwcFNldHRpbmdzEiMucWZjLmFkbWluLnYxLkdldEFwcFNldHRpbmdzUmVxdWVzdBokLnFmYy5hZG1pbi52MS5HZXRBcHBTZXR0aW5nc1Jlc3BvbnNlEmQKEVVwZGF0ZUFwcFNldHRpbmdzEiYucWZjLmFkbWluLnYxLlVwZGF0ZUFwcFNldHRpbmdzUmVxdWVzdBonLnFmYy5hZG1pbi52MS5VcGRhdGVBcHBTZXR0aW5nc1Jlc3BvbnNlEl4KD0dldFN5c3RlbVN0YXR1cxIkLnFmYy5hZG1pbi52MS5HZXRTeXN0ZW1TdGF0dXNSZXF1ZXN0GiUucWZjLmFkbWluLnYxLkdldFN5c3RlbVN0YXR1c1Jlc3BvbnNlYgZwcm90bzM", [file_qfc_session_v1_session]);
 
 /**
  * @generated from message qfc.admin.v1.ListUsersRequest
@@ -137,6 +137,327 @@ export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PUR
   messageDesc(file_qfc_admin_v1_admin, 5);
 
 /**
+ * Runtime-editable application settings. Stored in the `meta` key/value
+ * table; values not yet overridden there fall back to the startup
+ * environment (QFC_DEFAULT_ROLE / QFC_ADMIN_EMAILS), which is what the
+ * `environment` field of GetAppSettingsResponse exposes for comparison.
+ *
+ * @generated from message qfc.admin.v1.AppSettings
+ */
+export type AppSettings = Message<"qfc.admin.v1.AppSettings"> & {
+  /**
+   * Role assigned the first time a user is seen. Must not be
+   * USER_ROLE_ADMIN (same rule as QFC_DEFAULT_ROLE).
+   *
+   * @generated from field: qfc.session.v1.UserRole default_role = 1;
+   */
+  defaultRole: UserRole;
+
+  /**
+   * Addresses seeded with USER_ROLE_ADMIN on first sighting.
+   *
+   * @generated from field: repeated string admin_emails = 2;
+   */
+  adminEmails: string[];
+};
+
+/**
+ * Describes the message qfc.admin.v1.AppSettings.
+ * Use `create(AppSettingsSchema)` to create a new message.
+ */
+export const AppSettingsSchema: GenMessage<AppSettings> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 6);
+
+/**
+ * @generated from message qfc.admin.v1.GetAppSettingsRequest
+ */
+export type GetAppSettingsRequest = Message<"qfc.admin.v1.GetAppSettingsRequest"> & {
+};
+
+/**
+ * Describes the message qfc.admin.v1.GetAppSettingsRequest.
+ * Use `create(GetAppSettingsRequestSchema)` to create a new message.
+ */
+export const GetAppSettingsRequestSchema: GenMessage<GetAppSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 7);
+
+/**
+ * @generated from message qfc.admin.v1.GetAppSettingsResponse
+ */
+export type GetAppSettingsResponse = Message<"qfc.admin.v1.GetAppSettingsResponse"> & {
+  /**
+   * Effective values: DB override when present, startup environment
+   * otherwise.
+   *
+   * @generated from field: qfc.admin.v1.AppSettings effective = 1;
+   */
+  effective?: AppSettings | undefined;
+
+  /**
+   * Startup-environment values, so the UI can show what an override shadows.
+   *
+   * @generated from field: qfc.admin.v1.AppSettings environment = 2;
+   */
+  environment?: AppSettings | undefined;
+
+  /**
+   * @generated from field: bool default_role_overridden = 3;
+   */
+  defaultRoleOverridden: boolean;
+
+  /**
+   * @generated from field: bool admin_emails_overridden = 4;
+   */
+  adminEmailsOverridden: boolean;
+};
+
+/**
+ * Describes the message qfc.admin.v1.GetAppSettingsResponse.
+ * Use `create(GetAppSettingsResponseSchema)` to create a new message.
+ */
+export const GetAppSettingsResponseSchema: GenMessage<GetAppSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 8);
+
+/**
+ * @generated from message qfc.admin.v1.UpdateAppSettingsRequest
+ */
+export type UpdateAppSettingsRequest = Message<"qfc.admin.v1.UpdateAppSettingsRequest"> & {
+  /**
+   * @generated from field: qfc.admin.v1.AppSettings settings = 1;
+   */
+  settings?: AppSettings | undefined;
+};
+
+/**
+ * Describes the message qfc.admin.v1.UpdateAppSettingsRequest.
+ * Use `create(UpdateAppSettingsRequestSchema)` to create a new message.
+ */
+export const UpdateAppSettingsRequestSchema: GenMessage<UpdateAppSettingsRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 9);
+
+/**
+ * @generated from message qfc.admin.v1.UpdateAppSettingsResponse
+ */
+export type UpdateAppSettingsResponse = Message<"qfc.admin.v1.UpdateAppSettingsResponse"> & {
+  /**
+   * Effective values after the update.
+   *
+   * @generated from field: qfc.admin.v1.AppSettings effective = 1;
+   */
+  effective?: AppSettings | undefined;
+};
+
+/**
+ * Describes the message qfc.admin.v1.UpdateAppSettingsResponse.
+ * Use `create(UpdateAppSettingsResponseSchema)` to create a new message.
+ */
+export const UpdateAppSettingsResponseSchema: GenMessage<UpdateAppSettingsResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 10);
+
+/**
+ * @generated from message qfc.admin.v1.EntityCounts
+ */
+export type EntityCounts = Message<"qfc.admin.v1.EntityCounts"> & {
+  /**
+   * @generated from field: int64 users = 1;
+   */
+  users: bigint;
+
+  /**
+   * @generated from field: int64 employees = 2;
+   */
+  employees: bigint;
+
+  /**
+   * @generated from field: int64 customers = 3;
+   */
+  customers: bigint;
+
+  /**
+   * @generated from field: int64 projects = 4;
+   */
+  projects: bigint;
+
+  /**
+   * @generated from field: int64 plan_versions = 5;
+   */
+  planVersions: bigint;
+
+  /**
+   * @generated from field: int64 assignments = 6;
+   */
+  assignments: bigint;
+
+  /**
+   * @generated from field: int64 absences = 7;
+   */
+  absences: bigint;
+
+  /**
+   * @generated from field: int64 quarter_data = 8;
+   */
+  quarterData: bigint;
+
+  /**
+   * @generated from field: int64 strategic_goals = 9;
+   */
+  strategicGoals: bigint;
+
+  /**
+   * @generated from field: int64 north_star_metrics = 10;
+   */
+  northStarMetrics: bigint;
+
+  /**
+   * @generated from field: int64 one_on_one_sessions = 11;
+   */
+  oneOnOneSessions: bigint;
+
+  /**
+   * @generated from field: int64 public_holidays = 12;
+   */
+  publicHolidays: bigint;
+};
+
+/**
+ * Describes the message qfc.admin.v1.EntityCounts.
+ * Use `create(EntityCountsSchema)` to create a new message.
+ */
+export const EntityCountsSchema: GenMessage<EntityCounts> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 11);
+
+/**
+ * @generated from message qfc.admin.v1.ChangeLogStats
+ */
+export type ChangeLogStats = Message<"qfc.admin.v1.ChangeLogStats"> & {
+  /**
+   * @generated from field: int64 rows = 1;
+   */
+  rows: bigint;
+
+  /**
+   * 0 when the log is empty.
+   *
+   * @generated from field: int64 oldest_seq = 2;
+   */
+  oldestSeq: bigint;
+
+  /**
+   * @generated from field: int64 newest_seq = 3;
+   */
+  newestSeq: bigint;
+
+  /**
+   * Configured retention cap (server-side constant).
+   *
+   * @generated from field: int64 retention_rows = 4;
+   */
+  retentionRows: bigint;
+};
+
+/**
+ * Describes the message qfc.admin.v1.ChangeLogStats.
+ * Use `create(ChangeLogStatsSchema)` to create a new message.
+ */
+export const ChangeLogStatsSchema: GenMessage<ChangeLogStats> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 12);
+
+/**
+ * @generated from message qfc.admin.v1.SystemStatus
+ */
+export type SystemStatus = Message<"qfc.admin.v1.SystemStatus"> & {
+  /**
+   * @generated from field: int64 server_started_at_millis = 1;
+   */
+  serverStartedAtMillis: bigint;
+
+  /**
+   * @generated from field: int64 server_time_millis = 2;
+   */
+  serverTimeMillis: bigint;
+
+  /**
+   * CARGO_PKG_VERSION of the running binary.
+   *
+   * @generated from field: string version = 3;
+   */
+  version: string;
+
+  /**
+   * @generated from field: string db_path = 4;
+   */
+  dbPath: string;
+
+  /**
+   * page_count * page_size.
+   *
+   * @generated from field: int64 db_size_bytes = 5;
+   */
+  dbSizeBytes: bigint;
+
+  /**
+   * QFC_DEV_USER set — must never be true in production.
+   *
+   * @generated from field: bool dev_user_mode = 6;
+   */
+  devUserMode: boolean;
+
+  /**
+   * Live Watch-stream subscriptions (connected clients).
+   *
+   * @generated from field: int64 active_watch_subscriptions = 7;
+   */
+  activeWatchSubscriptions: bigint;
+
+  /**
+   * @generated from field: qfc.admin.v1.EntityCounts entities = 8;
+   */
+  entities?: EntityCounts | undefined;
+
+  /**
+   * @generated from field: qfc.admin.v1.ChangeLogStats change_log = 9;
+   */
+  changeLog?: ChangeLogStats | undefined;
+};
+
+/**
+ * Describes the message qfc.admin.v1.SystemStatus.
+ * Use `create(SystemStatusSchema)` to create a new message.
+ */
+export const SystemStatusSchema: GenMessage<SystemStatus> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 13);
+
+/**
+ * @generated from message qfc.admin.v1.GetSystemStatusRequest
+ */
+export type GetSystemStatusRequest = Message<"qfc.admin.v1.GetSystemStatusRequest"> & {
+};
+
+/**
+ * Describes the message qfc.admin.v1.GetSystemStatusRequest.
+ * Use `create(GetSystemStatusRequestSchema)` to create a new message.
+ */
+export const GetSystemStatusRequestSchema: GenMessage<GetSystemStatusRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 14);
+
+/**
+ * @generated from message qfc.admin.v1.GetSystemStatusResponse
+ */
+export type GetSystemStatusResponse = Message<"qfc.admin.v1.GetSystemStatusResponse"> & {
+  /**
+   * @generated from field: qfc.admin.v1.SystemStatus status = 1;
+   */
+  status?: SystemStatus | undefined;
+};
+
+/**
+ * Describes the message qfc.admin.v1.GetSystemStatusResponse.
+ * Use `create(GetSystemStatusResponseSchema)` to create a new message.
+ */
+export const GetSystemStatusResponseSchema: GenMessage<GetSystemStatusResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_admin_v1_admin, 15);
+
+/**
  * Account and role administration. Every RPC requires the caller to hold
  * USER_ROLE_ADMIN; everyone else gets permission_denied. This is the only
  * role-enforced service.
@@ -167,6 +488,34 @@ export const AdminService: GenService<{
     methodKind: "unary";
     input: typeof DeleteUserRequestSchema;
     output: typeof DeleteUserResponseSchema;
+  },
+  /**
+   * Application setup: runtime settings with startup-env fallback.
+   *
+   * @generated from rpc qfc.admin.v1.AdminService.GetAppSettings
+   */
+  getAppSettings: {
+    methodKind: "unary";
+    input: typeof GetAppSettingsRequestSchema;
+    output: typeof GetAppSettingsResponseSchema;
+  },
+  /**
+   * @generated from rpc qfc.admin.v1.AdminService.UpdateAppSettings
+   */
+  updateAppSettings: {
+    methodKind: "unary";
+    input: typeof UpdateAppSettingsRequestSchema;
+    output: typeof UpdateAppSettingsResponseSchema;
+  },
+  /**
+   * System monitoring: uptime, storage, entity counts, live watchers.
+   *
+   * @generated from rpc qfc.admin.v1.AdminService.GetSystemStatus
+   */
+  getSystemStatus: {
+    methodKind: "unary";
+    input: typeof GetSystemStatusRequestSchema;
+    output: typeof GetSystemStatusResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_qfc_admin_v1_admin, 0);

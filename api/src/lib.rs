@@ -16,7 +16,11 @@ pub mod seed;
 pub mod services;
 pub mod store;
 
-// Crate-private: shared wall-clock helper (`now_millis`), an
-// implementation detail of the modules above, not part of the API the
-// integration tests exercise.
-pub(crate) mod time;
+// Crate-private: runtime-editable settings persistence (`settings.*` keys
+// in the `meta` table), an implementation detail of `auth` and
+// `services::admin`, not part of the API the integration tests exercise.
+pub(crate) mod settings;
+
+/// Shared wall-clock helper (`now_millis`); public so `main.rs` can stamp
+/// the server's start time for `AdminService::GetSystemStatus`.
+pub mod time;

@@ -117,26 +117,24 @@ fn parse_dev_user(raw: &str) -> Result<DevUser, ConfigError> {
 /// able to mass-grant admin to every new login. Admin is granted
 /// explicitly instead — via `QFC_ADMIN_EMAILS` at startup, or later through
 /// `AdminService::UpsertUser`.
+///
+/// The name parsing itself is `settings::role_from_name`, the same mapping
+/// the `meta`-table override reads, so env and database can never drift
+/// apart on what a role name means.
 fn parse_default_role(raw: &str) -> Result<UserRole, ConfigError> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "employee" => Ok(UserRole::Employee),
-        "pm" => Ok(UserRole::Pm),
-        "bl" => Ok(UserRole::Bl),
-        "sales" => Ok(UserRole::Sales),
+    match crate::settings::role_from_name(raw) {
+        Some(role) if role != UserRole::Admin => Ok(role),
         _ => Err(ConfigError::InvalidDefaultRole {
             value: raw.to_string(),
         }),
     }
 }
 
-/// Parse `QFC_ADMIN_EMAILS` into a lower-cased list, trimming whitespace
-/// around each entry and dropping empty ones (a trailing comma, for
-/// instance) so callers can compare case-insensitively with a plain `==`.
+/// Parse `QFC_ADMIN_EMAILS` into a lower-cased list — a thin wrapper over
+/// `settings::parse_email_list`, the same parser the `meta`-table override
+/// uses, so both sources always mean exactly the same thing.
 fn parse_admin_emails(raw: &str) -> Vec<String> {
-    raw.split(',')
-        .map(|entry| entry.trim().to_ascii_lowercase())
-        .filter(|entry| !entry.is_empty())
-        .collect()
+    crate::settings::parse_email_list(raw)
 }
 
 #[cfg(test)]

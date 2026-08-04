@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use crate::config::DevUser;
 use crate::error::{AppError, AppResult};
 use crate::proto::session::UserRole;
+use crate::settings;
 use crate::time::now_millis;
 
 /// Header names set by the ingress auth proxy (oauth2-proxy and
@@ -147,16 +148,25 @@ pub async fn middleware(State(state): State<AuthState>, mut req: Request, next: 
     next.run(req).await
 }
 
-/// Insert the `users` row on first sight (`employee_id` unset; `roles`
-/// seeded as `[Admin]` if `email` case-insensitively matches `admin_emails`,
-/// else `[default_role]`), refreshing `name`/`subject` on every call; then
-/// load the stored role set and employee link back. Roles and employee_id
-/// are admin-managed after creation, so — beyond this initial seed — they
-/// are never overwritten here: the `ON CONFLICT` clause touches only `name`
-/// and `subject`. This is exactly what makes admin pre-creation work: a row
-/// created by an admin (via `AdminService::UpsertUser`, or `ensure_admins`
-/// at startup) before the person's first login keeps the roles it was given
-/// — do not "fix" this to also refresh `roles` here.
+/// Load the `users` row for `email`, refreshing `name`/`subject` on every
+/// call, or insert it on first sight (`employee_id` unset; `roles` seeded
+/// as `[Admin]` if `email` case-insensitively matches the effective
+/// `admin_emails`, else `[default_role]`).
+///
+/// Roles and employee_id are admin-managed after creation, so — beyond the
+/// initial seed — they are never overwritten here: the known-user path
+/// touches only `name` and `subject`. This is exactly what makes admin
+/// pre-creation work: a row created by an admin (via
+/// `AdminService::UpsertUser`, or `ensure_admins` at startup) before the
+/// person's first login keeps the roles it was given — do not "fix" this to
+/// also refresh `roles` here.
+///
+/// The two paths are deliberately split: the seed roles come from
+/// `settings::effective` (the `meta`-table override over the startup
+/// environment, see that module's doc), and the `meta` SELECTs that takes
+/// run **only on the first-seen path** — the known-user path below is the
+/// per-request hot path and must not pay for settings it would discard
+/// anyway (roles of known users are never re-derived; see above).
 async fn upsert_and_load(
     pool: &SqlitePool,
     email: &str,
@@ -164,7 +174,35 @@ async fn upsert_and_load(
     subject: Option<&str>,
     default_role: UserRole,
     admin_emails: &[String],
-) -> Result<CurrentUser, sqlx::Error> {
+) -> AppResult<CurrentUser> {
+    // Hot path: the user is already known. Refresh the login-derived fields
+    // and load the stored, admin-managed role set — no settings involved.
+    let existing: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT roles, employee_id FROM users WHERE email = ?1")
+            .bind(email)
+            .fetch_optional(pool)
+            .await?;
+
+    if let Some((roles, employee_id)) = existing {
+        sqlx::query("UPDATE users SET name = ?2, subject = ?3 WHERE email = ?1")
+            .bind(email)
+            .bind(name)
+            .bind(subject)
+            .execute(pool)
+            .await?;
+        return Ok(CurrentUser {
+            email: email.to_string(),
+            name: name.to_string(),
+            subject: subject.map(str::to_owned),
+            roles: roles_from_db(&roles),
+            employee_id,
+        });
+    }
+
+    // First-seen path: resolve the effective seed settings (database
+    // override over environment) only now that they are actually needed.
+    let (default_role, admin_emails, _, _) =
+        settings::effective(pool, default_role, admin_emails).await?;
     let seed_roles: Vec<UserRole> = if admin_emails
         .iter()
         .any(|admin| admin.eq_ignore_ascii_case(email))
@@ -174,10 +212,14 @@ async fn upsert_and_load(
         vec![default_role]
     };
 
-    sqlx::query(
+    // `ON CONFLICT DO NOTHING`: two concurrent first logins for the same
+    // address race here; the loser's insert no-ops and it re-reads the
+    // winner's row below (refreshing name/subject itself, like the hot path
+    // would have), so neither observes a half-written row.
+    let inserted = sqlx::query(
         "INSERT INTO users (email, name, subject, roles, employee_id, created_at)
          VALUES (?1, ?2, ?3, ?4, NULL, ?5)
-         ON CONFLICT(email) DO UPDATE SET name = excluded.name, subject = excluded.subject",
+         ON CONFLICT(email) DO NOTHING",
     )
     .bind(email)
     .bind(name)
@@ -187,16 +229,25 @@ async fn upsert_and_load(
     .execute(pool)
     .await?;
 
-    let (roles, employee_id): (String, Option<String>) =
-        sqlx::query_as("SELECT roles, employee_id FROM users WHERE email = ?1")
+    if inserted.rows_affected() == 0 {
+        sqlx::query("UPDATE users SET name = ?2, subject = ?3 WHERE email = ?1")
+            .bind(email)
+            .bind(name)
+            .bind(subject)
+            .execute(pool)
+            .await?;
+    }
+
+    let (name, subject, roles, employee_id): (String, Option<String>, String, Option<String>) =
+        sqlx::query_as("SELECT name, subject, roles, employee_id FROM users WHERE email = ?1")
             .bind(email)
             .fetch_one(pool)
             .await?;
 
     Ok(CurrentUser {
         email: email.to_string(),
-        name: name.to_string(),
-        subject: subject.map(str::to_owned),
+        name,
+        subject,
         roles: roles_from_db(&roles),
         employee_id,
     })
