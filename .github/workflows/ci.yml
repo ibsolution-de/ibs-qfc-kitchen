@@ -46,15 +46,19 @@ jobs:
       # state HEAD~1 — as an explicit commit SHA, because buf's git ref parser
       # does not resolve revision suffixes like `branch=main~1` (full history
       # is guaranteed by fetch-depth: 0).
+      #
+      # The repo path in the ref must be absolute (${GITHUB_WORKSPACE}): the buf
+      # step below runs with cwd web/ via `pnpm -C web exec`, and web/.git does
+      # not exist — a bare `.git#...` ref resolves there and fails to clone.
       - name: Fetch base ref for buf breaking
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin main:main
             base_ref=main
-            against=".git#branch=main,subdir=proto"
+            against="${GITHUB_WORKSPACE}/.git#branch=main,subdir=proto"
           else
             base_ref="$(git rev-parse HEAD~1)"
-            against=".git#commit=${base_ref},subdir=proto"
+            against="${GITHUB_WORKSPACE}/.git#commit=${base_ref},subdir=proto"
           fi
 
           # proto/ does not exist on main at all until the first PR that
