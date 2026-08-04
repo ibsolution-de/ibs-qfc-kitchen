@@ -24,6 +24,18 @@ updates:
     directory: /api
     schedule:
       interval: weekly
+    # buffa is 0.x, so a minor bump there is a breaking change. connectrpc 0.8.1
+    # and connectrpc-build 0.8.0 both require buffa ^0.8.1 — a solo bump to 0.9
+    # puts two buffa crates in the graph and breaks the generated code
+    # (write_to: BufMut vs. EncodeSink). Note 0.8.1 -> 0.9.1 classifies as
+    # semver-MINOR (major stays 0); semver-major is listed only to cover a later
+    # 1.0. buffa patch bumps still come through. Drop this rule once connectrpc
+    # ships a release requiring buffa ^0.9, then bump both together.
+    ignore:
+      - dependency-name: "buffa"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
