@@ -131,6 +131,12 @@ jobs:
       # Gate danach.
       - name: Scan image (trivy)
         uses: aquasecurity/trivy-action@master
+        env:
+          # Der Arch-Push ist wegen provenance/sbom ein OCI-Index (Arch-Manifest
+          # plus Attestierungen). Ohne --platform rät Trivy die Host-Plattform —
+          # auf dem arm-Runner fälschlich linux/amd64 — und findet im
+          # -arm64-Index kein passendes Child ("no child with platform").
+          TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
           image-ref: ${{ env.BUILT_IMAGE_REF }}
           severity: CRITICAL,HIGH
