@@ -60,4 +60,4 @@ spec:
         - { name: tmp, emptyDir: {} }
         - name: data
           persistentVolumeClaim:
-            claimName: ibs-qfc-kitchen-api-data
+            claimName: ibs-qfc-kitchen-data

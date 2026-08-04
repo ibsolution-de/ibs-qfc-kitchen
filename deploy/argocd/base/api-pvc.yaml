@@ -1,12 +1,23 @@
+# The `<replace>` placeholders below are intentional and stay unresolved in
+# this base. The ArgoCD Application (managed in a separate platform repo)
+# carries an inline kustomize JSON patch targeting this PVC (by name
+# ibs-qfc-kitchen-data) with `op: replace` on `/spec/volumeName` and
+# `/spec/resources/requests/storage`. JSON-Patch `replace` requires the keys
+# to already exist, hence the placeholders here. That Application patch is
+# what binds the pre-provisioned 10Gi Retain PV ibs-dev-qfc-kitchen-data in
+# the dev cluster. Whoever maintains the platform repo's Application manifest
+# fills in the real values there — this base stays env-agnostic.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: ibs-qfc-kitchen-api-data
+  name: ibs-qfc-kitchen-data
   labels:
     app.kubernetes.io/part-of: ibs-qfc-kitchen
 spec:
   accessModes:
     - ReadWriteOnce
+  volumeName: <replace>
+  storageClassName: hcloud-volumes
   resources:
     requests:
-      storage: 1Gi
+      storage: <replace>

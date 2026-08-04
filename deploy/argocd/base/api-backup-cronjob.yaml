@@ -2,7 +2,8 @@
 # Uses sqlite3's online `.backup` command, which is safe against the live DB
 # (SQLite handles the locking), so the API pod keeps running during the backup.
 # The API image itself ships no sqlite3 CLI — hence the slim keinos/sqlite3
-# image with the same two PVCs mounted.
+# image. Backups live in /data/backups, a subdirectory of the same PVC the
+# API pod uses — there is no separate backup volume.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -32,6 +33,18 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          # hcloud-volumes is RWO (single-node attach) and the cluster has two
+          # workers, so the backup pod must land on the same node as the API pod
+          # that already holds the volume — otherwise it hangs in
+          # ContainerCreating forever. Multiple pods on ONE node may share an RWO
+          # volume, which is what this affinity guarantees.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: ibs-qfc-kitchen-api
+                  topologyKey: kubernetes.io/hostname
           restartPolicy: OnFailure
           containers:
             - name: backup
@@ -46,9 +59,10 @@ spec:
               args:
                 - |
                   set -eu
-                  sqlite3 /data/qfc.db ".backup '/backup/qfc-$$(date +%Y%m%d-%H%M).db'"
+                  mkdir -p /data/backups
+                  sqlite3 /data/qfc.db ".backup '/data/backups/qfc-$$(date +%Y%m%d-%H%M).db'"
                   # Retention: drop backups older than 14 days.
-                  find /backup -type f -name 'qfc-*.db' -mtime +14 -delete
+                  find /data/backups -type f -name 'qfc-*.db' -mtime +14 -delete
               resources:
                 requests: { cpu: 10m, memory: 32Mi }
                 limits: { memory: 128Mi }
@@ -56,11 +70,7 @@ spec:
                 # Read-write like the API pod: on WAL-mode databases SQLite
                 # needs to create -shm/-wal side files even for readers.
                 - { name: data, mountPath: /data }
-                - { name: backup, mountPath: /backup }
           volumes:
             - name: data
               persistentVolumeClaim:
-                claimName: ibs-qfc-kitchen-api-data
-            - name: backup
-              persistentVolumeClaim:
-                claimName: ibs-qfc-kitchen-api-backup
+                claimName: ibs-qfc-kitchen-data
