@@ -21,7 +21,7 @@ strip = "symbols"
 
 [dependencies]
 connectrpc = { version = "0.8.1", features = ["axum", "server"] }
-buffa = { version = "0.8.1", features = ["json"] }
+buffa = { version = "0.9.1", features = ["json"] }
 # The generated `serde::{Serialize, Deserialize}` impls (from buffa's "json"
 # feature, via connectrpc-build's default `generate_json(true)`) are `include!`d
 # directly into this crate, so they resolve `::serde::...` against qfc-api's
