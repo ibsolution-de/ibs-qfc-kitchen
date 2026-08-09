@@ -15,7 +15,7 @@ RUN pnpm build
 
 # ---- Runtime-Stage: nginx (unprivileged) liefert statische Files ----
 # Multi-Arch manifest-list digest, aktualisiert via Dependabot.
-FROM nginxinc/nginx-unprivileged:1.30-alpine@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49 AS runtime
+FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:a6c3ec0c0d249d68b0682df854d4a9e222b90fb607dc3fcf2f1d2fcbc85d347e AS runtime
 LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.authors="nazar.kulyk@ibsolution.de" \
     org.opencontainers.image.url="https://github.com/ibsolution-de/ibs-qfc-kitchen" \
