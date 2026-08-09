@@ -28,7 +28,7 @@ RUN cargo build --manifest-path api/Cargo.toml --release
 
 # ---- Runtime-Stage: debian-slim (unprivileged) ----
 # Multi-Arch manifest-list digest (linux/amd64 + linux/arm64), aktualisiert via Dependabot.
-FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS runtime
+FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258 AS runtime
 LABEL maintainer="Nazar Kulyk <nazar.kulyk@ibsolution.de>" \
     org.opencontainers.image.authors="nazar.kulyk@ibsolution.de" \
     org.opencontainers.image.url="https://github.com/ibsolution-de/ibs-qfc-kitchen" \
