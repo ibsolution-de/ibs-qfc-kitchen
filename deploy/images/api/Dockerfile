@@ -2,7 +2,7 @@
 
 # ---- Build-Stage: Cargo Release Build ----
 # Multi-Arch manifest-list digest (linux/amd64 + linux/arm64), aktualisiert via Dependabot.
-FROM rust:1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c AS build
+FROM rust:1-slim-trixie@sha256:3b2879047d42784ca9403ad20c51ed3df361a50f1df96f5777d39b4e33aa65cd AS build
 WORKDIR /app
 
 RUN apt-get update \
