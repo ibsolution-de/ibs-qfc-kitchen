@@ -22,6 +22,10 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
+        # The SQLite DB file lives on the `data` PVC; without this the
+        # (root-owned) volume mount is read-only for UID 1000 and SQLite
+        # fails with SQLITE_CANTOPEN trying to create /data/qfc.db.
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       imagePullSecrets:
