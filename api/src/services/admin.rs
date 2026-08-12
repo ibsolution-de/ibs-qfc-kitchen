@@ -338,11 +338,10 @@ async fn do_upsert(
         .filter_map(EnumValue::as_known)
         .collect();
 
-    let stored: Option<String> =
-        sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
-            .bind(&email)
-            .fetch_optional(pool)
-            .await?;
+    let stored: Option<String> = sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
+        .bind(&email)
+        .fetch_optional(pool)
+        .await?;
     let had_admin = stored
         .as_deref()
         .map(auth::roles_from_db)
@@ -354,11 +353,12 @@ async fn do_upsert(
                 "cannot remove the admin role from your own account".to_string(),
             ));
         }
-        let remaining_admins: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE roles LIKE '%ADMIN%' AND email != ?1")
-                .bind(&email)
-                .fetch_one(pool)
-                .await?;
+        let remaining_admins: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users WHERE roles LIKE '%ADMIN%' AND email != ?1",
+        )
+        .bind(&email)
+        .fetch_one(pool)
+        .await?;
         if remaining_admins == 0 {
             return Err(AppError::FailedPrecondition(
                 "cannot remove the admin role from the last remaining admin".to_string(),

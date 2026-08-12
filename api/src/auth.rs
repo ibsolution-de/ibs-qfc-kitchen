@@ -97,10 +97,7 @@ pub fn require_any_role(
     if current.roles.iter().any(|held| roles.contains(held)) {
         Ok(current)
     } else {
-        Err(AppError::PermissionDenied(format!(
-            "requires one of the roles {roles:?}"
-        ))
-        .into())
+        Err(AppError::PermissionDenied(format!("requires one of the roles {roles:?}")).into())
     }
 }
 

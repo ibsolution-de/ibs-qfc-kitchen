@@ -963,9 +963,15 @@ async fn upsert_user_normalizes_email_case_and_never_duplicates_accounts() {
     )
     .await
     .expect("upsert with mixed-case email");
-    assert_eq!(created.email, "ada@example.com", "response echoes the canonical form");
+    assert_eq!(
+        created.email, "ada@example.com",
+        "response echoes the canonical form"
+    );
     assert_eq!(user_row_count(&pool).await, 1);
-    assert_eq!(stored_roles(&pool, "ada@example.com").await, vec![UserRole::Pm]);
+    assert_eq!(
+        stored_roles(&pool, "ada@example.com").await,
+        vec![UserRole::Pm]
+    );
 
     // A second upsert using the same email in different case updates the
     // SAME row instead of creating a second one.
@@ -981,8 +987,15 @@ async fn upsert_user_normalizes_email_case_and_never_duplicates_accounts() {
     .await
     .expect("upsert same account in different case");
     assert_eq!(updated.email, "ada@example.com");
-    assert_eq!(user_row_count(&pool).await, 1, "case variants must collapse onto one row");
-    assert_eq!(stored_roles(&pool, "ada@example.com").await, vec![UserRole::Bl]);
+    assert_eq!(
+        user_row_count(&pool).await,
+        1,
+        "case variants must collapse onto one row"
+    );
+    assert_eq!(
+        stored_roles(&pool, "ada@example.com").await,
+        vec![UserRole::Bl]
+    );
 
     db.cleanup(pool).await;
 }
@@ -992,7 +1005,10 @@ async fn auth_middleware_normalizes_header_email_case() {
     let (pool, db) = common::temp_pool("admin").await;
 
     let first = current_user_via_middleware(&pool, &[], " NAZAR@Example.COM ", "Nazar").await;
-    assert_eq!(first.email, "nazar@example.com", "middleware must canonicalize the header email");
+    assert_eq!(
+        first.email, "nazar@example.com",
+        "middleware must canonicalize the header email"
+    );
     assert_eq!(first.roles, vec![UserRole::Employee]);
 
     // A second login under a different case resolves to the same row: one

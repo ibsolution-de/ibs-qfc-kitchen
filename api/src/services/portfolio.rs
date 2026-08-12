@@ -13,7 +13,8 @@ use crate::proto::portfolio::{
     DeleteProjectRequest, DeleteProjectResponse, ListProjectsRequest, ListProjectsResponse,
     Project, ProjectService, UpsertProjectRequest, UpsertProjectResponse,
 };
-use crate::proto::session::UserRole;use crate::services::crud;
+use crate::proto::session::UserRole;
+use crate::services::crud;
 use crate::store::Table;
 
 pub struct ProjectServiceImpl {

@@ -316,7 +316,9 @@ async fn role_gates_deny_employee_only_and_sales_only_callers_from_writing_team(
     }
 
     // ... and a sales-only caller also cannot delete an existing employee.
-    let created = upsert_employee(&svc, ACTOR, sample_employee("")).await.expect("seed employee");
+    let created = upsert_employee(&svc, ACTOR, sample_employee(""))
+        .await
+        .expect("seed employee");
     let body = Bytes::from(
         DeleteEmployeeRequest {
             id: created.id.clone(),
@@ -369,7 +371,10 @@ async fn employee_only_caller_is_denied_from_writing_one_on_one_sessions() {
     let view = UpsertSessionRequest::decode_view(&body).expect("decode view");
     let req = ServiceRequest::<UpsertSessionRequest>::from_parts(&view, &body);
     let err = svc
-        .upsert_session(ctx_for_roles("emp@example.com", vec![UserRole::Employee]), req)
+        .upsert_session(
+            ctx_for_roles("emp@example.com", vec![UserRole::Employee]),
+            req,
+        )
         .await
         .expect_err("employee must be denied from writing 1:1 sessions");
     assert_eq!(err.code, ErrorCode::PermissionDenied);
