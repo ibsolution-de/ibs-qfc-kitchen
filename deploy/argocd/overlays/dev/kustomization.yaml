@@ -14,7 +14,7 @@ labels:
 images:
 - name: ibs-qfc-kitchen-api
   newName: registry.apps.ibsolution.cloud/ibs/ibs-qfc-kitchen/api
-  newTag: 1.4.0-dev.77b4321
+  newTag: 1.4.0-dev.18ade95
 - name: ibs-qfc-kitchen-web
   newName: registry.apps.ibsolution.cloud/ibs/ibs-qfc-kitchen/web
-  newTag: 1.4.0-dev.77b4321
+  newTag: 1.4.0-dev.18ade95
