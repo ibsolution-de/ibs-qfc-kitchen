@@ -4,17 +4,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QuarterData, Project, Assignment, Employee, Absence, PublicHoliday } from '../types';
 import { PASTEL_VARIANTS } from '../constants';
 import { Badge } from './ui/Badge';
-import {
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from 'recharts';
+import { rect, ruleX, defineChart } from '@tanstack/charts';
+import { scaleLinear } from '@tanstack/charts/scales/linear';
+import { tooltip } from '@tanstack/charts/tooltip';
+import { Chart } from '@tanstack/charts/react';
 import { TrendingUp, AlertCircle, Calculator, Target, GitBranch, FileText, Trash2, Plus, X, Lock, Sparkles, BrainCircuit, Folder, Cpu, ShieldAlert, Activity, ChevronRight, Settings, CornerLeftDown, Dices, Zap } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -829,6 +822,48 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
       : (simResult.maxVol - simResult.minVol) / simResult.histogram.length;
   }, [simResult]);
 
+  const histRows = useMemo(() => {
+    if (!simResult) return [];
+    return simResult.histogram.map((bin) => ({
+      binStart: bin.binStart,
+      binEnd: bin.binStart + binWidth,
+      count: bin.count,
+      zone: (bin.binStart > simResult.baseCapacity ? 'overload' : 'safe') as 'safe' | 'overload',
+    }));
+  }, [simResult, binWidth]);
+
+  const simChart = useMemo(() => {
+    const minVol = simResult?.minVol ?? 0;
+    const maxVol = simResult?.maxVol ?? 1;
+    const baseCapacity = simResult?.baseCapacity ?? 0;
+
+    return defineChart({
+      marks: [
+        rect(histRows, {
+          x1: 'binStart',
+          x2: 'binEnd',
+          y1: () => 0,
+          y2: 'count',
+          color: 'zone',
+          key: (d) => String(d.binStart),
+          radius: 2,
+        }),
+        ruleX([baseCapacity], {
+          stroke: '#f3f4f6',
+          strokeDasharray: '4 2',
+          strokeWidth: 1,
+        }),
+      ],
+      x: {
+        scale: scaleLinear().domain(minVol === maxVol ? [minVol, minVol + 1] : [minVol, maxVol]),
+        axis: { ticks: { format: (v) => `${v}d` } },
+      },
+      y: { scale: scaleLinear, grid: true },
+      color: { domain: ['safe', 'overload'], range: ['#3b82f6', '#ef4444'] },
+      tooltip,
+    });
+  }, [histRows, simResult]);
+
   // Dynamic calculation helpers live in utils/forecast.ts.
 
   const handleExportForecastJSON = () => {
@@ -1107,56 +1142,8 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                          </div>
                      </div>
 
-                     <div
-                         role="img"
-                         aria-label={t('forecast.simTitle')}
-                         className="h-72"
-                     >
-                         <ResponsiveContainer width="100%" height="100%">
-                             <BarChart data={simResult.histogram} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
-                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#363c45" />
-                                 <XAxis
-                                     dataKey="binStart"
-                                     type="number"
-                                     domain={simResult.minVol === simResult.maxVol
-                                         ? [simResult.minVol, simResult.minVol + 1]
-                                         : [simResult.minVol, simResult.maxVol]}
-                                     tick={{ fontSize: 10, fill: '#647081' }}
-                                     tickFormatter={(value: number) => `${value}d`}
-                                 />
-                                 <YAxis
-                                     tick={{ fontSize: 10, fill: '#647081' }}
-                                     width={40}
-                                 />
-                                 <Tooltip
-                                     formatter={(value: any, _name: any, props: any) => {
-                                         const start = props?.payload?.binStart ?? 0;
-                                         const end = start + binWidth;
-                                         return [value, `${start}d – ${end}d`];
-                                     }}
-                                     labelFormatter={() => ''}
-                                     contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem', color: '#f3f4f6' }}
-                                 />
-                                 <ReferenceLine
-                                     x={simResult.baseCapacity}
-                                     stroke="#f3f4f6"
-                                     strokeDasharray="4 2"
-                                     label={{ value: `${t('forecast.capacityLimit')}: ${simResult.baseCapacity}d`, position: 'top', fill: '#f3f4f6', fontSize: 10 }}
-                                 />
-                                 <Bar
-                                     dataKey="count"
-                                     radius={[2, 2, 0, 0]}
-                                     isAnimationActive={false}
-                                 >
-                                     {simResult.histogram.map((bin, i) => {
-                                         const isOverload = bin.binStart > simResult.baseCapacity;
-                                         return (
-                                             <Cell key={`cell-${i}`} fill={isOverload ? '#ef4444' : '#3b82f6'} />
-                                         );
-                                     })}
-                                 </Bar>
-                             </BarChart>
-                         </ResponsiveContainer>
+                     <div className="h-72">
+                         <Chart definition={simChart} height={288} ariaLabel={t('forecast.simTitle')} />
                      </div>
 
                      <table className="sr-only">

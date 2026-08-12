@@ -4,16 +4,11 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { AlertTriangle, CheckCircle, BarChart3, PieChart, Folder, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { addMonths, startOfQuarter, endOfMonth } from 'date-fns';
 import { PASTEL_VARIANTS, PASTEL_HEX } from '../constants';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { barY, colorLegend, defineChart, stack } from '@tanstack/charts';
+import { scaleBand } from '@tanstack/charts/scales/band';
+import { scaleLinear } from '@tanstack/charts/scales/linear';
+import { tooltip } from '@tanstack/charts/tooltip';
+import { Chart } from '@tanstack/charts/react';
 import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
 import { PageHeader } from './ui/PageHeader';
 
@@ -157,15 +152,15 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
 
   const allClientsInForecast: string[] = Array.from(new Set(quarters.flatMap(q => Object.keys(q.breakdown))));
 
-  // Transform revenue data for Recharts and map clients to hex colors
-  const revenueChartData = useMemo(() => {
-    return quarters.map(q => {
-      const row: Record<string, number | string> = { name: q.name, total: q.totalRevenue };
+  // Long-form rows for TanStack Charts stacked bar
+  const revenueRows = useMemo(() => {
+    const rows: { quarter: string; client: string; revenue: number }[] = [];
+    quarters.forEach(q => {
       allClientsInForecast.forEach(client => {
-        row[client] = q.breakdown[client] || 0;
+        rows.push({ quarter: q.name, client, revenue: q.breakdown[client] || 0 });
       });
-      return row;
     });
+    return rows;
   }, [quarters, allClientsInForecast]);
 
   const getClientHexColor = (clientName: string) => {
@@ -173,6 +168,36 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
     const colorKey = project?.color || 'gray';
     return PASTEL_HEX[colorKey] ?? PASTEL_HEX.gray;
   };
+
+  const revenueChart = useMemo(() => {
+    return defineChart({
+      marks: [
+        barY(revenueRows, {
+          x: 'quarter',
+          y: 'revenue',
+          color: 'client',
+          layout: stack({ order: allClientsInForecast }),
+        }),
+      ],
+      x: {
+        scale: () => scaleBand().padding(0.2),
+      },
+      y: {
+        scale: scaleLinear,
+        nice: true,
+        grid: true,
+        axis: {
+          ticks: { format: (v: number) => `€${Math.round(v / 1000)}k` },
+        },
+      },
+      color: {
+        domain: allClientsInForecast,
+        range: allClientsInForecast.map(getClientHexColor),
+        legend: colorLegend({ placement: 'bottom' }),
+      },
+      tooltip,
+    });
+  }, [revenueRows, allClientsInForecast, getClientHexColor]);
 
   const handleSort = (field: SortField) => {
       setSortConfig(prev => ({
@@ -217,38 +242,12 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                 </h3>
             </div>
 
-            <div
-                role="img"
-                aria-label={t('financials.revenueForecast')}
-                className="h-72 w-full"
-            >
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={revenueChartData} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceef0" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#647081' }} />
-                        <YAxis
-                            tick={{ fontSize: 12, fill: '#647081' }}
-                            tickFormatter={(value: number) => `€${Math.round(value / 1000)}k`}
-                            width={80}
-                        />
-                        <Tooltip
-                            formatter={(value: any) => [`€${Math.round(value / 1000)}k`, '']}
-                            labelStyle={{ color: '#2f333a' }}
-                            contentStyle={{ borderRadius: '0.5rem', border: '1px solid #d5d9df' }}
-                        />
-                        <Legend wrapperStyle={{ paddingTop: '1rem' }} />
-                        {allClientsInForecast.map(client => (
-                            <Bar
-                                key={client}
-                                dataKey={client}
-                                name={client}
-                                stackId="a"
-                                fill={getClientHexColor(client)}
-                                radius={[0, 0, 0, 0]}
-                            />
-                        ))}
-                    </BarChart>
-                </ResponsiveContainer>
+            <div className="h-72 w-full">
+                <Chart
+                    definition={revenueChart}
+                    height={288}
+                    ariaLabel={t('financials.revenueForecast')}
+                />
             </div>
 
             <table className="sr-only">
