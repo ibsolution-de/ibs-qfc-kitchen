@@ -45,6 +45,8 @@ spec:
             # Bootstrap admins: these accounts are created with the admin role
             # on startup, before they ever log in, and can then grant pm/bl to
             # everyone else. Every other new login defaults to employee only.
+            # No other users exist at start; the first-run seed ships only the
+            # internal customer (IBsolution GmbH) - see api/seed/seed.json.
             - { name: QFC_ADMIN_EMAILS, value: nazar.kulyk@ibsolution.de }
           readinessProbe:
             httpGet: { path: /healthz, port: http }

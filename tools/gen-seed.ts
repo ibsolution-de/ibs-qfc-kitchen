@@ -1,33 +1,38 @@
 /**
- * Generates `api/seed/seed.json`: today's demo data, taken straight from
- * `web/src/constants.ts`'s `MOCK_*` arrays (the same source of truth the
- * frontend renders in mock mode), converted through the existing
- * `*ToProto` adapters in `web/src/api/adapters.ts` - never reimplemented
- * here - and serialized as canonical protobuf JSON via `@bufbuild/protobuf`'s
- * `toJson`.
+ * Generates `api/seed/seed.json`: the production baseline a fresh database
+ * boots with. That baseline is deliberately minimal — the single internal
+ * customer `INTERNAL_CUSTOMER` ("IBsolution GmbH", our own firm, so internal
+ * projects always have a client to attach to). Users are NOT part of the
+ * seed: accounts are created by the auth layer (`QFC_ADMIN_EMAILS` /
+ * `QFC_DEFAULT_ROLE`, see `api/src/auth.rs`), so a fresh deployment starts
+ * with exactly one Admin plus this one customer and nothing else.
+ *
+ * The full `MOCK_*` demo dataset that used to populate this file still lives
+ * in `web/src/constants.ts` / `web/src/mocks` for tests and purely local
+ * feature development; it is intentionally not part of the shipped seed. If
+ * a local image ever needs demo data again, re-include the `MOCK_*` arrays
+ * here, regenerate, and rebuild — do not make the production seed carry it.
+ *
+ * Conversion goes through the same `*ToProto` adapters
+ * (`web/src/api/adapters.ts`) the web app itself uses, serialized as
+ * canonical protobuf JSON via `@bufbuild/protobuf`'s `toJson`.
  *
  * `api/src/seed.rs` embeds this same file at compile time and deserializes
  * it into buffa-generated message types whose serde impls speak the
  * identical wire format (full enum names, lowerCamelCase field names), so
  * the JSON produced here needs almost no adjustment to be read on the Rust
- * side. The one exception is `projects[].hourlyRate`: `web/src/constants.ts`
- * authors it as a `number` while `qfc.portfolio.v1.Project.hourly_rate` is
- * a decimal *string*, so `seed.rs` rewrites the number to its shortest
- * decimal string (`110` -> `"110"`, `97.5` -> `"97.5"`) before
- * deserializing; strings pass through untouched. The epoch-millis int64
- * fields (`createdAtMillis`, `dateMillis`) parse in either proto3-JSON
- * form, quoted or unquoted.
+ * side.
  *
  * Run via `pnpm seed:gen` (see the root `package.json`), which pipes this
- * file through `jiti` rather than plain `node`: several imports below
- * (and, transitively, everything under `web/src/api/gen`) use `.js`-suffixed
- * specifiers that only resolve to their `.ts` siblings under a TS-aware
- * loader - Node's own native type-stripping (verified against this repo's
- * Node 26) strips types syntactically but does not remap those extensions,
- * so `node tools/gen-seed.ts` fails to resolve them. `jiti` is not a new
- * dependency: it is already pinned in `pnpm-lock.yaml` as Vite's optional
- * peer dependency (used by Vite/Vitest themselves to load TS config files)
- * and its binary is already present at `web/node_modules/.bin/jiti`.
+ * file through `jiti` rather than plain `node`: the imports below use
+ * `.js`-suffixed specifiers that only resolve to their `.ts` siblings under
+ * a TS-aware loader - Node's own native type-stripping (verified against
+ * this repo's Node 26) strips types syntactically but does not remap those
+ * extensions, so `node tools/gen-seed.ts` fails to resolve them. `jiti` is
+ * not a new dependency: it is already pinned in `pnpm-lock.yaml` as Vite's
+ * optional peer dependency (used by Vite/Vitest themselves to load TS
+ * config files) and its binary is already present at
+ * `web/node_modules/.bin/jiti`.
  */
 
 import { writeFileSync } from 'node:fs';
@@ -35,58 +40,26 @@ import { fileURLToPath } from 'node:url';
 
 import { toJson } from '@bufbuild/protobuf';
 
-import {
-  MOCK_EMPLOYEES,
-  MOCK_PROJECTS,
-  MOCK_CUSTOMERS,
-  MOCK_VERSIONS,
-  MOCK_HOLIDAYS,
-  MOCK_GOALS,
-  MOCK_NORTH_STARS,
-  MOCK_1ON1S,
-} from '../web/src/constants.js';
-
-import {
-  employeesToProto,
-  projectsToProto,
-  customersToProto,
-  planVersionsToProto,
-  publicHolidaysToProto,
-  strategicGoalsToProto,
-  northStarMetricsToProto,
-  oneOnOneSessionsToProto,
-} from '../web/src/api/adapters.js';
-
-import { EmployeeSchema } from '../web/src/api/gen/qfc/team/v1/team_pb.js';
-import { ProjectSchema } from '../web/src/api/gen/qfc/portfolio/v1/portfolio_pb.js';
+import { INTERNAL_CUSTOMER } from '../web/src/constants.js';
+import { customersToProto } from '../web/src/api/adapters.js';
 import { CustomerSchema } from '../web/src/api/gen/qfc/crm/v1/crm_pb.js';
-import {
-  PlanVersionSchema,
-  PublicHolidaySchema,
-} from '../web/src/api/gen/qfc/planning/v1/planning_pb.js';
-import {
-  StrategicGoalSchema,
-  NorthStarMetricSchema,
-} from '../web/src/api/gen/qfc/strategy/v1/strategy_pb.js';
-import { OneOnOneSessionSchema } from '../web/src/api/gen/qfc/growth/v1/growth_pb.js';
 
 /**
- * Every MOCK_* array in `constants.ts` is a hand-authored literal (not a
- * runtime-computed/`Set`-or-`Map`-backed collection), so iterating each in
- * its declared order - as every `*ToProto` helper does - is already
- * deterministic: regenerating without a source change reproduces byte-
- * identical output, which keeps this generated, committed artifact's diffs
- * meaningful.
+ * The production baseline. Every key stays an array (empty where the
+ * baseline ships nothing) so the shape is stable and
+ * `api/tests/seed.rs`'s dynamic row-count checks keep working.
  */
 const seed = {
-  employees: employeesToProto(MOCK_EMPLOYEES).map(msg => toJson(EmployeeSchema, msg)),
-  projects: projectsToProto(MOCK_PROJECTS).map(msg => toJson(ProjectSchema, msg)),
-  customers: customersToProto(MOCK_CUSTOMERS).map(msg => toJson(CustomerSchema, msg)),
-  versions: planVersionsToProto(MOCK_VERSIONS).map(msg => toJson(PlanVersionSchema, msg)),
-  holidays: publicHolidaysToProto(MOCK_HOLIDAYS).map(msg => toJson(PublicHolidaySchema, msg)),
-  goals: strategicGoalsToProto(MOCK_GOALS).map(msg => toJson(StrategicGoalSchema, msg)),
-  northStars: northStarMetricsToProto(MOCK_NORTH_STARS).map(msg => toJson(NorthStarMetricSchema, msg)),
-  oneOnOnes: oneOnOneSessionsToProto(MOCK_1ON1S).map(msg => toJson(OneOnOneSessionSchema, msg)),
+  employees: [],
+  projects: [],
+  customers: customersToProto([INTERNAL_CUSTOMER]).map(msg =>
+    toJson(CustomerSchema, msg)
+  ),
+  versions: [],
+  holidays: [],
+  goals: [],
+  northStars: [],
+  oneOnOnes: [],
 };
 
 const outPath = fileURLToPath(new URL('../api/seed/seed.json', import.meta.url));

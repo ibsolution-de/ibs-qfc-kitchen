@@ -96,9 +96,24 @@ export const MOCK_PROJECTS: Project[] = [
   { id: 'p14', name: 'FinTech App 2.0', client: 'N26', color: 'purple', status: 'opportunity', budget: '150k', startDate: '2026-05-01', endDate: '2026-11-30', volume: 70, topic: 'Finance', notes: '', hourlyRate: 145, probability: 45, northStarMetricId: 'ns1' },
 ];
 
+/**
+ * IBsolution GmbH — our own firm, always present as a customer so internal
+ * projects have a client to attach to. This is the single row the
+ * production seed ships (see `tools/gen-seed.ts`); everything else in the
+ * `MOCK_*` arrays exists for tests and local feature development only.
+ */
+export const INTERNAL_CUSTOMER: Customer = {
+    id: 'ibs',
+    name: 'IBsolution GmbH',
+    industry: 'Internal',
+    contactName: 'Nazar Kulyk',
+    email: 'nazar.kulyk@ibsolution.de',
+    logo: 'https://ui-avatars.com/api/?name=IBsolution&background=0D8ABC&color=fff',
+};
+
 export const MOCK_CUSTOMERS: Customer[] = [
     { id: 'c1', name: 'MAN', industry: 'Automotive', contactName: 'Hans Müller', email: 'hans.mueller@man.eu', logo: 'https://ui-avatars.com/api/?name=MAN&background=000&color=fff' },
-    { id: 'c2', name: 'IBs', industry: 'Internal', contactName: 'Nazar Kulyk', email: 'admin@ibs.com', logo: 'https://ui-avatars.com/api/?name=IBs&background=666&color=fff' },
+    INTERNAL_CUSTOMER,
     { id: 'c3', name: 'Soka Bau', industry: 'Insurance', contactName: 'Petra Schmidt', email: 'p.schmidt@soka.de', logo: 'https://ui-avatars.com/api/?name=Soka&background=2E7D32&color=fff' },
     { id: 'c4', name: 'Storck', industry: 'Food', contactName: 'Klaus Klein', email: 'klaus@storck.com', logo: 'https://ui-avatars.com/api/?name=Storck&background=C2185B&color=fff' },
     { id: 'c5', name: 'Allianz', industry: 'Insurance', contactName: 'Maria Weber', email: 'm.weber@allianz.com', logo: 'https://ui-avatars.com/api/?name=Allianz&background=003399&color=fff' },

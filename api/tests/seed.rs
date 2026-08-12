@@ -82,6 +82,7 @@ async fn seed_if_empty_populates_row_counts_matching_the_json_and_writes_no_chan
     let expected: serde_json::Value =
         serde_json::from_str(&raw).expect("seed.json must be valid JSON");
     let expected_versions = expected["versions"].as_array().cloned().unwrap_or_default();
+    let expected_customers = array_len(&expected, "customers");
     let expected_assignments: usize = expected_versions
         .iter()
         .map(distinct_assignment_cells)
@@ -143,8 +144,8 @@ async fn seed_if_empty_populates_row_counts_matching_the_json_and_writes_no_chan
         expected_quarter_data
     );
     assert!(
-        expected_assignments > 0,
-        "sanity check: the fixture must actually carry assignments"
+        expected_customers > 0,
+        "sanity check: the seed must carry at least the internal customer"
     );
 
     assert_eq!(
@@ -220,7 +221,10 @@ async fn corrupted_seed_json_fails_and_writes_nothing() {
         .await
         .expect("seed ok after a prior failed attempt");
     assert!(seeded);
-    assert!(count(&pool, "employee").await > 0);
+    assert!(
+        count(&pool, "customer").await > 0,
+        "the production baseline must re-seed the internal customer"
+    );
 
     db.cleanup(pool).await;
 }
