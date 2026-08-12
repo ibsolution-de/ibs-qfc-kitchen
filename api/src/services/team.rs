@@ -67,6 +67,13 @@ impl TeamService for TeamServiceImpl {
             validate_employee,
         )
         .await?;
+        // Direction B of the email-based `users.employee_id` auto-link (see
+        // `services::session::get_session` for Direction A): a `users` row
+        // may already exist for this employee's email (created by a login
+        // that happened before this employee record did) with no
+        // `employee_id` yet — link it now, best-effort, alongside the
+        // primary employee write above.
+        auto_link_user(&self.pool, &employee).await?;
         Response::ok(UpsertEmployeeResponse {
             employee: employee.into(),
             ..Default::default()
@@ -87,6 +94,29 @@ impl TeamService for TeamServiceImpl {
         crud::delete(&self.pool, &self.hub, &spec, &current.email, request.id).await?;
         Response::ok(DeleteEmployeeResponse::default())
     }
+}
+
+/// If `employee.email` is set, guarded-link it to a pre-existing `users`
+/// row with a `NULL employee_id` — mirroring
+/// `services::session::auto_link_employee`'s guard so the direction this
+/// runs (employee written first, user seen later) can never overwrite an
+/// `employee_id` an admin already assigned.
+async fn auto_link_user(pool: &SqlitePool, employee: &Employee) -> AppResult<()> {
+    let Some(email) = employee
+        .email
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    let normalized = auth::normalize_email(email);
+    sqlx::query("UPDATE users SET employee_id = ?2 WHERE email = ?1 AND employee_id IS NULL")
+        .bind(&normalized)
+        .bind(&employee.id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 fn validate_employee(employee: &Employee) -> AppResult<()> {

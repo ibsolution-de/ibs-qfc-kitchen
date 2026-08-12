@@ -941,26 +941,30 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {data.map((quarter, index) => (
-            <ForecastQuarterCard
-              key={quarter.id}
-              quarter={quarter}
-              index={index}
-              allProjects={allProjects}
-              employees={employees}
-              absences={absences}
-              holidays={holidays}
-              assignments={assignments}
-              readOnly={readOnly}
-              onUpdateForecast={onUpdateForecast}
-              isAddingMustWin={addingTo?.qId === quarter.id && addingTo?.type === 'mustWin'}
-              isAddingAlt={addingTo?.qId === quarter.id && addingTo?.type === 'alternative'}
-              setAddingTo={setAddingTo}
-              onRunMonteCarlo={handleRunMonteCarlo}
-            />
-          ))}
-        </div>
+        {data.length === 0 ? (
+          <div className="text-charcoal-400 text-sm italic text-center py-12">{t('forecast.noQuarters')}</div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {data.map((quarter, index) => (
+              <ForecastQuarterCard
+                key={quarter.id}
+                quarter={quarter}
+                index={index}
+                allProjects={allProjects}
+                employees={employees}
+                absences={absences}
+                holidays={holidays}
+                assignments={assignments}
+                readOnly={readOnly}
+                onUpdateForecast={onUpdateForecast}
+                isAddingMustWin={addingTo?.qId === quarter.id && addingTo?.type === 'mustWin'}
+                isAddingAlt={addingTo?.qId === quarter.id && addingTo?.type === 'alternative'}
+                setAddingTo={setAddingTo}
+                onRunMonteCarlo={handleRunMonteCarlo}
+              />
+            ))}
+          </div>
+        )}
       </div>
       
       {/* AI Analysis Modal - Dark Mode */}

@@ -152,6 +152,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
 
   const allClientsInForecast: string[] = Array.from(new Set(quarters.flatMap(q => Object.keys(q.breakdown))));
 
+  // True when there is budget data to forecast, but none of it can be
+  // plotted because no project carries a start/end date.
+  const forecastMissingDates = allProjectFinancials.length > 0
+    && allProjectFinancials.every(p => !p.startDate || !p.endDate);
+
   // Long-form rows for TanStack Charts stacked bar
   const revenueRows = useMemo(() => {
     const rows: { quarter: string; client: string; revenue: number }[] = [];
@@ -241,6 +246,12 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                     {t('financials.revenueForecast')}
                 </h3>
             </div>
+
+            {forecastMissingDates && (
+                <p className="text-sm text-charcoal-400 italic mb-4">
+                    {t('financials.noProjectDates')}
+                </p>
+            )}
 
             <div className="h-72 w-full">
                 <Chart
@@ -406,7 +417,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                          {projectFinancials.length === 0 && (
                              <tr>
                                  <td colSpan={5} className="px-6 py-8 text-center text-charcoal-400 italic">
-                                     {t('financials.noProjectsFound')}
+                                     {projects.length === 0
+                                         ? t('financials.noProjects')
+                                         : allProjectFinancials.length === 0
+                                             ? t('financials.noBudgetsSet')
+                                             : t('financials.noProjectsFound')}
                                  </td>
                              </tr>
                          )}

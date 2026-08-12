@@ -3,6 +3,8 @@ import {
   eachDayOfInterval,
   endOfMonth,
   isWeekend,
+  startOfQuarter,
+  addMonths,
 } from 'date-fns';
 import type {
   QuarterData,
@@ -29,6 +31,74 @@ export function parseQuarterName(name: string): { quarter: number; year: number 
   if (quarter < 1 || quarter > 4 || Number.isNaN(year)) return null;
 
   return { quarter, year };
+}
+
+/**
+ * Builds a rolling window of `count` quarters starting at the quarter
+ * containing `today`, backed by whatever `persisted` rows already exist for
+ * those quarters.
+ *
+ * Persisted rows are matched to a window slot by their *parsed* name
+ * (quarter + year), not by id - real persisted rows carry server-assigned
+ * ids and must keep them. Window slots with no persisted match are
+ * synthesized with a deterministic id (`q<year>-Q<n>`), so writing one back
+ * to the backend is idempotent (upsert by `(version_id, id)` never creates a
+ * duplicate row for the same quarter).
+ *
+ * Any persisted row that falls outside the window (or whose name can't be
+ * parsed at all) is preserved rather than dropped, and the full result is
+ * returned in chronological order.
+ */
+export function mergeForecastQuarters(
+  persisted: QuarterData[],
+  today: Date,
+  count = 4
+): QuarterData[] {
+  const windowStart = startOfQuarter(today);
+
+  const windowSlots = Array.from({ length: count }, (_, i) => {
+    const slotStart = startOfQuarter(addMonths(windowStart, i * 3));
+    const quarter = Math.floor(slotStart.getMonth() / 3) + 1;
+    const year = slotStart.getFullYear();
+    return { quarter, year, name: `Q${quarter} ${year}`, id: `q${year}-Q${quarter}` };
+  });
+
+  const usedPersistedIndices = new Set<number>();
+
+  const windowQuarters: QuarterData[] = windowSlots.map(slot => {
+    const matchIndex = persisted.findIndex((q, idx) => {
+      if (usedPersistedIndices.has(idx)) return false;
+      const parsed = parseQuarterName(q.name);
+      return parsed !== null && parsed.quarter === slot.quarter && parsed.year === slot.year;
+    });
+
+    if (matchIndex !== -1) {
+      usedPersistedIndices.add(matchIndex);
+      return persisted[matchIndex]!;
+    }
+
+    return {
+      id: slot.id,
+      name: slot.name,
+      months: [],
+      totalCapacity: [],
+      runningProjects: [],
+      mustWinOpportunities: [],
+      alternativeOpportunities: [],
+      notes: '',
+    };
+  });
+
+  const leftover = persisted.filter((_, idx) => !usedPersistedIndices.has(idx));
+
+  // Sort chronologically by parsed quarter+year; rows with an unparseable
+  // name sort last (in their original relative order) instead of being lost.
+  const sortKey = (q: QuarterData): number => {
+    const parsed = parseQuarterName(q.name);
+    return parsed ? parsed.year * 4 + (parsed.quarter - 1) : Number.POSITIVE_INFINITY;
+  };
+
+  return [...windowQuarters, ...leftover].sort((a, b) => sortKey(a) - sortKey(b));
 }
 
 export interface QuarterCapacityInput {

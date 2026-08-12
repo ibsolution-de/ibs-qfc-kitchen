@@ -1,13 +1,14 @@
 
 
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Assignment, Project, Absence, Employee, Sentiment, PublicHoliday, OneOnOneSession } from '../types';
 import { format, isSameDay, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Briefcase, Clock, TrendingUp, Smile, Frown, Meh, Folder, HeartHandshake } from 'lucide-react';
+import { Briefcase, Clock, TrendingUp, Smile, Frown, Meh, Folder, HeartHandshake, AlertTriangle } from 'lucide-react';
 import { PASTEL_VARIANTS } from '../constants';
 
 interface MyOverviewProps {
@@ -15,24 +16,27 @@ interface MyOverviewProps {
   projects: Project[];
   absences: Absence[];
   employees?: Employee[]; // List of all employees to look up target
-  targetEmployeeId?: string | null; // If set, view this employee instead of self
   holidays?: PublicHoliday[];
   oneOnOnes?: OneOnOneSession[];
 }
 
-export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, absences, employees = [], targetEmployeeId, holidays = [], oneOnOnes = [] }) => {
-  const { user } = useAuth();
+export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, absences, employees = [], holidays = [], oneOnOnes = [] }) => {
+  const { user, isRole } = useAuth();
   const { t, formatDate } = useLanguage();
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [pulseSubmitted, setPulseSubmitted] = useState(false);
+
+  // If a route param is present, view that employee instead of self.
+  // `undefined` on the plain `/my-overview` route means "self".
+  const { employeeId: targetEmployeeId } = useParams<{ employeeId: string }>();
 
   // Determine which employee context to show
   // If targetEmployeeId is provided, try to find that employee.
   // Fallback to the logged-in user.
   const isSelf = !targetEmployeeId || targetEmployeeId === user.employeeId;
-  
-  const targetEmployee = targetEmployeeId 
-    ? employees.find(e => e.id === targetEmployeeId) 
+
+  const targetEmployee = targetEmployeeId
+    ? employees.find(e => e.id === targetEmployeeId)
     : null;
 
   // Data needed for display
@@ -71,6 +75,23 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
       if(nextSession) nextSession.sentiment = sentiment; // Update local mock
   };
 
+  // A target id was given, but no employee in the list matches it (e.g. a
+  // stale bookmark or a deleted employee) - show a clear message instead of
+  // silently rendering blank name/role and zeroed stats.
+  if (targetEmployeeId && !targetEmployee) {
+    return (
+      <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
+        <div className="max-w-5xl mx-auto flex items-center justify-center h-full">
+          <p className="text-charcoal-400 text-sm italic">{t('myOverview.employeeNotFound')}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // The signed-in user's account isn't linked to any employee record yet, so
+  // there is no assignment/absence data to show for them.
+  const isUnlinkedSelf = isSelf && !user.employeeId;
+
   return (
     <div className="h-full overflow-auto bg-gray-50/50 p-6 custom-scrollbar">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -92,6 +113,22 @@ export const MyOverview: React.FC<MyOverviewProps> = ({ assignments, projects, a
               </Button>
           )}
         </div>
+
+        {/* Unlinked Account Banner (Only for Self, when not linked to an employee record) */}
+        {isUnlinkedSelf && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 shadow-sm flex items-start gap-4 animate-fade-in-up">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-amber-600 shadow-sm border border-amber-200 shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                    <h3 className="text-base font-bold text-amber-900">{t('myOverview.unlinkedTitle')}</h3>
+                    <p className="text-sm text-amber-800 mt-1">{t('myOverview.unlinkedBody')}</p>
+                    <p className="text-sm text-amber-800 mt-1">
+                        {isRole('admin') ? t('myOverview.unlinkedAdminHint') : t('myOverview.unlinkedTeamHint')}
+                    </p>
+                </div>
+            </div>
+        )}
 
         {/* Pulse Check Widget (Only for Self) */}
         {isSelf && nextSession && !pulseSubmitted && nextSession.sentiment === 'unknown' && (

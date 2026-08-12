@@ -1,12 +1,48 @@
 export const MARGIN_THRESHOLDS = { risk: 10, healthy: 25 } as const;
 
+// Strips currency symbols and (non-breaking) spaces so `numericPart` is left
+// with only digits, `.`, `,`, and a possible trailing k/m suffix.
+function stripCurrencyAndSpaces(input: string): string {
+  return input.replace(/[€$]/g, '').replace(/[\s ]/g, '');
+}
+
+// Disambiguates `.` vs `,` as the decimal separator in a single numeric
+// string (German "1.234,56" / English "1,234.56" / thousands-only variants)
+// and returns a string with a single `.` decimal separator and no thousands
+// separators, ready for `Number()`.
+function normalizeDecimalSeparator(numericPart: string): string {
+  const hasDot = numericPart.includes('.');
+  const hasComma = numericPart.includes(',');
+
+  if (hasDot && hasComma) {
+    const decimalChar = numericPart.lastIndexOf(',') > numericPart.lastIndexOf('.') ? ',' : '.';
+    const thousandsChar = decimalChar === ',' ? '.' : ',';
+    return numericPart
+      .split(thousandsChar).join('')
+      .replace(decimalChar, '.');
+  }
+
+  if (hasComma || hasDot) {
+    const sep = hasComma ? ',' : '.';
+    const occurrences = numericPart.split(sep).length - 1;
+    const isDecimal = occurrences === 1 && /[,.]\d{1,2}$/.test(numericPart);
+    if (isDecimal) {
+      return numericPart.replace(sep, '.');
+    }
+    // Thousands separator(s) — strip all occurrences.
+    return numericPart.split(sep).join('');
+  }
+
+  return numericPart;
+}
+
 export function parseBudget(input: string | null | undefined): number | null {
   if (input == null) return null;
 
   const trimmed = input.trim();
   if (trimmed === '') return null;
 
-  const normalized = trimmed.toLowerCase();
+  const normalized = stripCurrencyAndSpaces(trimmed.toLowerCase());
   let multiplier = 1;
   let numericPart = normalized;
 
@@ -21,7 +57,7 @@ export function parseBudget(input: string | null | undefined): number | null {
   numericPart = numericPart.trim();
   if (numericPart === '') return null;
 
-  const withDotDecimal = numericPart.replace(',', '.');
+  const withDotDecimal = normalizeDecimalSeparator(numericPart);
   const parsed = Number(withDotDecimal);
   if (!Number.isFinite(parsed)) return null;
 

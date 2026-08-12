@@ -15,6 +15,7 @@ import { AsciiSpinner } from './components/ui/AsciiSpinner';
 import { LiveStoreProvider, useLiveStore } from './api/liveStore';
 import { computeDelta } from './api/delta';
 import { hasPlanningAccess, getLandingRoute } from './utils/access';
+import { mergeForecastQuarters } from './utils/forecast';
 
 const QuarterlyForecast = React.lazy(() => import('./components/QuarterlyForecast').then(m => ({ default: m.QuarterlyForecast })));
 const ManageTeam = React.lazy(() => import('./components/ManageTeam').then(m => ({ default: m.ManageTeam })));
@@ -53,9 +54,6 @@ const AppContent: React.FC = () => {
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
 
-  // New state for viewing specific employee overview
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
-
   // Active Version State - the server seeds at least one version, so `versions`
   // is non-empty by the time AppContent mounts (see the LiveStore gate below).
   const [activeVersionId, setActiveVersionId] = useState<string>(
@@ -72,9 +70,16 @@ const AppContent: React.FC = () => {
 
   const plannerAssignments = activeVersion?.assignments ?? [];
   const plannerAbsences = activeVersion?.absences ?? [];
-  const forecastData = activeVersion?.forecastData ?? [];
 
   const versionStartDate = useToday();
+
+  // A fresh plan version starts with zero QuarterData rows and there is no
+  // UI to create one - derive a rolling 4-quarter window (backed by whatever
+  // is already persisted) so the forecast page always has something to show.
+  const forecastData = useMemo(
+    () => mergeForecastQuarters(activeVersion?.forecastData ?? [], versionStartDate),
+    [activeVersion, versionStartDate]
+  );
 
   const handleUpdateEmployees = (nextEmployees: Employee[]) => {
     const { upserts, deleteIds } = computeDelta(employees, nextEmployees);
@@ -195,8 +200,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleNavigateToEmployee = (employeeId: string) => {
-      setSelectedEmployeeId(employeeId);
-      navigate('/my-overview');
+      navigate(`/my-overview/${encodeURIComponent(employeeId)}`);
   };
 
   // Determine ReadOnly state for Planner.
@@ -211,9 +215,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
       if (location.pathname !== '/projects') {
           setHighlightedProjectId(null);
-      }
-      if (location.pathname !== '/my-overview') {
-          setSelectedEmployeeId(null);
       }
   }, [location.pathname]);
 
@@ -257,7 +258,19 @@ const AppContent: React.FC = () => {
                       projects={projects}
                       absences={plannerAbsences}
                       employees={employees}
-                      targetEmployeeId={selectedEmployeeId}
+                      holidays={holidays}
+                      oneOnOnes={oneOnOnes}
+                  />
+                </AnimatedPage>
+            } />
+
+            <Route path="/my-overview/:employeeId" element={
+                <AnimatedPage>
+                  <MyOverview
+                      assignments={plannerAssignments}
+                      projects={projects}
+                      absences={plannerAbsences}
+                      employees={employees}
                       holidays={holidays}
                       oneOnOnes={oneOnOnes}
                   />

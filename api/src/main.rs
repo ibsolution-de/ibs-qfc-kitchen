@@ -61,7 +61,9 @@ async fn main() {
     };
 
     let connect_router = connectrpc::Router::new()
-        .add_service(Arc::new(services::session::SessionServiceImpl))
+        .add_service(Arc::new(services::session::SessionServiceImpl::new(
+            state.pool.clone(),
+        )))
         .add_service(Arc::new(services::admin::AdminServiceImpl::new(
             state.pool.clone(),
             services::admin::AdminServiceConfig {

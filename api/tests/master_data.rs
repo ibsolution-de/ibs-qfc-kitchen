@@ -6,7 +6,13 @@
 //! `TeamServiceImpl` exercises the shared `services::crud` path every plain
 //! blob-backed entity service (`team`, `crm`, `portfolio`, `strategy`) goes
 //! through; a couple of `GrowthServiceImpl` tests additionally cover the
-//! hand-written `one_on_one` path documented in `services/growth.rs`.
+//! hand-written `one_on_one` path documented in `services/growth.rs`. The
+//! `get_session_*`/`upsert_employee_links_*` tests near the bottom cover the
+//! `users.employee_id` email-based auto-link split across
+//! `services::session::get_session` (Direction A) and
+//! `services::team::upsert_employee` (Direction B) — this file already has
+//! the `TeamServiceImpl` plumbing Direction B needs, and `SessionServiceImpl`
+//! is cheap to stand up alongside it for Direction A.
 
 mod common;
 
@@ -21,13 +27,14 @@ use qfc_api::proto::events::{ChangeOp, EntityKind, EventService, WatchRequest};
 use qfc_api::proto::growth::{
     DeleteSessionRequest, GrowthService, ListSessionsRequest, OneOnOneSession, UpsertSessionRequest,
 };
-use qfc_api::proto::session::UserRole;
+use qfc_api::proto::session::{GetSessionRequest, SessionService, User, UserRole};
 use qfc_api::proto::team::{
     DeleteEmployeeRequest, Employee, EmploymentType, ListEmployeesRequest, TeamService,
     UpsertEmployeeRequest,
 };
 use qfc_api::services::events::EventServiceImpl;
 use qfc_api::services::growth::GrowthServiceImpl;
+use qfc_api::services::session::SessionServiceImpl;
 use qfc_api::services::team::TeamServiceImpl;
 use sqlx::SqlitePool;
 
@@ -51,6 +58,52 @@ fn ctx_for_roles(email: &str, roles: Vec<UserRole>) -> RequestContext {
         employee_id: None,
     });
     RequestContext::new(http::HeaderMap::new()).with_extensions(extensions)
+}
+
+/// A `RequestContext` carrying `email`/`employee_id` as the authenticated
+/// caller, for the `get_session_*` auto-link tests below — `ctx_for`'s
+/// always-`None` `employee_id` can't exercise the "already linked" guard.
+fn ctx_with_employee_id(email: &str, employee_id: Option<&str>) -> RequestContext {
+    let mut extensions = http::Extensions::new();
+    extensions.insert(CurrentUser {
+        email: email.to_string(),
+        name: email.to_string(),
+        subject: None,
+        roles: vec![UserRole::Employee],
+        employee_id: employee_id.map(str::to_string),
+    });
+    RequestContext::new(http::HeaderMap::new()).with_extensions(extensions)
+}
+
+/// Insert a `users` row directly, the way `auth::middleware` would have on
+/// a real login — the `get_session_*` auto-link tests need a real row to
+/// guard the `UPDATE` against, since `GetSession` never creates one itself.
+async fn seed_user(pool: &SqlitePool, email: &str, employee_id: Option<&str>) {
+    sqlx::query(
+        "INSERT INTO users (email, name, subject, roles, employee_id, created_at)
+         VALUES (?1, ?1, NULL, 'EMPLOYEE', ?2, 0)",
+    )
+    .bind(email)
+    .bind(employee_id)
+    .execute(pool)
+    .await
+    .expect("seed user row");
+}
+
+async fn user_employee_id(pool: &SqlitePool, email: &str) -> Option<String> {
+    sqlx::query_scalar("SELECT employee_id FROM users WHERE email = ?1")
+        .bind(email)
+        .fetch_one(pool)
+        .await
+        .expect("fetch employee_id")
+}
+
+async fn get_session(svc: &SessionServiceImpl, ctx: RequestContext) -> Result<User, ConnectError> {
+    let body = Bytes::from(GetSessionRequest::default().encode_to_vec());
+    let view = GetSessionRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<GetSessionRequest>::from_parts(&view, &body);
+    let resp = svc.get_session(ctx, req).await?;
+    Ok(resp.body.user.into_option().unwrap_or_default())
 }
 
 async fn list_employees(svc: &TeamServiceImpl) -> Result<Vec<Employee>, ConnectError> {
@@ -591,6 +644,151 @@ async fn growth_session_upsert_keeps_employee_id_column_in_sync() {
         .await
         .expect("count one_on_one rows");
     assert_eq!(remaining, 0);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn get_session_auto_links_employee_by_case_insensitive_email_match() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let team_svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
+    let session_svc = SessionServiceImpl::new(pool.clone());
+
+    let created = upsert_employee(
+        &team_svc,
+        ACTOR,
+        Employee {
+            name: "Ada Lovelace".to_string(),
+            ..Default::default()
+        }
+        .with_email("Ada@Example.com"),
+    )
+    .await
+    .expect("seed employee");
+
+    let user_email = "ada@example.com";
+    seed_user(&pool, user_email, None).await;
+
+    let user = get_session(&session_svc, ctx_with_employee_id(user_email, None))
+        .await
+        .expect("get_session ok");
+    assert_eq!(user.employee_id.as_deref(), Some(created.id.as_str()));
+    assert_eq!(
+        user_employee_id(&pool, user_email).await,
+        Some(created.id),
+        "the guarded UPDATE must have persisted the link, not just the response"
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn get_session_does_not_link_when_no_employee_matches() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let session_svc = SessionServiceImpl::new(pool.clone());
+
+    let user_email = "nomatch@example.com";
+    seed_user(&pool, user_email, None).await;
+
+    let user = get_session(&session_svc, ctx_with_employee_id(user_email, None))
+        .await
+        .expect("get_session ok");
+    assert_eq!(user.employee_id, None);
+    assert_eq!(user_employee_id(&pool, user_email).await, None);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn get_session_does_not_overwrite_an_already_set_employee_id() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let team_svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
+    let session_svc = SessionServiceImpl::new(pool.clone());
+
+    // A different employee whose email also matches this user — proves the
+    // "already linked" guard is what's stopping the link below, not simply
+    // the absence of any matching employee.
+    let other_employee = upsert_employee(
+        &team_svc,
+        ACTOR,
+        Employee {
+            name: "Other Employee".to_string(),
+            ..Default::default()
+        }
+        .with_email("ada@example.com"),
+    )
+    .await
+    .expect("seed employee");
+    assert_eq!(other_employee.email.as_deref(), Some("ada@example.com"));
+
+    let user_email = "ada@example.com";
+    seed_user(&pool, user_email, Some("already-linked-id")).await;
+
+    let user = get_session(
+        &session_svc,
+        ctx_with_employee_id(user_email, Some("already-linked-id")),
+    )
+    .await
+    .expect("get_session ok");
+    assert_eq!(user.employee_id.as_deref(), Some("already-linked-id"));
+    assert_eq!(
+        user_employee_id(&pool, user_email).await,
+        Some("already-linked-id".to_string()),
+        "an existing non-null employee_id must never be overwritten"
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn upsert_employee_links_a_pre_existing_user_row_with_matching_email() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
+
+    let user_email = "ada@example.com";
+    seed_user(&pool, user_email, None).await;
+
+    let created = upsert_employee(
+        &svc,
+        ACTOR,
+        Employee {
+            name: "Ada Lovelace".to_string(),
+            ..Default::default()
+        }
+        .with_email("Ada@Example.com"),
+    )
+    .await
+    .expect("upsert ok");
+
+    assert_eq!(user_employee_id(&pool, user_email).await, Some(created.id));
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn upsert_employee_does_not_overwrite_an_already_set_employee_id() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
+
+    let user_email = "ada@example.com";
+    seed_user(&pool, user_email, Some("already-linked-id")).await;
+
+    upsert_employee(
+        &svc,
+        ACTOR,
+        Employee {
+            name: "Ada Lovelace".to_string(),
+            ..Default::default()
+        }
+        .with_email(user_email),
+    )
+    .await
+    .expect("upsert ok");
+
+    assert_eq!(
+        user_employee_id(&pool, user_email).await,
+        Some("already-linked-id".to_string())
+    );
 
     db.cleanup(pool).await;
 }

@@ -5,6 +5,7 @@ import {
   computeMonthlyBreakdown,
   runMonteCarloSimulation,
   calculateCapacityMetrics,
+  mergeForecastQuarters,
 } from './forecast';
 import type {
   QuarterData,
@@ -154,6 +155,61 @@ describe('computeQuarterCapacity', () => {
 
     // Half capacity for a quarter with 22/20/22 working days.> 10/10/11 days.
     expect(result.totalCapacity).toEqual([11, 10, 11]);
+  });
+});
+
+describe('mergeForecastQuarters', () => {
+  it('builds a rolling window crossing a year boundary', () => {
+    const today = new Date(2026, 9, 15); // Oct 15 2026 -> Q4 2026
+    const result = mergeForecastQuarters([], today, 4);
+
+    expect(result.map(q => q.name)).toEqual(['Q4 2026', 'Q1 2027', 'Q2 2027', 'Q3 2027']);
+    expect(result.map(q => q.id)).toEqual(['q2026-Q4', 'q2027-Q1', 'q2027-Q2', 'q2027-Q3']);
+  });
+
+  it('matches a persisted quarter by name and keeps its own id', () => {
+    const today = new Date(2026, 9, 15); // Q4 2026
+    const persisted = baseQuarter({
+      id: 'uuid-real-1234',
+      name: 'Q1 2027',
+      notes: 'carried over notes',
+    });
+
+    const result = mergeForecastQuarters([persisted], today, 4);
+    const match = result.find(q => q.name === 'Q1 2027');
+
+    expect(match).toBeDefined();
+    expect(match!.id).toBe('uuid-real-1234');
+    expect(match!.notes).toBe('carried over notes');
+
+    // The other window slots are still synthesized with deterministic ids.
+    expect(result.find(q => q.name === 'Q4 2026')!.id).toBe('q2026-Q4');
+  });
+
+  it('preserves a persisted quarter outside the window, positioned chronologically', () => {
+    const today = new Date(2026, 9, 15); // window: Q4 2026 .. Q3 2027
+    const pastQuarter = baseQuarter({ id: 'uuid-past', name: 'Q2 2026' });
+
+    const result = mergeForecastQuarters([pastQuarter], today, 4);
+
+    expect(result.map(q => q.name)).toEqual([
+      'Q2 2026',
+      'Q4 2026',
+      'Q1 2027',
+      'Q2 2027',
+      'Q3 2027',
+    ]);
+    expect(result[0]!.id).toBe('uuid-past');
+  });
+
+  it('keeps rows with an unparseable name instead of dropping them', () => {
+    const today = new Date(2026, 9, 15);
+    const junk = baseQuarter({ id: 'uuid-junk', name: 'garbage' });
+
+    const result = mergeForecastQuarters([junk], today, 4);
+
+    expect(result.some(q => q.id === 'uuid-junk')).toBe(true);
+    expect(result).toHaveLength(5);
   });
 });
 

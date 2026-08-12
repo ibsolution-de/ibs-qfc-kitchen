@@ -3,13 +3,25 @@
 //! every request. First real service on the auth-to-handler path.
 
 use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
+use sqlx::SqlitePool;
 
 use crate::auth::{self, CurrentUser};
+use crate::error::AppResult;
 use crate::proto::session::{
     GetSessionRequest, GetSessionResponse, SessionService, User, UserRole,
 };
+use crate::proto::team::Employee;
+use crate::store::{self, Table};
 
-pub struct SessionServiceImpl;
+pub struct SessionServiceImpl {
+    pool: SqlitePool,
+}
+
+impl SessionServiceImpl {
+    pub fn new(pool: SqlitePool) -> Self {
+        Self { pool }
+    }
+}
 
 impl SessionService for SessionServiceImpl {
     async fn get_session(
@@ -17,12 +29,57 @@ impl SessionService for SessionServiceImpl {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetSessionRequest>,
     ) -> ServiceResult<GetSessionResponse> {
-        let current = auth::require(&ctx)?;
+        let mut current = auth::require(&ctx)?;
+        // Direction A of the email-based `users.employee_id` auto-link (see
+        // `services::team::upsert_employee` for Direction B): a user seen
+        // here with no `employee_id` yet may already have a matching
+        // `Employee` row — link it now rather than waiting for an admin to
+        // do it by hand via `AdminService::UpsertUser`.
+        if current.employee_id.is_none() {
+            current.employee_id = auto_link_employee(&self.pool, &current.email).await?;
+        }
         Response::ok(GetSessionResponse {
             user: user_from(current).into(),
             ..Default::default()
         })
     }
+}
+
+/// Find an `Employee` whose (normalized) `email` matches `email`, and —
+/// best-effort, guarded so it never overwrites a value an admin already
+/// set — point this user's `users.employee_id` at it.
+///
+/// Returns the id now linked, or `None` if no employee matched, or if the
+/// guarded `UPDATE` lost a race against a concurrent write (in which case
+/// the caller falls back to whatever `employee_id` it already had, i.e.
+/// still `None` here).
+async fn auto_link_employee(pool: &SqlitePool, email: &str) -> AppResult<Option<String>> {
+    let mut conn = pool.acquire().await?;
+    let employees = store::list_blobs::<Employee>(&mut conn, Table::Employee).await?;
+    let normalized = auth::normalize_email(email);
+    let Some(matched) = employees.into_iter().find(|employee| {
+        employee
+            .email
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_some_and(|value| auth::normalize_email(value) == normalized)
+    }) else {
+        return Ok(None);
+    };
+
+    let result =
+        sqlx::query("UPDATE users SET employee_id = ?2 WHERE email = ?1 AND employee_id IS NULL")
+            .bind(email)
+            .bind(&matched.id)
+            .execute(&mut *conn)
+            .await?;
+
+    Ok(if result.rows_affected() > 0 {
+        Some(matched.id)
+    } else {
+        None
+    })
 }
 
 fn user_from(current: CurrentUser) -> User {

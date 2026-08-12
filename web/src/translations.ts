@@ -46,7 +46,12 @@ export const translations = {
       achievedPlaceholder: 'What did you achieve this week?',
       employeeOverview: "{{name}}'s Overview",
       assignedDays: '{{count}}d assigned',
-      reportSent: 'Report Sent!'
+      reportSent: 'Report Sent!',
+      employeeNotFound: 'Employee not found.',
+      unlinkedTitle: 'Account Not Linked',
+      unlinkedBody: "Your account isn't linked to an employee record yet, so we can't show your schedule or stats.",
+      unlinkedAdminHint: 'As an admin, you can link it under Administration → Users.',
+      unlinkedTeamHint: 'Ask to have your email added to your employee record on the Team page — accounts are linked automatically by email.'
     },
     oneOnOne: {
         title: 'Smart 1:1 & Feedback',
@@ -287,6 +292,7 @@ export const translations = {
       selectProject: 'Select Project',
       noMoreOpp: 'No more opportunities available',
       noActive: 'No active projects',
+      noQuarters: 'No quarters to show yet.',
       noData: 'No forecast data available.',
       exportJSON: 'Export JSON',
       aiAnalysis: 'AI Analysis',
@@ -537,7 +543,10 @@ export const translations = {
         risk: 'Risk',
         totalRevenue: 'Total Revenue',
         avgMargin: 'Avg Margin',
-        noProjectsFound: 'No projects found matching your criteria.'
+        noProjectsFound: 'No projects found matching your criteria.',
+        noProjects: 'No projects yet. Add a project to see financials here.',
+        noBudgetsSet: 'None of your projects have a budget set. Add a budget to a project to see its profitability.',
+        noProjectDates: 'Add start and end dates to your projects to see them reflected in the revenue forecast.'
     },
     strategy: {
         title: 'Strategy & Vision',
@@ -689,7 +698,12 @@ export const translations = {
       achievedPlaceholder: 'Was hast du diese Woche erreicht?',
       employeeOverview: 'Übersicht von {{name}}',
       assignedDays: '{{count}}d zugewiesen',
-      reportSent: 'Bericht gesendet!'
+      reportSent: 'Bericht gesendet!',
+      employeeNotFound: 'Mitarbeiter nicht gefunden.',
+      unlinkedTitle: 'Konto nicht verknüpft',
+      unlinkedBody: 'Dein Konto ist noch keinem Mitarbeiterdatensatz zugeordnet, daher können wir deinen Zeitplan und deine Statistiken nicht anzeigen.',
+      unlinkedAdminHint: 'Als Administrator kannst du dies unter Verwaltung → Benutzer verknüpfen.',
+      unlinkedTeamHint: 'Bitte lass deine E-Mail-Adresse im Mitarbeiterdatensatz auf der Team-Seite hinterlegen — die Verknüpfung erfolgt automatisch per E-Mail.'
     },
     oneOnOne: {
         title: 'Smart 1:1 & Feedback',
@@ -930,6 +944,7 @@ export const translations = {
       selectProject: 'Projekt wählen',
       noMoreOpp: 'Keine weiteren Chancen verfügbar',
       noActive: 'Keine aktiven Projekte',
+      noQuarters: 'Noch keine Quartale vorhanden.',
       noData: 'Keine Prognosedaten verfügbar.',
       exportJSON: 'JSON Export',
       aiAnalysis: 'KI Analyse',
@@ -1180,7 +1195,10 @@ export const translations = {
         risk: 'Risiko',
         totalRevenue: 'Gesamtumsatz',
         avgMargin: 'Ø Marge',
-        noProjectsFound: 'Keine Projekte entsprechen Ihren Kriterien.'
+        noProjectsFound: 'Keine Projekte entsprechen Ihren Kriterien.',
+        noProjects: 'Noch keine Projekte vorhanden. Legen Sie ein Projekt an, um hier Finanzdaten zu sehen.',
+        noBudgetsSet: 'Für keines Ihrer Projekte ist ein Budget hinterlegt. Hinterlegen Sie ein Budget, um die Rentabilität zu sehen.',
+        noProjectDates: 'Hinterlegen Sie Start- und Enddaten für Ihre Projekte, damit sie in der Umsatzprognose berücksichtigt werden.'
     },
     strategy: {
         title: 'Strategie & Vision',

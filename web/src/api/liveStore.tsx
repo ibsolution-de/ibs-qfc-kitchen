@@ -429,9 +429,19 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Only now is the version fully known: on failure the id stays
       // unknown so a later event (or retry) can hydrate again.
       knownFullVersionIdsRef.current.add(versionId);
-    } catch {
-      // Best-effort: another actor's new version will show up fully on the
-      // next full reload or re-hydration if this one-off fetch fails.
+    } catch (err) {
+      // Best-effort: this backfills a version another connected client just
+      // created, not the primary load path - flipping the global `status`
+      // to 'error' here would incorrectly blank the whole app over one
+      // version's stale shell while everything else is fine. We also don't
+      // toast: `useToast`/`useLanguage` are only safe to call during render,
+      // and `LiveStoreProvider` is unit-tested standalone (no Toast/Language
+      // providers in the tree), so reaching for them here would either
+      // violate the rules of hooks or force every test to grow unrelated
+      // wrapper providers. Log clearly instead so the failure isn't silent;
+      // `knownFullVersionIdsRef` was never marked for this id, so a later
+      // watch event or manual reload can still retry the hydration.
+      console.error(`hydrateVersion: failed to backfill plan version ${versionId}`, err);
     } finally {
       pendingHydrationsRef.current.delete(versionId);
     }
