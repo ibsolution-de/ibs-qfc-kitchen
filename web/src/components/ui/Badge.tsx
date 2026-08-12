@@ -1,5 +1,7 @@
-import React from 'react';
+import * as React from 'react';
 import { PASTEL_VARIANTS } from '../../constants';
+import { badgeVariants } from './shadcn/badge';
+import { cn } from '@/lib/utils';
 
 interface BadgeProps {
   color: keyof typeof PASTEL_VARIANTS;
@@ -8,9 +10,17 @@ interface BadgeProps {
   onClick?: () => void;
 }
 
+/**
+ * shadcn `badge` adapter keeping the pastel color system from `constants`.
+ */
 export const Badge: React.FC<BadgeProps> = ({ color, children, className = '', onClick }) => {
   const styles = PASTEL_VARIANTS[color] || PASTEL_VARIANTS.gray;
-  const baseClasses = `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-charcoal-400 focus:ring-offset-2 ${styles.bg} ${styles.text} ${styles.border} ${className} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`;
+  const baseClasses = cn(
+    badgeVariants({ variant: 'outline' }),
+    `${styles.bg} ${styles.text} ${styles.border}`,
+    onClick && 'cursor-pointer hover:opacity-80',
+    className
+  );
 
   if (onClick) {
     return (
@@ -20,9 +30,5 @@ export const Badge: React.FC<BadgeProps> = ({ color, children, className = '', o
     );
   }
 
-  return (
-    <span className={baseClasses}>
-      {children}
-    </span>
-  );
+  return <span className={baseClasses}>{children}</span>;
 };

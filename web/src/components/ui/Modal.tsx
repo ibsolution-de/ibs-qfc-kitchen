@@ -1,6 +1,7 @@
-import React, { useEffect, useId } from 'react';
+import * as React from 'react';
 import { X } from 'lucide-react';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { Dialog, DialogContent, DialogTitle, DialogClose } from './shadcn/dialog';
+import { cn } from '@/lib/utils';
 
 interface ModalProps {
   isOpen: boolean;
@@ -11,71 +12,63 @@ interface ModalProps {
   variant?: 'default' | 'dark';
 }
 
+const sizeClasses = {
+  sm: 'max-w-md sm:max-w-md',
+  md: 'max-w-xl sm:max-w-xl',
+  lg: 'max-w-2xl sm:max-w-2xl',
+  xl: 'max-w-4xl sm:max-w-4xl',
+};
+
+/**
+ * shadcn `dialog` adapter. Keeps the app's historical props (`isOpen`,
+ * `onClose`, `size`, `variant`) so existing call sites stay untouched.
+ */
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md', variant = 'default' }) => {
-  const titleId = useId();
-  const panelRef = useFocusTrap<HTMLDivElement>(isOpen);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-xl',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
-  };
-
-  const themeClasses = variant === 'dark' 
-    ? 'bg-charcoal-900 border border-charcoal-700 text-charcoal-100' 
-    : 'bg-white text-charcoal-900';
-    
-  const headerBorder = variant === 'dark' ? 'border-charcoal-800' : 'border-charcoal-100';
-  const closeBtnClass = variant === 'dark' 
-    ? 'text-charcoal-400 hover:text-white hover:bg-charcoal-800' 
-    : 'text-charcoal-400 hover:text-charcoal-600 hover:bg-charcoal-50';
-  const titleColor = variant === 'dark' ? 'text-charcoal-100' : 'text-charcoal-900';
-  const backdropClass = variant === 'dark' ? 'bg-black/60' : 'bg-black/25';
+  const isDark = variant === 'dark';
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${backdropClass} backdrop-blur-sm`}
-      onClick={onClose}
-      role="presentation"
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <div 
-        ref={panelRef}
-        role="dialog"
+      <DialogContent
         aria-modal="true"
-        aria-labelledby={titleId}
-        className={`${themeClasses} rounded-xl shadow-2xl w-full ${sizeClasses[size]} flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200`}
-        onClick={e => e.stopPropagation()}
+        className={cn(
+          'flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden rounded-xl border shadow-2xl',
+          sizeClasses[size],
+          isDark
+            ? 'border-charcoal-700 bg-charcoal-900 text-charcoal-100'
+            : 'border-border bg-background text-charcoal-900'
+        )}
       >
-        <div className={`flex items-center justify-between p-4 border-b ${headerBorder}`}>
-          <h3 id={titleId} className={`text-lg font-semibold ${titleColor}`}>{title}</h3>
-          <button 
-            onClick={onClose}
-            aria-label="Close"
-            className={`p-1 rounded-md transition-colors ${closeBtnClass}`}
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div
+          className={cn(
+            'flex shrink-0 items-center justify-between border-b px-4 py-4',
+            isDark ? 'border-charcoal-800' : 'border-charcoal-100'
+          )}
+        >
+          <DialogTitle asChild>
+            <h3 className={cn('text-lg font-semibold', isDark ? 'text-charcoal-100' : 'text-charcoal-900')}>
+              {title}
+            </h3>
+          </DialogTitle>
+          <DialogClose asChild>
+            <button
+              type="button"
+              aria-label="Close"
+              className={cn(
+                'rounded-md p-1.5 transition-colors',
+                isDark ? 'text-charcoal-400 hover:bg-charcoal-800 hover:text-white' : 'text-charcoal-400 hover:bg-charcoal-50 hover:text-charcoal-600'
+              )}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </DialogClose>
         </div>
-        <div className="p-6 overflow-y-auto custom-scrollbar">
-          {children}
-        </div>
-      </div>
-    </div>
+        <div className="overflow-y-auto p-6 custom-scrollbar">{children}</div>
+      </DialogContent>
+    </Dialog>
   );
 };

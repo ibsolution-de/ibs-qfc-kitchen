@@ -1,41 +1,41 @@
-import React from 'react';
+import * as React from 'react';
+import { buttonVariants } from './shadcn/button';
+import { cn } from '@/lib/utils';
+
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'outline';
+type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
+
+const variantMap: Record<ButtonVariant, 'default' | 'secondary' | 'ghost' | 'outline'> = {
+  primary: 'default',
+  secondary: 'secondary',
+  ghost: 'ghost',
+  outline: 'outline',
+};
+
+const sizeMap: Record<ButtonSize, 'default' | 'sm' | 'lg' | 'icon'> = {
+  sm: 'sm',
+  md: 'default',
+  lg: 'lg',
+  icon: 'icon',
+};
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'outline';
-  size?: 'sm' | 'md' | 'lg' | 'icon';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
 }
 
-export const Button: React.FC<ButtonProps> = ({ 
-  children, 
-  className = '', 
-  variant = 'primary', 
-  size = 'md',
-  type = 'button',
-  ...props 
-}) => {
-  const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal-400 disabled:pointer-events-none disabled:opacity-50 active:scale-95 transform cursor-pointer";
-  
-  const variants = {
-    primary: "bg-charcoal-800 text-white hover:bg-charcoal-900 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-transparent",
-    secondary: "bg-white text-charcoal-900 hover:bg-charcoal-50 shadow-sm hover:shadow-md border border-charcoal-200 hover:border-charcoal-300",
-    ghost: "hover:bg-charcoal-100 hover:text-charcoal-900 text-charcoal-600",
-    outline: "border border-charcoal-200 bg-transparent hover:bg-charcoal-50 text-charcoal-700 hover:border-charcoal-300",
-  };
-
-  const sizes = {
-    sm: "h-8 px-3 text-xs",
-    md: "h-9 px-4 py-2 text-sm",
-    lg: "h-10 px-8 text-base",
-    icon: "h-9 w-9",
-  };
-
-  return (
-    <button 
+/**
+ * shadcn `button` adapter. Keeps the app's historical variant/size names
+ * (`primary`/`md`) so existing call sites stay untouched.
+ */
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className = '', variant = 'primary', size = 'md', type = 'button', ...props }, ref) => (
+    <button
+      ref={ref}
       type={type}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`} 
+      className={cn(buttonVariants({ variant: variantMap[variant], size: sizeMap[size] }), className)}
       {...props}
-    >
-      {children}
-    </button>
-  );
-};
+    />
+  )
+);
+Button.displayName = 'Button';

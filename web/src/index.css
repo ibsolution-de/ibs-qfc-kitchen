@@ -1,5 +1,55 @@
 @import 'tailwindcss';
 
+/* shadcn/ui design tokens — mapped onto the charcoal palette (light only) */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #2f333a; /* charcoal-900 */
+  --card: #ffffff;
+  --card-foreground: #2f333a;
+  --popover: #ffffff;
+  --popover-foreground: #2f333a;
+  --primary: #363c45; /* charcoal-800 */
+  --primary-foreground: #ffffff;
+  --secondary: #eceef0; /* charcoal-100 */
+  --secondary-foreground: #2f333a;
+  --muted: #f6f7f8; /* charcoal-50 */
+  --muted-foreground: #647081; /* charcoal-500 */
+  --accent: #eceef0; /* charcoal-100 */
+  --accent-foreground: #363c45;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #d5d9df; /* charcoal-200 */
+  --input: #d5d9df;
+  --ring: #8691a0; /* charcoal-400 */
+}
+
 @theme {
   --color-charcoal-50: #f6f7f8;
   --color-charcoal-100: #eceef0;
@@ -79,6 +129,31 @@
   animation: zoomIn95 0.2s ease-out;
 }
 
+/* Exit + transition helpers used by the shadcn dialog primitives */
+@utility animate-out {
+  animation: out 0.15s ease-in;
+}
+
+@utility fade-in-0 {
+  animation: fadeInOnly 0.15s ease-out;
+}
+
+@utility fade-out-0 {
+  animation: fadeOutOnly 0.15s ease-in;
+}
+
+@utility zoom-out-95 {
+  animation: zoomOut95 0.15s ease-in;
+}
+
+@utility slide-in-from-top-2 {
+  animation: slideInFromTop2 0.15s ease-out;
+}
+
+@utility slide-out-to-top-2 {
+  animation: slideOutToTop2 0.15s ease-in;
+}
+
 @utility pattern-diagonal-lines-sm {
   background-image: repeating-linear-gradient(45deg, #f3f4f6 25%, transparent 25%, transparent 50%, #f3f4f6 50%, #f3f4f6 75%, transparent 75%, transparent);
   background-size: 10px 10px;
@@ -129,6 +204,31 @@
 @keyframes zoomIn95 {
   0% { opacity: 0; transform: scale(0.95); }
   100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes out {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(2px) scale(0.98); }
+}
+
+@keyframes fadeOutOnly {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes zoomOut95 {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+}
+
+@keyframes slideInFromTop2 {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideOutToTop2 {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(-8px); opacity: 0; }
 }
 
 @layer base {

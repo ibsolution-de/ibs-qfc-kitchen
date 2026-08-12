@@ -1,5 +1,7 @@
-import React from 'react';
+import * as React from 'react';
 import { PASTEL_VARIANTS } from '../../constants';
+import { badgeVariants } from './shadcn/badge';
+import { cn } from '@/lib/utils';
 
 type StatusValue = string | undefined | null;
 
@@ -29,11 +31,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, children, clas
 
   return (
     <span
-      className={`
-        inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium capitalize border
-        ${styles.bg} ${styles.text} ${styles.border}
-        ${className}
-      `}
+      className={cn(
+        badgeVariants({ variant: 'outline' }),
+        'px-2 text-[10px] font-medium',
+        `${styles.bg} ${styles.text} ${styles.border}`,
+        'capitalize',
+        className
+      )}
     >
       {children || config.label}
     </span>

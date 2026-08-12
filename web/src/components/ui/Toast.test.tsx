@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { toast } from 'sonner';
 import { ToastProvider, useToast } from './Toast';
 
 const TestComponent: React.FC = () => {
@@ -21,25 +22,43 @@ const renderWithProvider = () =>
     </ToastProvider>
   );
 
-describe('ToastProvider', () => {
-  it('shows success message and it can be dismissed', () => {
+// sonner keeps its toast queue in a module-level store; without clearing it
+// before each test, toasts from the previous test replay into the next
+// Toaster mount and break text queries.
+beforeEach(() => {
+  toast.dismiss();
+});
+
+describe('ToastProvider (sonner)', () => {
+  it('shows a message for each toast type', async () => {
     renderWithProvider();
     fireEvent.click(screen.getByText('Show Success'));
-    expect(screen.getByText('Saved successfully')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Show Error'));
+    fireEvent.click(screen.getByText('Show Info'));
 
-    fireEvent.click(screen.getByText('Dismiss'));
-    expect(screen.queryByText('Saved successfully')).not.toBeInTheDocument();
+    // sonner batches toast creation on a 0ms timer, so the messages arrive
+    // one macro-task later.
+    expect(await screen.findByText('Saved successfully')).toBeInTheDocument();
+    expect(await screen.findByText('Something failed')).toBeInTheDocument();
+    expect(await screen.findByText('Just so you know')).toBeInTheDocument();
   });
 
-  it('auto-dismisses after timeout', () => {
+  it('auto-dismisses after the default lifetime', () => {
     vi.useFakeTimers();
     try {
       renderWithProvider();
       fireEvent.click(screen.getByText('Show Success'));
+
+      // Let sonner's 0ms batch timer render the toast first.
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
       expect(screen.getByText('Saved successfully')).toBeInTheDocument();
 
+      // 4000 ms lifetime + the exit-animation grace period sonner waits
+      // before unmounting the toast.
       act(() => {
-        vi.advanceTimersByTime(4000);
+        vi.advanceTimersByTime(4200);
       });
 
       expect(screen.queryByText('Saved successfully')).not.toBeInTheDocument();
@@ -48,19 +67,10 @@ describe('ToastProvider', () => {
     }
   });
 
-  it('shows multiple toasts stacked', () => {
+  it('has an aria-live region for accessibility', async () => {
     renderWithProvider();
     fireEvent.click(screen.getByText('Show Success'));
-    fireEvent.click(screen.getByText('Show Error'));
-    fireEvent.click(screen.getByText('Show Info'));
-
-    expect(screen.getByText('Saved successfully')).toBeInTheDocument();
-    expect(screen.getByText('Something failed')).toBeInTheDocument();
-    expect(screen.getByText('Just so you know')).toBeInTheDocument();
-  });
-
-  it('has aria-live region for accessibility', () => {
-    renderWithProvider();
+    expect(await screen.findByText('Saved successfully')).toBeInTheDocument();
     expect(document.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 });

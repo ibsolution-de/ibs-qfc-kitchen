@@ -97,9 +97,9 @@ describe('OneOnOneDashboard notes persistence', () => {
   it('collapses several keystrokes into exactly one persist call after the debounce window', () => {
     const onUpdateSessions = vi.fn();
     const session = makeSession();
-    const { container } = renderDashboard({ sessions: [session], onUpdateSessions });
+    renderDashboard({ sessions: [session], onUpdateSessions });
 
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     expect(textarea).toBeInTheDocument();
 
     fireEvent.change(textarea, { target: { value: 'H' } });
@@ -124,9 +124,9 @@ describe('OneOnOneDashboard notes persistence', () => {
   it('does not persist again once the debounce window elapses with no further edits', () => {
     const onUpdateSessions = vi.fn();
     const session = makeSession();
-    const { container } = renderDashboard({ sessions: [session], onUpdateSessions });
+    renderDashboard({ sessions: [session], onUpdateSessions });
 
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'Hello' } });
 
     act(() => {
@@ -144,9 +144,9 @@ describe('OneOnOneDashboard notes persistence', () => {
     const onUpdateSessions = vi.fn();
     const onClose = vi.fn();
     const session = makeSession();
-    const { container } = renderDashboard({ sessions: [session], onUpdateSessions, onClose });
+    renderDashboard({ sessions: [session], onUpdateSessions, onClose });
 
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'note typed right before closing' } });
 
     // Closing happens well within the debounce window - nothing has fired yet.
@@ -169,13 +169,13 @@ describe('OneOnOneDashboard notes persistence', () => {
     const onUpdateSessions = vi.fn();
     const recentSession = makeSession({ id: 'recent', date: 1769896800000 }); // 2026-02-01T00:00:00Z
     const olderSession = makeSession({ id: 'older', date: 1767225600000 }); // 2026-01-01T00:00:00Z
-    const { container } = renderDashboard({ sessions: [recentSession, olderSession], onUpdateSessions });
+    renderDashboard({ sessions: [recentSession, olderSession], onUpdateSessions });
 
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'edit before switching' } });
     expect(onUpdateSessions).not.toHaveBeenCalled();
 
-    const sidebar = container.querySelector('.w-64') as HTMLElement;
+    const sidebar = document.querySelector('.w-64') as HTMLElement;
     const sessionButtons = within(sidebar).getAllByRole('button');
     expect(sessionButtons).toHaveLength(2);
 
@@ -192,9 +192,9 @@ describe('OneOnOneDashboard notes persistence', () => {
   it('never fires a persist for content identical to what was last persisted', () => {
     const onUpdateSessions = vi.fn();
     const session = makeSession();
-    const { container } = renderDashboard({ sessions: [session], onUpdateSessions });
+    renderDashboard({ sessions: [session], onUpdateSessions });
 
-    const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+    const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'settled note' } });
 
     act(() => {

@@ -36,11 +36,18 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('closes on backdrop click', () => {
+  it('closes on backdrop click', async () => {
     const onClose = vi.fn();
     render(<TestModal isOpen={true} onClose={onClose} />);
-    const backdrop = screen.getByRole('presentation');
-    fireEvent.click(backdrop);
+    // Radix attaches its pointerdown listener on a 0ms timer after mount.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    // The overlay is rendered through a portal into document.body and is
+    // hidden from the accessibility tree, so query it directly.
+    const backdrop = document.querySelector('[role="presentation"]');
+    expect(backdrop).not.toBeNull();
+    // Dismissal is deferred from pointerdown to the following click event.
+    fireEvent.pointerDown(backdrop!);
+    fireEvent.click(backdrop!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
