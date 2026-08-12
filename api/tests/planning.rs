@@ -32,6 +32,11 @@ use sqlx::SqlitePool;
 
 const ACTOR: &str = "actor@example.com";
 
+/// The baseline plan version created by migration 0005 — present in every
+/// migrated database, so service tests must not assume an empty
+/// `plan_version` table.
+const BASELINE_VERSION_ID: &str = "v1";
+
 /// A `RequestContext` carrying `email` as the authenticated caller, the way
 /// `auth::middleware` would have set it up upstream of the handler.
 fn ctx_for(email: &str) -> RequestContext {
@@ -527,6 +532,23 @@ async fn copy_from_version_id_deep_copies_with_fresh_ids_and_leaves_source_untou
 }
 
 #[tokio::test]
+async fn migrated_database_contains_the_baseline_plan_version() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+
+    // Migration 0005 guarantees a usable start: exactly the baseline
+    // version exists in every migrated database, with no demo data — the
+    // operator builds the first real plan from it (or copies it to a new
+    // version) inside the app.
+    let versions = list_versions(&svc).await.expect("list versions");
+    assert_eq!(versions.len(), 1, "baseline version must be the only one");
+    assert_eq!(versions[0].id, BASELINE_VERSION_ID);
+    assert_eq!(versions[0].name, "2026");
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
 async fn copy_from_missing_source_version_is_not_found_and_writes_nothing() {
     let (pool, db) = common::temp_pool("planning").await;
     let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
@@ -543,7 +565,8 @@ async fn copy_from_missing_source_version_is_not_found_and_writes_nothing() {
     .await
     .expect_err("expected NotFound");
     assert_eq!(err.code, ErrorCode::NotFound);
-    assert_eq!(plan_version_row_count(&pool).await, 0);
+    // Only the migration-0005 baseline exists — the failed copy wrote nothing.
+    assert_eq!(plan_version_row_count(&pool).await, 1);
 
     db.cleanup(pool).await;
 }
@@ -942,6 +965,14 @@ async fn delete_version_cascades_and_refuses_last_version() {
     let (pool, db) = common::temp_pool("planning").await;
     let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
 
+    // The only version that exists here is the migration-0005 baseline;
+    // deleting the last remaining version must be refused (the app can
+    // never end up with zero plan versions).
+    let err = delete_version(&svc, ACTOR, BASELINE_VERSION_ID)
+        .await
+        .expect_err("expected FailedPrecondition");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
     let a_id = create_version(
         &svc,
         ACTOR,
@@ -956,11 +987,6 @@ async fn delete_version_cascades_and_refuses_last_version() {
     .into_option()
     .unwrap_or_default()
     .id;
-
-    let err = delete_version(&svc, ACTOR, &a_id)
-        .await
-        .expect_err("expected FailedPrecondition");
-    assert_eq!(err.code, ErrorCode::FailedPrecondition);
 
     let b_id = create_version(
         &svc,
@@ -1035,7 +1061,8 @@ async fn delete_version_cascades_and_refuses_last_version() {
         .await
         .expect("delete A ok");
 
-    assert_eq!(plan_version_row_count(&pool).await, 1);
+    // Baseline (v1) + B remain; A's assignments/absences/quarter_data are gone.
+    assert_eq!(plan_version_row_count(&pool).await, 2);
     assert_eq!(
         assignment_row_count(&pool, &a_id).await,
         0,
@@ -1052,10 +1079,16 @@ async fn delete_version_cascades_and_refuses_last_version() {
         "cascade must remove quarter_data"
     );
 
-    let err = delete_version(&svc, ACTOR, &b_id)
+    // With the baseline guaranteed to exist, B is deletable — only the
+    // baseline itself is protected (see the refusal at the top of this test).
+    delete_version(&svc, ACTOR, &b_id)
         .await
-        .expect_err("expected FailedPrecondition for the last remaining version");
-    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+        .expect("delete B ok");
+    assert_eq!(
+        plan_version_row_count(&pool).await,
+        1,
+        "only the baseline version remains"
+    );
 
     db.cleanup(pool).await;
 }
@@ -1182,8 +1215,13 @@ async fn list_versions_orders_by_created_at_ascending() {
 
     let versions = list_versions(&svc).await.expect("list ok");
     let listed_ids: Vec<String> = versions.iter().map(|v| v.id.clone()).collect();
+    // The migration-0005 baseline is the oldest version (created at
+    // migration time) and must sort first; the fixture versions follow in
+    // creation order.
+    let mut expected = vec![BASELINE_VERSION_ID.to_string()];
+    expected.extend(ids);
     assert_eq!(
-        listed_ids, ids,
+        listed_ids, expected,
         "must be ordered by created_at ascending (creation order)"
     );
 
@@ -1260,7 +1298,8 @@ async fn empty_name_is_rejected_on_create_and_update() {
     .await
     .expect_err("expected InvalidArgument");
     assert_eq!(err.code, ErrorCode::InvalidArgument);
-    assert_eq!(plan_version_row_count(&pool).await, 0);
+    // Only the migration-0005 baseline exists — the rejected create wrote nothing.
+    assert_eq!(plan_version_row_count(&pool).await, 1);
 
     let version_id = create_version(
         &svc,

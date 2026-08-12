@@ -859,7 +859,8 @@ async fn get_system_status_reports_plausible_values() {
     assert_eq!(entities.employees, 0);
     assert_eq!(entities.customers, 0);
     assert_eq!(entities.projects, 0);
-    assert_eq!(entities.plan_versions, 0);
+    // 1 = the migration-0005 baseline; the unseeded DB has no others.
+    assert_eq!(entities.plan_versions, 1);
     assert_eq!(entities.assignments, 0);
     assert_eq!(entities.absences, 0);
     assert_eq!(entities.quarter_data, 0);

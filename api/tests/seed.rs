@@ -130,9 +130,12 @@ async fn seed_if_empty_populates_row_counts_matching_the_json_and_writes_no_chan
         count(&pool, "public_holiday").await as usize,
         array_len(&expected, "holidays")
     );
+    // `+ 1`: migration 0005's baseline version exists in every migrated
+    // database; the seed itself ships no demo versions (seed.json
+    // `versions: []`).
     assert_eq!(
         count(&pool, "plan_version").await as usize,
-        expected_versions.len()
+        expected_versions.len() + 1
     );
     assert_eq!(
         count(&pool, "assignment").await as usize,
@@ -207,7 +210,8 @@ async fn corrupted_seed_json_fails_and_writes_nothing() {
     // committed: every seed table, and the `seeded` marker itself, must be
     // untouched.
     assert_eq!(count(&pool, "employee").await, 0);
-    assert_eq!(count(&pool, "plan_version").await, 0);
+    // The migration-0005 baseline exists; nothing from the failed seed did.
+    assert_eq!(count(&pool, "plan_version").await, 1);
     assert_eq!(count(&pool, "assignment").await, 0);
     assert_eq!(
         count(&pool, "meta").await,
