@@ -9,6 +9,7 @@ use crate::auth;
 use crate::error::{AppError, AppResult};
 use crate::events::Hub;
 use crate::proto::events::EntityKind;
+use crate::proto::session::UserRole;
 use crate::proto::team::{
     DeleteEmployeeRequest, DeleteEmployeeResponse, Employee, ListEmployeesRequest,
     ListEmployeesResponse, TeamService, UpsertEmployeeRequest, UpsertEmployeeResponse,
@@ -45,7 +46,7 @@ impl TeamService for TeamServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertEmployeeRequest>,
     ) -> ServiceResult<UpsertEmployeeResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let entity = request
             .to_owned_message()
             .employee
@@ -77,7 +78,7 @@ impl TeamService for TeamServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteEmployeeRequest>,
     ) -> ServiceResult<DeleteEmployeeResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let spec = crud::EntitySpec {
             table: Table::Employee,
             kind: EntityKind::Employee,

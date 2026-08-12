@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Customer, Project, Assignment } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Briefcase, Mail, Building2, UserCircle, PieChart, AlertTriangle, CheckCircle, Folder, Trash2, Edit2 } from 'lucide-react';
 import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
@@ -23,6 +24,10 @@ interface ManageCustomersProps {
 
 export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, projects, assignments, onNavigateToProject, onUpdateCustomers }) => {
   const { t } = useLanguage();
+  const { isRole } = useAuth();
+  // Customers are read-only for plain employees; pm/bl/sales manage them
+  // (the server enforces the same gate — this only hides the controls).
+  const canWrite = isRole(['pm', 'bl', 'sales']);
   const { success } = useToast();
 
   const makeDefaults = useCallback(
@@ -144,9 +149,11 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
           title={t('customers.title')}
           subtitle={t('customers.subtitle')}
           actions={
-            <Button className="gap-2" onClick={openAdd}>
-              <Building2 className="w-4 h-4" /> {t('customers.addCustomer')}
-            </Button>
+            canWrite && (
+              <Button className="gap-2" onClick={openAdd}>
+                <Building2 className="w-4 h-4" /> {t('customers.addCustomer')}
+              </Button>
+            )
           }
         />
 
@@ -159,20 +166,24 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                 {/* Header Section */}
                 <div className="p-6 border-b border-charcoal-100 flex flex-col md:flex-row gap-6">
                   <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <button
-                      onClick={() => openEdit(customer)}
-                      className="p-1.5 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      title={t('customers.editCustomer')}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => requestDelete(customer.id)}
-                      className="p-1.5 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title={t('customers.deleteCustomer')}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canWrite && (
+                      <>
+                      <button
+                        onClick={() => openEdit(customer)}
+                        className="p-1.5 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title={t('customers.editCustomer')}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => requestDelete(customer.id)}
+                        className="p-1.5 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title={t('customers.deleteCustomer')}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Customer Info */}

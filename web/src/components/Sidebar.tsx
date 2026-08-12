@@ -440,60 +440,80 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
         </div>
         
-        {/* User Profile / Role Switcher Trigger */}
-        <button 
-            onClick={() => setIsRoleSwitcherOpen(!isRoleSwitcherOpen)}
-            aria-expanded={isRoleSwitcherOpen}
-            aria-haspopup="listbox"
-            className="mt-4 w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-charcoal-100 transition-all duration-200 text-left hover:shadow-sm border border-transparent hover:border-charcoal-200"
-        >
-            <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
-            <div className="flex-1 min-w-0">
-                <div className="font-medium text-charcoal-900 text-xs truncate">{user.name}</div>
-                <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">
-                    {user.roles.map(role => t(`roles.${role}`)).join(', ')}
-                </div>
-            </div>
-            <UserCircle className="w-4 h-4 text-charcoal-400" />
-        </button>
-
-        {/* Role Switcher Popover: dev-only, toggles a set of roles rather than picking one, so role combinations can be previewed. */}
-        {isRoleSwitcherOpen && (
+        {import.meta.env.DEV ? (
             <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsRoleSwitcherOpen(false)} />
-            <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-xl shadow-xl border border-charcoal-200 p-2 z-50 animate-in slide-in-from-bottom-2 fade-in zoom-in-95 duration-200">
-                <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest px-2 py-2 border-b border-charcoal-100 mb-1 font-mono">
-                    {t('sidebar.switchRole')}
+            {/* User Profile / Role Switcher Trigger */}
+            <button 
+                onClick={() => setIsRoleSwitcherOpen(!isRoleSwitcherOpen)}
+                aria-expanded={isRoleSwitcherOpen}
+                aria-haspopup="listbox"
+                className="mt-4 w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-charcoal-100 transition-all duration-200 text-left hover:shadow-sm border border-transparent hover:border-charcoal-200"
+            >
+                <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
+                <div className="flex-1 min-w-0">
+                    <div className="font-medium text-charcoal-900 text-xs truncate">{user.name}</div>
+                    <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">
+                        {user.roles.map(role => t(`roles.${role}`)).join(', ')}
+                    </div>
                 </div>
-                {(['pm', 'employee', 'bl', 'sales', 'admin'] as const).map((role) => {
-                    const checked = user.roles.includes(role);
-                    return (
-                        <button
-                            ref={role === 'pm' ? firstRoleItemRef : undefined}
-                            key={role}
-                            onClick={() => toggleDevRole(role)}
-                            role="checkbox"
-                            aria-checked={checked}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
-                                ${checked ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
-                            `}
-                        >
-                            {t(`roles.${role}`)}
-                            {checked && <Check className="w-3.5 h-3.5 text-blue-600" />}
-                        </button>
-                    );
-                })}
-                <button
-                    onClick={() => {
-                        clearDevRoleOverride();
-                        setIsRoleSwitcherOpen(false);
-                    }}
-                    className="w-full text-left px-3 py-2 mt-1 rounded-lg text-sm text-charcoal-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border-t border-charcoal-100 pt-2"
-                >
-                    <XIcon className="w-3.5 h-3.5" /> {t('sidebar.clearRoleOverride')}
-                </button>
-            </div>
+                <UserCircle className="w-4 h-4 text-charcoal-400" />
+            </button>
+
+            {/* Role Switcher Popover: dev-only (import.meta.env.DEV is
+                statically false in production builds, so this whole branch
+                is dead code there — a real user can never switch roles),
+                toggles a set of roles rather than picking one so role
+                combinations can be previewed locally. */}
+            {isRoleSwitcherOpen && (
+                <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsRoleSwitcherOpen(false)} />
+                <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-xl shadow-xl border border-charcoal-200 p-2 z-50 animate-in slide-in-from-bottom-2 fade-in zoom-in-95 duration-200">
+                    <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest px-2 py-2 border-b border-charcoal-100 mb-1 font-mono">
+                        {t('sidebar.switchRole')}
+                    </div>
+                    {(['pm', 'employee', 'bl', 'sales', 'admin'] as const).map((role) => {
+                        const checked = user.roles.includes(role);
+                        return (
+                            <button
+                                ref={role === 'pm' ? firstRoleItemRef : undefined}
+                                key={role}
+                                onClick={() => toggleDevRole(role)}
+                                role="checkbox"
+                                aria-checked={checked}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
+                                    ${checked ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
+                                `}
+                            >
+                                {t(`roles.${role}`)}
+                                {checked && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                            </button>
+                        );
+                    })}
+                    <button
+                        onClick={() => {
+                            clearDevRoleOverride();
+                            setIsRoleSwitcherOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2 mt-1 rounded-lg text-sm text-charcoal-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-2 border-t border-charcoal-100 pt-2"
+                    >
+                        <XIcon className="w-3.5 h-3.5" /> {t('sidebar.clearRoleOverride')}
+                    </button>
+                </div>
+                </>
+            )}
             </>
+        ) : (
+            /* Production: the profile is identity display only — roles are
+               granted by an admin server-side and cannot be switched. */
+            <div className="mt-4 w-full flex items-center gap-3 px-3 py-2">
+                <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
+                <div className="flex-1 min-w-0">
+                    <div className="font-medium text-charcoal-900 text-xs truncate">{user.name}</div>
+                    <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">
+                        {user.roles.map(role => t(`roles.${role}`)).join(', ')}
+                    </div>
+                </div>
+            </div>
         )}
       </div>
     </div>

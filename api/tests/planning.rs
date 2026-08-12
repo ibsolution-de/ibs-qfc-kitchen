@@ -35,12 +35,18 @@ const ACTOR: &str = "actor@example.com";
 /// A `RequestContext` carrying `email` as the authenticated caller, the way
 /// `auth::middleware` would have set it up upstream of the handler.
 fn ctx_for(email: &str) -> RequestContext {
+    ctx_for_roles(email, vec![UserRole::Pm])
+}
+
+/// A `RequestContext` for a caller holding exactly `roles`, for the
+/// negative-side role-gate assertions (`ctx_for` is the pm-writer default).
+fn ctx_for_roles(email: &str, roles: Vec<UserRole>) -> RequestContext {
     let mut extensions = http::Extensions::new();
     extensions.insert(CurrentUser {
         email: email.to_string(),
         name: email.to_string(),
         subject: None,
-        roles: vec![UserRole::Pm],
+        roles,
         employee_id: None,
     });
     RequestContext::new(http::HeaderMap::new()).with_extensions(extensions)
@@ -228,6 +234,48 @@ async fn assignment_ids_by_employee(pool: &SqlitePool, version_id: &str) -> Vec<
         .fetch_all(pool)
         .await
         .expect("fetch assignment ids")
+}
+
+#[tokio::test]
+async fn employee_only_caller_is_denied_planning_mutations_but_can_read() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+    let employee_ctx = || ctx_for_roles("emp@example.com", vec![UserRole::Employee]);
+
+    // Creating versions, applying assignments, deleting versions — every
+    // mutating RPC is pm/bl-only; a plain employee gets permission_denied.
+    for (label, roles) in [
+        ("employee", vec![UserRole::Employee]),
+        ("sales", vec![UserRole::Sales]),
+    ] {
+        let body = Bytes::from(CreateVersionRequest::default().encode_to_vec());
+        let view = CreateVersionRequest::decode_view(&body).expect("decode view");
+        let req = ServiceRequest::<CreateVersionRequest>::from_parts(&view, &body);
+        let err = svc
+            .create_version(ctx_for_roles("writer@example.com", roles.clone()), req)
+            .await
+            .expect_err(&format!("{label}: create_version must be denied"));
+        assert_eq!(err.code, ErrorCode::PermissionDenied, "{label}: code");
+    }
+
+    let body = Bytes::from(ApplyAssignmentsRequest::default().encode_to_vec());
+    let view = ApplyAssignmentsRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<ApplyAssignmentsRequest>::from_parts(&view, &body);
+    let err = svc
+        .apply_assignments(employee_ctx(), req)
+        .await
+        .expect_err("employee: apply_assignments must be denied");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
+
+    // Reads (the read-only planner an employee sees) stay open.
+    let body = Bytes::from(ListVersionsRequest::default().encode_to_vec());
+    let view = ListVersionsRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<ListVersionsRequest>::from_parts(&view, &body);
+    svc.list_versions(employee_ctx(), req)
+        .await
+        .expect("employee can still list versions");
+
+    db.cleanup(pool).await;
 }
 
 #[tokio::test]

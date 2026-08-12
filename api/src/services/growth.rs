@@ -29,6 +29,7 @@ use crate::proto::growth::{
     DeleteSessionRequest, DeleteSessionResponse, GrowthService, ListSessionsRequest,
     ListSessionsResponse, OneOnOneSession, UpsertSessionRequest, UpsertSessionResponse,
 };
+use crate::proto::session::UserRole;
 use crate::time::now_millis;
 
 pub struct GrowthServiceImpl {
@@ -60,7 +61,7 @@ impl GrowthService for GrowthServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertSessionRequest>,
     ) -> ServiceResult<UpsertSessionResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let session = request
             .to_owned_message()
             .session
@@ -78,7 +79,7 @@ impl GrowthService for GrowthServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteSessionRequest>,
     ) -> ServiceResult<DeleteSessionResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         do_delete(&self.pool, &self.hub, &current.email, request.id).await?;
         Response::ok(DeleteSessionResponse::default())
     }

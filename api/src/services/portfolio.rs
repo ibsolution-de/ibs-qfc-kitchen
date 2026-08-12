@@ -13,7 +13,7 @@ use crate::proto::portfolio::{
     DeleteProjectRequest, DeleteProjectResponse, ListProjectsRequest, ListProjectsResponse,
     Project, ProjectService, UpsertProjectRequest, UpsertProjectResponse,
 };
-use crate::services::crud;
+use crate::proto::session::UserRole;use crate::services::crud;
 use crate::store::Table;
 
 pub struct ProjectServiceImpl {
@@ -45,7 +45,7 @@ impl ProjectService for ProjectServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertProjectRequest>,
     ) -> ServiceResult<UpsertProjectResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl, UserRole::Sales])?;
         let entity = request
             .to_owned_message()
             .project
@@ -77,7 +77,7 @@ impl ProjectService for ProjectServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteProjectRequest>,
     ) -> ServiceResult<DeleteProjectResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl, UserRole::Sales])?;
         let spec = crud::EntitySpec {
             table: Table::Project,
             kind: EntityKind::Project,

@@ -11,6 +11,7 @@ use crate::auth;
 use crate::error::{AppError, AppResult};
 use crate::events::Hub;
 use crate::proto::events::EntityKind;
+use crate::proto::session::UserRole;
 use crate::proto::strategy::{
     DeleteGoalRequest, DeleteGoalResponse, DeleteNorthStarMetricRequest,
     DeleteNorthStarMetricResponse, ListGoalsRequest, ListGoalsResponse,
@@ -50,7 +51,7 @@ impl StrategyService for StrategyServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertGoalRequest>,
     ) -> ServiceResult<UpsertGoalResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let entity = request
             .to_owned_message()
             .goal
@@ -82,7 +83,7 @@ impl StrategyService for StrategyServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteGoalRequest>,
     ) -> ServiceResult<DeleteGoalResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let spec = crud::EntitySpec {
             table: Table::StrategicGoal,
             kind: EntityKind::StrategicGoal,
@@ -109,7 +110,7 @@ impl StrategyService for StrategyServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertNorthStarMetricRequest>,
     ) -> ServiceResult<UpsertNorthStarMetricResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let entity = request
             .to_owned_message()
             .metric
@@ -141,7 +142,7 @@ impl StrategyService for StrategyServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteNorthStarMetricRequest>,
     ) -> ServiceResult<DeleteNorthStarMetricResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let spec = crud::EntitySpec {
             table: Table::NorthStar,
             kind: EntityKind::NorthStarMetric,

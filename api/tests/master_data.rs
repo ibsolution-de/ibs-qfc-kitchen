@@ -36,12 +36,18 @@ const ACTOR: &str = "actor@example.com";
 /// A `RequestContext` carrying `email` as the authenticated caller, the way
 /// `auth::middleware` would have set it up upstream of the handler.
 fn ctx_for(email: &str) -> RequestContext {
+    ctx_for_roles(email, vec![UserRole::Pm])
+}
+
+/// A `RequestContext` for a caller holding exactly `roles`, for the
+/// negative-side role-gate assertions (`ctx_for` is the pm-writer default).
+fn ctx_for_roles(email: &str, roles: Vec<UserRole>) -> RequestContext {
     let mut extensions = http::Extensions::new();
     extensions.insert(CurrentUser {
         email: email.to_string(),
         name: email.to_string(),
         subject: None,
-        roles: vec![UserRole::Pm],
+        roles,
         employee_id: None,
     });
     RequestContext::new(http::HeaderMap::new()).with_extensions(extensions)
@@ -274,6 +280,99 @@ async fn delete_of_missing_id_returns_not_found() {
         .await
         .expect_err("expected NotFound");
     assert_eq!(err.code, ErrorCode::NotFound);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn role_gates_deny_employee_only_and_sales_only_callers_from_writing_team() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let svc = TeamServiceImpl::new(pool.clone(), events::Hub::new());
+
+    // Neither a plain employee (read-only planner) nor a sales-only caller
+    // may edit the company directory; only pm/bl can.
+    for (label, roles) in [
+        ("employee", vec![UserRole::Employee]),
+        ("sales", vec![UserRole::Sales]),
+    ] {
+        let body = Bytes::from(
+            UpsertEmployeeRequest {
+                employee: sample_employee("").into(),
+                ..Default::default()
+            }
+            .encode_to_vec(),
+        );
+        let view = UpsertEmployeeRequest::decode_view(&body).expect("decode view");
+        let req = ServiceRequest::<UpsertEmployeeRequest>::from_parts(&view, &body);
+        let err = svc
+            .upsert_employee(ctx_for_roles("writer@example.com", roles.clone()), req)
+            .await
+            .expect_err(&format!("{label}: upsert must be denied"));
+        assert_eq!(
+            err.code,
+            ErrorCode::PermissionDenied,
+            "{label}: denial code"
+        );
+    }
+
+    // ... and a sales-only caller also cannot delete an existing employee.
+    let created = upsert_employee(&svc, ACTOR, sample_employee("")).await.expect("seed employee");
+    let body = Bytes::from(
+        DeleteEmployeeRequest {
+            id: created.id.clone(),
+            ..Default::default()
+        }
+        .encode_to_vec(),
+    );
+    let view = DeleteEmployeeRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<DeleteEmployeeRequest>::from_parts(&view, &body);
+    let err = svc
+        .delete_employee(
+            ctx_for_roles("sales@example.com", vec![UserRole::Sales]),
+            req,
+        )
+        .await
+        .expect_err("sales: delete must be denied");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
+
+    // Reads stay open to every authenticated user.
+    let body = Bytes::from(ListEmployeesRequest::default().encode_to_vec());
+    let view = ListEmployeesRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<ListEmployeesRequest>::from_parts(&view, &body);
+    svc.list_employees(
+        ctx_for_roles("reader@example.com", vec![UserRole::Employee]),
+        req,
+    )
+    .await
+    .expect("employee can still list the directory");
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn employee_only_caller_is_denied_from_writing_one_on_one_sessions() {
+    let (pool, db) = common::temp_pool("master-data").await;
+    let svc = GrowthServiceImpl::new(pool.clone(), events::Hub::new());
+
+    let body = Bytes::from(
+        UpsertSessionRequest {
+            session: OneOnOneSession {
+                id: "s1".to_string(),
+                employee_id: "e1".to_string(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        }
+        .encode_to_vec(),
+    );
+    let view = UpsertSessionRequest::decode_view(&body).expect("decode view");
+    let req = ServiceRequest::<UpsertSessionRequest>::from_parts(&view, &body);
+    let err = svc
+        .upsert_session(ctx_for_roles("emp@example.com", vec![UserRole::Employee]), req)
+        .await
+        .expect_err("employee must be denied from writing 1:1 sessions");
+    assert_eq!(err.code, ErrorCode::PermissionDenied);
 
     db.cleanup(pool).await;
 }

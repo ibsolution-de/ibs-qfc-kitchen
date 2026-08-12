@@ -48,7 +48,9 @@ export const ManageUsers: React.FC<ManageUsersProps> = ({ employees }) => {
   const makeDefaults = useCallback(
     (): Partial<AdminUser> => ({
       email: '',
-      roles: [],
+      // The default role every user starts with (mirrors QFC_DEFAULT_ROLE);
+      // the admin adds pm/bl/sales/admin on top as needed.
+      roles: ['employee'],
       employeeId: undefined,
     }),
     []

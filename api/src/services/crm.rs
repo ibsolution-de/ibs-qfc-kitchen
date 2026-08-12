@@ -13,6 +13,7 @@ use crate::proto::crm::{
     ListCustomersResponse, UpsertCustomerRequest, UpsertCustomerResponse,
 };
 use crate::proto::events::EntityKind;
+use crate::proto::session::UserRole;
 use crate::services::crud;
 use crate::store::Table;
 
@@ -45,7 +46,7 @@ impl CustomerService for CustomerServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertCustomerRequest>,
     ) -> ServiceResult<UpsertCustomerResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl, UserRole::Sales])?;
         let entity = request
             .to_owned_message()
             .customer
@@ -77,7 +78,7 @@ impl CustomerService for CustomerServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteCustomerRequest>,
     ) -> ServiceResult<DeleteCustomerResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl, UserRole::Sales])?;
         let spec = crud::EntitySpec {
             table: Table::Customer,
             kind: EntityKind::Customer,

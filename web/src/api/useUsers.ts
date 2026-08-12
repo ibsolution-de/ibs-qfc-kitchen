@@ -52,7 +52,10 @@ export function useUsers(): UseUsersResult {
 
   const saveUser = useCallback(
     async (email: string, roles: UserRole[], employeeId?: string): Promise<AdminUser> => {
-      const response = await adminClient.upsertUser({ email, roles: userRolesToProto(roles), employeeId });
+      // Server-side canonical form (see AdminService): trim + lowercase, so
+      // a mixed-case address always lands on the same account row.
+      const normalized = email.trim().toLowerCase();
+      const response = await adminClient.upsertUser({ email: normalized, roles: userRolesToProto(roles), employeeId });
       if (!response.user) throw new Error('UpsertUser: server returned no user');
       const saved = adminUserFromProto(response.user);
       await refresh();
@@ -63,7 +66,7 @@ export function useUsers(): UseUsersResult {
 
   const deleteUser = useCallback(
     async (email: string): Promise<void> => {
-      await adminClient.deleteUser({ email });
+      await adminClient.deleteUser({ email: email.trim().toLowerCase() });
       await refresh();
     },
     [refresh]

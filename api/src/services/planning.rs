@@ -23,11 +23,16 @@
 //! sqlx::Error` impl, so `?` on a raw `sqlx` call converts automatically
 //! inside those, whereas `ConnectError` (the trait methods' own error type)
 //! does not implement `From<sqlx::Error>` and would need a `.map_err(...)`
-//! at every call site instead. `do_delete_version` is the one exception,
+//! `?` at every call site instead. `do_delete_version` is the one exception,
 //! returning `Result<(), ConnectError>` directly, since refusing to delete
-//! the last remaining version needs `ErrorCode::FailedPrecondition` — a
-//! code `AppError` has no variant for (adding one is `error.rs`, out of
-//! this module's scope).
+//! the last remaining version needs `ErrorCode::FailedPrecondition` — the
+//! same code `AppError::FailedPrecondition` maps to in `error.rs`, kept as
+//! `ConnectError` here because only this function's guard needs it.
+//!
+//! Access control: every mutating RPC requires the caller to hold `pm` or
+//! `bl` (`auth::require_any_role`); reads (`ListVersions`, `GetVersion`,
+//! `ListHolidays`) are open to every authenticated user, matching the
+//! read-only planner employees see in the web app.
 
 use buffa::{EnumValue, Enumeration, Message};
 use connectrpc::{
@@ -48,6 +53,7 @@ use crate::proto::planning::{
     PlanningService, PublicHoliday, QuarterData, UpdateVersionMetaRequest,
     UpdateVersionMetaResponse, UpsertQuarterDataRequest, UpsertQuarterDataResponse,
 };
+use crate::proto::session::UserRole;
 use crate::time::now_millis;
 
 pub struct PlanningServiceImpl {
@@ -91,7 +97,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, CreateVersionRequest>,
     ) -> ServiceResult<CreateVersionResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let version = do_create_version(
             &self.pool,
             &self.hub,
@@ -110,7 +116,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpdateVersionMetaRequest>,
     ) -> ServiceResult<UpdateVersionMetaResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let meta = do_update_version_meta(
             &self.pool,
             &self.hub,
@@ -129,7 +135,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteVersionRequest>,
     ) -> ServiceResult<DeleteVersionResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let version_id = request.version_id.to_string();
         do_delete_version(&self.pool, &self.hub, &current.email, &version_id).await?;
         Response::ok(DeleteVersionResponse::default())
@@ -140,7 +146,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, ApplyAssignmentsRequest>,
     ) -> ServiceResult<ApplyAssignmentsResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let seq = do_apply_assignments(
             &self.pool,
             &self.hub,
@@ -159,7 +165,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, ApplyAbsencesRequest>,
     ) -> ServiceResult<ApplyAbsencesResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let seq = do_apply_absences(
             &self.pool,
             &self.hub,
@@ -178,7 +184,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertQuarterDataRequest>,
     ) -> ServiceResult<UpsertQuarterDataResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let quarter = do_upsert_quarter_data(
             &self.pool,
             &self.hub,
@@ -197,7 +203,7 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteQuarterDataRequest>,
     ) -> ServiceResult<DeleteQuarterDataResponse> {
-        let current = auth::require(&ctx)?;
+        let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let version_id = request.version_id.to_string();
         let id = request.id.to_string();
         do_delete_quarter_data(&self.pool, &self.hub, &current.email, &version_id, &id).await?;

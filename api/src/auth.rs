@@ -83,6 +83,37 @@ pub fn require_role(ctx: &RequestContext, role: UserRole) -> Result<CurrentUser,
     }
 }
 
+/// Fetch the current caller for a handler that requires ANY of the given
+/// roles — e.g. `auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?`
+/// for "planning staff" write access. This is the building block behind
+/// "a role defines which usecases are open": every mutating RPC outside
+/// `AdminService` gates on it, while reads stay open to every
+/// authenticated user.
+pub fn require_any_role(
+    ctx: &RequestContext,
+    roles: &[UserRole],
+) -> Result<CurrentUser, ConnectError> {
+    let current = require(ctx)?;
+    if current.roles.iter().any(|held| roles.contains(held)) {
+        Ok(current)
+    } else {
+        Err(AppError::PermissionDenied(format!(
+            "requires one of the roles {roles:?}"
+        ))
+        .into())
+    }
+}
+
+/// The canonical email form stored in `users.email` and matched against
+/// account rows everywhere: trimmed and lower-cased, so the primary key
+/// behaves case-insensitively regardless of what the auth proxy (or an
+/// admin typing an address) sends. Every path that accepts an email —
+/// proxy headers, `QFC_DEV_USER`, `ensure_admins`, `AdminService` — must
+/// run it through here before touching the database.
+pub fn normalize_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
+
 /// Read a single request header as an owned, UTF-8 `String`, or `None` if
 /// absent or not valid UTF-8.
 fn header_value(req: &Request, name: &'static str) -> Option<String> {
@@ -117,7 +148,11 @@ pub async fn middleware(State(state): State<AuthState>, mut req: Request, next: 
                 .or(header_preferred_username)
                 .or_else(|| header_user.clone())
                 .unwrap_or_else(|| email.clone());
-            (email, name, header_user)
+            // `users.email` is a case-sensitive SQLite TEXT primary key, so
+            // the canonical lowercase form is the account identity — a
+            // proxy emitting `NAZAR@…` must resolve to the same row as a
+            // first login with `nazar@…` (see `normalize_email`).
+            (normalize_email(&email), name, header_user)
         }
         None => match &state.dev_user {
             Some(dev) => (dev.email.clone(), dev.name.clone(), None),
@@ -267,10 +302,13 @@ async fn upsert_and_load(
 /// `AdminService::UpsertUser` uses, until the person's first login supplies
 /// the real name.
 pub async fn ensure_admins(pool: &SqlitePool, admin_emails: &[String]) -> AppResult<()> {
-    for email in admin_emails {
+    for raw in admin_emails {
+        // Defense in depth: config lowercases already, but a slipped-in
+        // non-normalized value must never create a second account row.
+        let email = normalize_email(raw);
         let existing: Option<String> =
             sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
-                .bind(email)
+                .bind(&email)
                 .fetch_optional(pool)
                 .await?;
 
@@ -285,7 +323,7 @@ pub async fn ensure_admins(pool: &SqlitePool, admin_emails: &[String]) -> AppRes
                 let canonical = roles_to_db(&roles);
                 sqlx::query("UPDATE users SET roles = ?1 WHERE email = ?2")
                     .bind(&canonical)
-                    .bind(email)
+                    .bind(&email)
                     .execute(pool)
                     .await?;
                 tracing::info!(%email, roles = %canonical, "ensure_admins: added the admin role to an existing user");
@@ -296,7 +334,7 @@ pub async fn ensure_admins(pool: &SqlitePool, admin_emails: &[String]) -> AppRes
                     "INSERT INTO users (email, name, subject, roles, employee_id, created_at)
                      VALUES (?1, ?1, NULL, ?2, NULL, ?3)",
                 )
-                .bind(email)
+                .bind(&email)
                 .bind(&canonical)
                 .bind(now_millis())
                 .execute(pool)

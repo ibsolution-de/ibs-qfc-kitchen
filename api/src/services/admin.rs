@@ -104,8 +104,8 @@ impl AdminService for AdminServiceImpl {
         ctx: RequestContext,
         request: ServiceRequest<'_, UpsertUserRequest>,
     ) -> ServiceResult<UpsertUserResponse> {
-        let _current = auth::require_role(&ctx, UserRole::Admin)?;
-        let user = do_upsert(&self.pool, request.to_owned_message()).await?;
+        let current = auth::require_role(&ctx, UserRole::Admin)?;
+        let user = do_upsert(&self.pool, &current, request.to_owned_message()).await?;
         Response::ok(UpsertUserResponse {
             user: user.into(),
             ..Default::default()
@@ -288,18 +288,18 @@ async fn list_all(pool: &SqlitePool) -> AppResult<Vec<User>> {
 /// be non-empty and contain no `USER_ROLE_UNSPECIFIED` (nor any value this
 /// build of the enum doesn't recognize at all, which is just as
 /// meaningless to store).
-fn validate_upsert(request: &UpsertUserRequest) -> AppResult<()> {
-    if request.email.trim().is_empty() || !request.email.contains('@') {
+fn validate_upsert(email: &str, roles: &[EnumValue<UserRole>]) -> AppResult<()> {
+    if email.trim().is_empty() || !email.contains('@') {
         return Err(AppError::InvalidArgument(
             "email must be non-empty and contain '@'".to_string(),
         ));
     }
-    if request.roles.is_empty() {
+    if roles.is_empty() {
         return Err(AppError::InvalidArgument(
             "a user must have at least one role".to_string(),
         ));
     }
-    for role in &request.roles {
+    for role in roles {
         if !matches!(role.as_known(), Some(known) if known != UserRole::Unspecified) {
             return Err(AppError::InvalidArgument(
                 "roles must not include USER_ROLE_UNSPECIFIED".to_string(),
@@ -309,19 +309,63 @@ fn validate_upsert(request: &UpsertUserRequest) -> AppResult<()> {
     Ok(())
 }
 
-/// Create the `users` row if `request.email` is unseen (`name = email` as a
+/// Create the `users` row if `email` is unseen (`name = email` as a
 /// placeholder until the person's first login supplies the real one,
 /// `created_at` now), or update its `roles`/`employee_id` if it already
 /// exists. Never writes `name`/`subject` — those are login-derived (see
 /// `UpsertUserRequest`'s doc comment) and would otherwise be silently
 /// overwritten again on the person's next login anyway.
-async fn do_upsert(pool: &SqlitePool, request: UpsertUserRequest) -> AppResult<User> {
-    validate_upsert(&request)?;
+///
+/// `email` is normalized to the canonical lower-case form here
+/// (`auth::normalize_email`) before it touches the database, so an admin
+/// typing `  ADA@Example.COM ` and the login flow resolving `ada@…` always
+/// meet on the same row.
+///
+/// Two lockout guards, mirroring `do_delete`: an admin may not strip the
+/// admin role from their own account (a mistyped role set would shut the
+/// caller out of `AdminService` with no in-app recovery), and may not strip
+/// it from the last remaining admin either.
+async fn do_upsert(
+    pool: &SqlitePool,
+    current: &CurrentUser,
+    request: UpsertUserRequest,
+) -> AppResult<User> {
+    let email = auth::normalize_email(&request.email);
+    validate_upsert(&email, &request.roles)?;
     let roles: Vec<UserRole> = request
         .roles
         .iter()
         .filter_map(EnumValue::as_known)
         .collect();
+
+    let stored: Option<String> =
+        sqlx::query_scalar("SELECT roles FROM users WHERE email = ?1")
+            .bind(&email)
+            .fetch_optional(pool)
+            .await?;
+    let had_admin = stored
+        .as_deref()
+        .map(auth::roles_from_db)
+        .is_some_and(|roles| roles.contains(&UserRole::Admin));
+    let keeps_admin = roles.contains(&UserRole::Admin);
+    if had_admin && !keeps_admin {
+        if email.eq_ignore_ascii_case(&current.email) {
+            return Err(AppError::FailedPrecondition(
+                "cannot remove the admin role from your own account".to_string(),
+            ));
+        }
+        let remaining_admins: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE roles LIKE '%ADMIN%' AND email != ?1")
+                .bind(&email)
+                .fetch_one(pool)
+                .await?;
+        if remaining_admins == 0 {
+            return Err(AppError::FailedPrecondition(
+                "cannot remove the admin role from the last remaining admin".to_string(),
+            ));
+        }
+    }
+
     let canonical = auth::roles_to_db(&roles);
 
     sqlx::query(
@@ -329,7 +373,7 @@ async fn do_upsert(pool: &SqlitePool, request: UpsertUserRequest) -> AppResult<U
          VALUES (?1, ?1, NULL, ?2, ?3, ?4)
          ON CONFLICT(email) DO UPDATE SET roles = excluded.roles, employee_id = excluded.employee_id",
     )
-    .bind(&request.email)
+    .bind(&email)
     .bind(&canonical)
     .bind(request.employee_id.as_deref())
     .bind(now_millis())
@@ -338,11 +382,11 @@ async fn do_upsert(pool: &SqlitePool, request: UpsertUserRequest) -> AppResult<U
 
     let (name, employee_id): (String, Option<String>) =
         sqlx::query_as("SELECT name, employee_id FROM users WHERE email = ?1")
-            .bind(&request.email)
+            .bind(&email)
             .fetch_one(pool)
             .await?;
 
-    Ok(user_from_fields(&request.email, &name, &roles, employee_id))
+    Ok(user_from_fields(&email, &name, &roles, employee_id))
 }
 
 /// Delete the `users` row for `email`. `NotFound` if no row matched;
@@ -355,6 +399,7 @@ async fn do_delete(
     current: &CurrentUser,
     email: &str,
 ) -> Result<(), ConnectError> {
+    let email = auth::normalize_email(email);
     if email.eq_ignore_ascii_case(&current.email) {
         return Err(ConnectError::new(
             ErrorCode::FailedPrecondition,
@@ -369,7 +414,7 @@ async fn do_delete(
         .await
         .map_err(AppError::from)?;
 
-    let Some((_, target_roles_raw)) = all.iter().find(|(row_email, _)| row_email == email) else {
+    let Some((_, target_roles_raw)) = all.iter().find(|(row_email, _)| *row_email == email) else {
         return Err(AppError::NotFound("user", email.to_string()).into());
     };
 
@@ -377,7 +422,7 @@ async fn do_delete(
         let remaining_admins = all
             .iter()
             .filter(|(row_email, roles_raw)| {
-                row_email != email && auth::roles_from_db(roles_raw).contains(&UserRole::Admin)
+                *row_email != email && auth::roles_from_db(roles_raw).contains(&UserRole::Admin)
             })
             .count();
         if remaining_admins == 0 {

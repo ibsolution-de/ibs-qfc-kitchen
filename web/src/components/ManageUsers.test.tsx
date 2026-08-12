@@ -90,7 +90,10 @@ describe('ManageUsers', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Project Manager' }));
     fireEvent.click(screen.getByRole('button', { name: /save user/i }));
 
-    await waitFor(() => expect(saveUser).toHaveBeenCalledWith('new@example.com', ['pm'], undefined));
+    // The add dialog pre-selects the default employee role.
+    await waitFor(() =>
+      expect(saveUser).toHaveBeenCalledWith('new@example.com', ['employee', 'pm'], undefined)
+    );
   });
 
   it('builds the right role set when toggling roles on and off', async () => {
@@ -105,7 +108,9 @@ describe('ManageUsers', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /save user/i }));
 
-    await waitFor(() => expect(saveUser).toHaveBeenCalledWith('multi@example.com', ['bl'], undefined));
+    await waitFor(() =>
+      expect(saveUser).toHaveBeenCalledWith('multi@example.com', ['employee', 'bl'], undefined)
+    );
   });
 
   it('blocks submit with a validation message when no role is selected', async () => {
@@ -113,6 +118,9 @@ describe('ManageUsers', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /add user/i }));
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'norole@example.com' } });
+    // The employee role is pre-selected; unchecking it leaves the set empty,
+    // which must still be rejected.
+    fireEvent.click(screen.getByRole('button', { name: 'Employee' }));
     fireEvent.click(screen.getByRole('button', { name: /save user/i }));
 
     expect(await screen.findByText('At least one role is required.')).toBeInTheDocument();

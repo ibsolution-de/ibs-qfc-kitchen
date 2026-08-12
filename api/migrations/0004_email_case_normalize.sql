@@ -1,0 +1,23 @@
+-- Canonicalize stored user emails to lower case, making `users.email` an
+-- effectively case-insensitive unique id for every existing row.
+--
+-- Background
+-- ----------
+-- `users.email` is a SQLite TEXT PRIMARY KEY (BINARY collation, i.e.
+-- case-sensitive). The auth and admin write paths used to store the value
+-- exactly as received — proxy header (oauth2-proxy + an IdP may emit any
+-- case) or admin form input — so `NAZAR@example.com` and `nazar@example.com`
+-- could have ended up as two distinct accounts. The code now normalizes
+-- every email through `auth::normalize_email` (trim + lowercase) before it
+-- touches the database (see `api/src/auth.rs`, `api/src/services/admin.rs`),
+-- so all future writes land in canonical form. This migration folds the
+-- historical rows into that same form.
+--
+-- A real case-only duplicate pair (two rows differing only by case) would
+-- violate the primary key on the UPDATE and fail startup loudly rather
+-- than silently merging accounts — the correct response to that anomaly is
+-- a human deciding which row to keep, not the migration guessing. Given
+-- accounts are only ever created by this codebase's single login path
+-- (and, in practice, low-case IdP emails), that state should be impossible
+-- to reach.
+UPDATE users SET email = lower(email);

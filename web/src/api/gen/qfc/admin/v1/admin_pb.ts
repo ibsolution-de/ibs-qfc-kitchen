@@ -459,8 +459,13 @@ export const GetSystemStatusResponseSchema: GenMessage<GetSystemStatusResponse> 
 
 /**
  * Account and role administration. Every RPC requires the caller to hold
- * USER_ROLE_ADMIN; everyone else gets permission_denied. This is the only
- * role-enforced service.
+ * USER_ROLE_ADMIN; everyone else gets permission_denied. Roles are granted
+ * and revoked here and nowhere else — a user can never change their own
+ * role set (no self-service path exists), and the service refuses to
+ * remove the admin role from the last remaining admin (or from the caller's
+ * own account), so an admin lockout is impossible through the API.
+ * The other services enforce their own usecase-level role gates for
+ * mutating RPCs (see each service's proto/impl docs).
  *
  * @generated from service qfc.admin.v1.AdminService
  */

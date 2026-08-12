@@ -55,6 +55,41 @@ Environment variables (all read once at startup in `config.rs`):
 | `QFC_ADMIN_EMAILS` | unset (empty) | Comma-separated emails granted the `admin` role: the accounts are created at startup (`auth::ensure_admins`), before first login; additionally, any matching email is seeded `admin` instead of `QFC_DEFAULT_ROLE` on first sighting. Matched case-insensitively. |
 | `RUST_LOG` | `info` | Read directly by `tracing-subscriber`'s `EnvFilter`, not by `config.rs`. |
 
+## Access control
+
+Roles are a set per user (`qfc.session.v1.User.roles`), granted and revoked
+exclusively by an admin through `AdminService` — a user can never change
+their own role set: no self-service RPC exists, and the web app's role
+switcher is compile-time dev-only (`import.meta.env.DEV`), so it cannot
+exist in a production build. Two server-side guards make an admin lockout
+impossible through the API: the `admin` role cannot be removed from the
+caller's own account, nor from the last remaining admin (mirrored by the
+delete guards).
+
+A role defines which usecases are open. Reads (list/get/watch) are open to
+every authenticated user; the mutating RPCs are gated per service — denials
+surface as `permission_denied`:
+
+| Service | Mutating RPCs require |
+|---|---|
+| TeamService (employee master data) | `pm` or `bl` |
+| PlanningService (versions, assignments, absences, quarter data) | `pm` or `bl` |
+| StrategyService (goals, north star metrics) | `pm` or `bl` |
+| GrowthService (1:1 sessions) | `pm` or `bl` |
+| PortfolioService (projects) | `pm`, `bl`, or `sales` |
+| CustomerService (customers) | `pm`, `bl`, or `sales` |
+| AdminService (users, roles, settings, monitoring) | `admin` |
+
+The web app mirrors these gates (hides the controls, routes by role), but
+the server is the enforcement point.
+
+Emails are the account identity and behave case-insensitively: every path
+that touches `users.email` (proxy headers, `QFC_DEV_USER`, admin
+upserts/deletes, `ensure_admins`) normalizes it to trimmed lower-case via
+`auth::normalize_email`, so the case-sensitive SQLite primary key never
+sees two spellings of one address. Migration
+`0004_email_case_normalize.sql` folds any historical rows into that form.
+
 ## Storage model
 
 `migrations/0001_init.sql`: low-churn master data is stored as an

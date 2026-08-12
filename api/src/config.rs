@@ -103,7 +103,10 @@ fn parse_dev_user(raw: &str) -> Result<DevUser, ConfigError> {
             value: raw.to_string(),
         })?;
     Ok(DevUser {
-        email: email.trim().to_string(),
+        // Same canonical form `auth::normalize_email` applies to proxy
+        // headers, so a `QFC_DEV_USER` identity always matches the stored
+        // `users.email` row case-insensitively.
+        email: crate::auth::normalize_email(email),
         name: name.trim().to_string(),
     })
 }

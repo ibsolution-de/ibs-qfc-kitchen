@@ -942,3 +942,159 @@ async fn first_seen_users_get_the_db_overridden_default_role() {
 
     db.cleanup(pool).await;
 }
+
+#[tokio::test]
+async fn upsert_user_normalizes_email_case_and_never_duplicates_accounts() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc(&pool);
+    let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
+
+    // Mixed case + surrounding whitespace must land on the canonical
+    // lower-case form, not a second account.
+    let created = upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "  ADA@Example.COM ".to_string(),
+            roles: vec![UserRole::Pm.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("upsert with mixed-case email");
+    assert_eq!(created.email, "ada@example.com", "response echoes the canonical form");
+    assert_eq!(user_row_count(&pool).await, 1);
+    assert_eq!(stored_roles(&pool, "ada@example.com").await, vec![UserRole::Pm]);
+
+    // A second upsert using the same email in different case updates the
+    // SAME row instead of creating a second one.
+    let updated = upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "ADA@example.com".to_string(),
+            roles: vec![UserRole::Bl.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("upsert same account in different case");
+    assert_eq!(updated.email, "ada@example.com");
+    assert_eq!(user_row_count(&pool).await, 1, "case variants must collapse onto one row");
+    assert_eq!(stored_roles(&pool, "ada@example.com").await, vec![UserRole::Bl]);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn auth_middleware_normalizes_header_email_case() {
+    let (pool, db) = common::temp_pool("admin").await;
+
+    let first = current_user_via_middleware(&pool, &[], " NAZAR@Example.COM ", "Nazar").await;
+    assert_eq!(first.email, "nazar@example.com", "middleware must canonicalize the header email");
+    assert_eq!(first.roles, vec![UserRole::Employee]);
+
+    // A second login under a different case resolves to the same row: one
+    // account, not two.
+    let second = current_user_via_middleware(&pool, &[], "nazar@example.com", "Nazar").await;
+    assert_eq!(second.email, "nazar@example.com");
+    assert_eq!(user_row_count(&pool).await, 1);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn ensure_admins_normalizes_mixed_case_emails() {
+    let (pool, db) = common::temp_pool("admin").await;
+
+    auth::ensure_admins(&pool, &["  BOB@Example.COM ".to_string()])
+        .await
+        .expect("ensure_admins ok");
+    assert_eq!(
+        stored_roles(&pool, "bob@example.com").await,
+        vec![UserRole::Admin],
+        "the row must exist in canonical lower-case form"
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn admin_cannot_remove_the_admin_role_from_their_own_account() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc(&pool);
+    let admin_ctx = || ctx_for("self@example.com", vec![UserRole::Admin]);
+
+    upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "self@example.com".to_string(),
+            roles: vec![UserRole::Admin.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create own admin row");
+
+    let err = upsert_user(
+        &svc,
+        admin_ctx(),
+        UpsertUserRequest {
+            email: "SELF@example.com".to_string(),
+            roles: vec![UserRole::Pm.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("an admin must not be able to demote their own account");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+    assert_eq!(
+        stored_roles(&pool, "self@example.com").await,
+        vec![UserRole::Admin],
+        "the failed demotion must leave the stored roles untouched"
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn upsert_cannot_strip_admin_from_the_last_remaining_admin() {
+    let (pool, db) = common::temp_pool("admin").await;
+    let svc = svc(&pool);
+
+    // `operator` is the only stored admin; its in-memory context is a stale
+    // session that still claims the admin role. Together they model the
+    // "last remaining admin" case the guard must catch: after B is demoted,
+    // no stored row holds admin anymore.
+    sqlx::query("INSERT INTO users (email, name, subject, roles, employee_id, created_at) VALUES (?1, ?1, NULL, 'EMPLOYEE', NULL, 0)")
+        .bind("operator@example.com")
+        .execute(&pool)
+        .await
+        .expect("seed operator row");
+    sqlx::query("INSERT INTO users (email, name, subject, roles, employee_id, created_at) VALUES (?1, ?1, NULL, 'ADMIN', NULL, 0)")
+        .bind("last-admin@example.com")
+        .execute(&pool)
+        .await
+        .expect("seed last-admin row");
+
+    let err = upsert_user(
+        &svc,
+        ctx_for("operator@example.com", vec![UserRole::Admin]),
+        UpsertUserRequest {
+            email: "last-admin@example.com".to_string(),
+            roles: vec![UserRole::Employee.into()],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("stripping the last remaining admin must be refused");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+    assert_eq!(
+        stored_roles(&pool, "last-admin@example.com").await,
+        vec![UserRole::Admin],
+        "the failed upsert must leave the last admin intact"
+    );
+
+    db.cleanup(pool).await;
+}

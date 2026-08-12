@@ -88,8 +88,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // `isRole` reports locally, for previewing role combinations during
   // development. Starts from the real session roles the first time it is
   // toggled, so unchecking one role leaves the rest intact.
+  //
+  // Compile-time gated on `import.meta.env.DEV`: Vite replaces it with
+  // `false` in production builds, so the override cannot exist in any
+  // deployed artifact — a production user can never switch their own role,
+  // server- or client-side (the backend independently rejects role changes
+  // for non-admins; see `AdminService`).
   const toggleDevRole = useCallback(
     (role: UserRole) => {
+      if (!import.meta.env.DEV) return;
       setDevRoleOverride(prev => {
         const base = prev ?? user?.roles ?? [];
         return base.includes(role) ? base.filter(r => r !== role) : [...base, role];
@@ -99,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const clearDevRoleOverride = useCallback(() => {
+    if (!import.meta.env.DEV) return;
     setDevRoleOverride(null);
   }, []);
 

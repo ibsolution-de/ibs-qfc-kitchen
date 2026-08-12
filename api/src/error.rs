@@ -22,6 +22,8 @@ pub enum AppError {
     Unauthenticated,
     #[error("permission denied: {0}")]
     PermissionDenied(String),
+    #[error("failed precondition: {0}")]
+    FailedPrecondition(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -42,6 +44,9 @@ impl From<AppError> for ConnectError {
             }
             AppError::PermissionDenied(message) => {
                 ConnectError::new(ErrorCode::PermissionDenied, message)
+            }
+            AppError::FailedPrecondition(message) => {
+                ConnectError::new(ErrorCode::FailedPrecondition, message)
             }
             // Everything else is a server-side fault: log the real cause,
             // hand the client a generic message so SQL text (or similar
