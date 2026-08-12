@@ -2,7 +2,7 @@
 
 # ---- Build-Stage: Vite React Build ----
 # Multi-Arch manifest-list digest, aktualisiert via Dependabot.
-FROM node:24-alpine@sha256:f70403e87646dc51b45295f4b8b70cdad0b63d2297c4c9899119b03f7af7a6b3 AS build
+FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS build
 WORKDIR /app
 RUN corepack enable
 # Dependency layer: only the pnpm manifest/lock files, so `pnpm install` stays
