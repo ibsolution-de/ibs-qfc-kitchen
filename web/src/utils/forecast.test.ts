@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { de } from 'date-fns/locale';
 import {
   parseQuarterName,
   computeQuarterCapacity,
@@ -89,6 +90,34 @@ describe('computeQuarterCapacity', () => {
     expect(result).toBe(quarter);
   });
 
+  it('populates calendar month names (empty months array stays empty otherwise)', () => {
+    const quarter = baseQuarter({ name: 'Q1 2026', months: [], totalCapacity: [] });
+    const result = computeQuarterCapacity({
+      quarter,
+      employees: [baseEmployee()],
+      absences: [],
+      holidays: [],
+      assignments: [],
+      allProjects: [],
+    });
+    expect(result.months).toEqual(['January', 'February', 'March']);
+    expect(result.totalCapacity).toEqual([22, 20, 22]);
+  });
+
+  it('uses the passed locale for month names', () => {
+    const quarter = baseQuarter({ name: 'Q1 2026', months: [], totalCapacity: [] });
+    const result = computeQuarterCapacity({
+      quarter,
+      employees: [baseEmployee()],
+      absences: [],
+      holidays: [],
+      assignments: [],
+      allProjects: [],
+      monthLocale: de,
+    });
+    expect(result.months).toEqual(['Januar', 'Februar', 'März']);
+  });
+
   it('reduces capacity by availability, holidays, and absences', () => {
     const quarter = baseQuarter({ name: 'Q1 2026' });
     const employee = baseEmployee({ availability: 100 });
@@ -159,6 +188,12 @@ describe('computeQuarterCapacity', () => {
 });
 
 describe('mergeForecastQuarters', () => {
+  it('defaults to a 3-quarter window (current + 2)', () => {
+    const today = new Date(2026, 9, 15); // Oct 15 2026 -> Q4 2026
+    const result = mergeForecastQuarters([], today);
+    expect(result.map(q => q.name)).toEqual(['Q4 2026', 'Q1 2027', 'Q2 2027']);
+  });
+
   it('builds a rolling window crossing a year boundary', () => {
     const today = new Date(2026, 9, 15); // Oct 15 2026 -> Q4 2026
     const result = mergeForecastQuarters([], today, 4);

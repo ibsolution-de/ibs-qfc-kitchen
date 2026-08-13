@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { format, getDay } from 'date-fns';
 import {
   X,
-  Repeat,
   Lock,
   Search,
   Folder,
@@ -63,8 +62,9 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
   const [absenceType, setAbsenceType] = useState<Absence['type']>('vacation');
   const [absenceDuration, setAbsenceDuration] = useState(1);
   const [draftAssignments, setDraftAssignments] = useState<DraftAssignment[]>([]);
-  const [isRepeatMode, setIsRepeatMode] = useState(false);
+  const [projectScope, setProjectScope] = useState<'day' | 'month' | 'days'>('day');
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
+  const [projectDuration, setProjectDuration] = useState(1);
 
   // Initialize / reset modal state when the selected cell changes
   useEffect(() => {
@@ -80,8 +80,9 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
         }));
 
       setDraftAssignments(existing);
-      setIsRepeatMode(false);
+      setProjectScope('day');
       setRepeatDays([getDay(selectedCell.date)]);
+      setProjectDuration(1);
       setProjectSearchQuery('');
       setProjectFilter('all');
       setTabMode('project');
@@ -105,11 +106,12 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
     return computeTargetDates({
       baseDate: selectedCell.date,
       mode: tabMode,
-      isRepeat: tabMode === 'project' ? isRepeatMode : undefined,
+      projectMode: tabMode === 'project' ? projectScope : undefined,
       repeatDays: tabMode === 'project' ? repeatDays : undefined,
+      duration: tabMode === 'project' ? projectDuration : undefined,
       absenceDuration: tabMode === 'absence' ? absenceDuration : undefined,
     });
-  }, [selectedCell, tabMode, isRepeatMode, repeatDays, absenceDuration]);
+  }, [selectedCell, tabMode, projectScope, repeatDays, projectDuration, absenceDuration]);
 
   const hasConflict = useMemo(() => {
     if (!selectedCell || selectedCellReadOnly || targetDates.length === 0) return false;
@@ -129,8 +131,9 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
     const daysToProcess = computeTargetDates({
       baseDate: selectedCell.date,
       mode: tabMode,
-      isRepeat: tabMode === 'project' ? isRepeatMode : undefined,
+      projectMode: tabMode === 'project' ? projectScope : undefined,
       repeatDays: tabMode === 'project' ? repeatDays : undefined,
+      duration: tabMode === 'project' ? projectDuration : undefined,
       absenceDuration: tabMode === 'absence' ? absenceDuration : undefined,
     });
 
@@ -239,48 +242,116 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
 
           {tabMode === 'project' && (
             <>
-              <div className="flex items-center gap-2 pt-3 border-t border-charcoal-200">
-                <input
-                  type="checkbox"
-                  id="repeatMode"
-                  checked={isRepeatMode}
+              {/* Scope: single day, whole month with weekday selection, or a
+                  day count over working days (same model as the absence tab). */}
+              <div className="flex bg-white border border-charcoal-200 rounded-lg p-1 gap-1 pt-3 mt-3 border-t-0 rounded-t-none">
+                <button
+                  onClick={() => setProjectScope('day')}
                   disabled={selectedCellReadOnly}
-                  onChange={(e) => setIsRepeatMode(e.target.checked)}
-                  className={`rounded border-charcoal-300 text-blue-600 focus:ring-blue-500 ${
-                    selectedCellReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'
-                  }`}
-                />
-                <label
-                  htmlFor="repeatMode"
-                  className={`text-sm text-charcoal-700 select-none flex items-center gap-2 ${
-                    selectedCellReadOnly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
-                  }`}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    projectScope === 'day'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-charcoal-600 hover:bg-charcoal-100'
+                  } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                 >
-                  <Repeat className="w-4 h-4 text-charcoal-500" />
-                  {t('planner.repeatMode')}
-                </label>
+                  {t('planner.scopeDay')}
+                </button>
+                <button
+                  onClick={() => setProjectScope('month')}
+                  disabled={selectedCellReadOnly}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    projectScope === 'month'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-charcoal-600 hover:bg-charcoal-100'
+                  } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {t('planner.scopeMonth')}
+                </button>
+                <button
+                  onClick={() => setProjectScope('days')}
+                  disabled={selectedCellReadOnly}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    projectScope === 'days'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-charcoal-600 hover:bg-charcoal-100'
+                  } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {t('planner.scopeDays')}
+                </button>
               </div>
 
-              {isRepeatMode && (
+              {projectScope === 'month' && (
                 <div className="mt-3 pl-6">
-                  <div className="text-xs text-charcoal-500 mb-2 uppercase tracking-wide">
-                    {t('planner.applyOnDays')}:
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-charcoal-500 uppercase tracking-wide">
+                      {t('planner.applyOnDays')}:
+                    </span>
+                    <button
+                      onClick={() => setRepeatDays([0, 1, 2, 3, 4, 5, 6])}
+                      disabled={selectedCellReadOnly}
+                      className="text-[11px] font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                    >
+                      {t('planner.selectAll')}
+                    </button>
                   </div>
                   <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map((dayIdx) => (
+                    {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => (
                       <button
                         key={dayIdx}
                         onClick={() => toggleRepeatDay(dayIdx)}
                         disabled={selectedCellReadOnly}
-                        className={`w-8 h-8 rounded text-xs font-bold transition-colors ${
+                        className={`w-9 h-9 rounded text-xs font-bold transition-colors ${
                           repeatDays.includes(dayIdx)
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'bg-white border border-charcoal-200 text-charcoal-500 hover:bg-charcoal-100'
-                        } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        } ${selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                       >
                         {getDayLabel(dayIdx)}
                       </button>
                     ))}
+                  </div>
+                  <p className="mt-2 text-[11px] text-charcoal-400">{t('planner.monthHint')}</p>
+                </div>
+              )}
+
+              {projectScope === 'days' && (
+                <div className="flex items-center justify-between pt-3">
+                  <label className="text-sm text-charcoal-700 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-charcoal-500" />
+                    {t('planner.daysCount')}
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() =>
+                        setProjectDuration(prev => Math.max(1, Math.min(60, prev - 1)))
+                      }
+                      disabled={selectedCellReadOnly}
+                      className={`w-8 h-8 flex items-center justify-center rounded-l border border-charcoal-200 bg-white text-charcoal-600 ${
+                        selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'
+                      }`}
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      className="w-12 h-8 text-center border-y border-charcoal-200 text-sm font-semibold focus:outline-none disabled:opacity-50"
+                      value={projectDuration}
+                      disabled={selectedCellReadOnly}
+                      onChange={(e) => {
+                        const raw = parseInt(e.target.value, 10);
+                        const clamped = Number.isNaN(raw) ? 1 : Math.max(1, Math.min(60, raw));
+                        setProjectDuration(clamped);
+                      }}
+                    />
+                    <button
+                      onClick={() => setProjectDuration(prev => Math.min(60, prev + 1))}
+                      disabled={selectedCellReadOnly}
+                      className={`w-8 h-8 flex items-center justify-center rounded-r border border-charcoal-200 bg-white text-charcoal-600 ${
+                        selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'
+                      }`}
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
               )}
@@ -296,7 +367,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
               <div className="flex items-center gap-1">
                 <button
                   onClick={() =>
-                    setAbsenceDuration(Math.max(1, Math.min(60, absenceDuration - 1)))
+                    setAbsenceDuration(prev => Math.max(1, Math.min(60, prev - 1)))
                   }
                   disabled={selectedCellReadOnly}
                   className={`w-8 h-8 flex items-center justify-center rounded-l border border-charcoal-200 bg-white text-charcoal-600 ${
@@ -317,7 +388,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                   }}
                 />
                 <button
-                  onClick={() => setAbsenceDuration(Math.min(60, absenceDuration + 1))}
+                  onClick={() => setAbsenceDuration(prev => Math.min(60, prev + 1))}
                   disabled={selectedCellReadOnly}
                   className={`w-8 h-8 flex items-center justify-center rounded-r border border-charcoal-200 bg-white text-charcoal-600 ${
                     selectedCellReadOnly ? 'opacity-50 cursor-not-allowed' : 'hover:bg-charcoal-50'
@@ -657,7 +728,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
           )}
           <Button variant="ghost" onClick={onClose}>{t('planner.cancel')}</Button>
           {!selectedCellReadOnly &&
-            (!isRepeatMode || tabMode === 'absence' || draftAssignments.length > 0) && (
+            (tabMode === 'absence' || draftAssignments.length > 0 || (projectScope === 'month' && repeatDays.length > 0)) && (
               <Button onClick={handleSave}>{t('planner.save')}</Button>
             )}
         </div>

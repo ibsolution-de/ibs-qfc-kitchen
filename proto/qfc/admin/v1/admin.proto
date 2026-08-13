@@ -50,6 +50,11 @@ message AppSettings {
   qfc.session.v1.UserRole default_role = 1;
   // Addresses seeded with USER_ROLE_ADMIN on first sighting.
   repeated string admin_emails = 2;
+  // How many plan revisions (frozen planning snapshots) the system keeps.
+  // Older revisions are pruned automatically once a new one is created.
+  // Must be one of 2, 3, 5 or 10; when absent, the startup environment
+  // (QFC_PLAN_REVISION_RETENTION) applies, then 5.
+  optional int32 plan_revision_retention = 3;
 }
 
 message GetAppSettingsRequest {}
@@ -62,6 +67,7 @@ message GetAppSettingsResponse {
   AppSettings environment = 2;
   bool default_role_overridden = 3;
   bool admin_emails_overridden = 4;
+  bool plan_revision_retention_overridden = 5;
 }
 
 message UpdateAppSettingsRequest {

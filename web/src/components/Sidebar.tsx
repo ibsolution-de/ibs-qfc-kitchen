@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket, Server, Check, X as XIcon } from 'lucide-react';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Target, Compass, ShieldCheck, Pencil, GitCompare, Rocket, Server, Check, X as XIcon, Lock } from 'lucide-react';
 import { PlanVersion, Employee, Project } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ui/ConfirmDialog';
@@ -404,6 +404,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                       {isLatest && !compareMode && !isEditing && (
                                           <span className="text-[8px] font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-full border border-blue-100/50 uppercase tracking-wide ml-auto">
                                             {t('sidebar.latest')}
+                                          </span>
+                                      )}
+                                      {!isLatest && !compareMode && !isEditing && (
+                                          <span className="text-[8px] font-bold text-charcoal-500 bg-charcoal-100 px-1.5 py-0.5 rounded-full border border-charcoal-200 uppercase tracking-wide ml-auto inline-flex items-center gap-0.5">
+                                            <Lock className="w-2 h-2" /> {t('sidebar.frozen')}
                                           </span>
                                       )}
                                   </div>

@@ -60,6 +60,8 @@ export interface UseSystemStatusResult {
 export interface AppSettingsValues {
   defaultRole: UserRole;
   adminEmails: string[];
+  /** How many plan revisions (frozen planning snapshots) the system keeps: 2, 3, 5 or 10. */
+  planRevisionRetention: number;
 }
 
 /**
@@ -72,6 +74,7 @@ export interface AppSettingsView extends AppSettingsValues {
   environment: AppSettingsValues;
   defaultRoleOverridden: boolean;
   adminEmailsOverridden: boolean;
+  planRevisionRetentionOverridden: boolean;
 }
 
 export interface UseAppSettingsResult {
@@ -183,12 +186,15 @@ export function useAppSettings(): UseAppSettingsResult {
       const view: AppSettingsView = {
         defaultRole,
         adminEmails: effective.adminEmails,
+        planRevisionRetention: effective.planRevisionRetention ?? 5,
         environment: {
           defaultRole: environmentDefaultRole,
           adminEmails: environment.adminEmails,
+          planRevisionRetention: environment.planRevisionRetention ?? 5,
         },
         defaultRoleOverridden: response.defaultRoleOverridden,
         adminEmailsOverridden: response.adminEmailsOverridden,
+        planRevisionRetentionOverridden: response.planRevisionRetentionOverridden,
       };
       setSettings(view);
       setStatus('ready');
@@ -214,7 +220,11 @@ export function useAppSettings(): UseAppSettingsResult {
         throw new Error(`UpdateAppSettings: unmapped default role "${values.defaultRole}"`);
       }
       await adminClient.updateAppSettings({
-        settings: { defaultRole, adminEmails: values.adminEmails },
+        settings: {
+          defaultRole,
+          adminEmails: values.adminEmails,
+          planRevisionRetention: values.planRevisionRetention,
+        },
       });
       // The update response carries only `effective` - refetch so the
       // environment comparison and override flags stay consistent.

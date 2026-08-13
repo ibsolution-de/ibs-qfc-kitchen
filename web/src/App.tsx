@@ -147,8 +147,11 @@ const AppContent: React.FC = () => {
   };
 
   const handleCreateVersion = (name: string, description: string) => {
+    // Plan revisions branch only from the LATEST revision — frozen
+    // snapshots are read-only and never serve as a copy source (the user
+    // can, however, flip back to an old revision afterwards to inspect it).
     store
-      .createVersion(name, description || undefined, activeVersionId)
+      .createVersion(name, description || undefined, latestVersion?.id)
       .then(newVersion => {
         setActiveVersionId(newVersion.id);
         success(t('toast.versionCreated'));
@@ -192,6 +195,14 @@ const AppContent: React.FC = () => {
       [type === 'mustWin' ? 'mustWinOpportunities' : 'alternativeOpportunities']: updatedProjects,
     };
     store.upsertQuarterData(activeVersionId, updatedQuarter).catch(() => error(t('common.saveError')));
+  };
+
+  const handleForecastNotes = (quarterId: string, notes: string) => {
+    const quarter = forecastData.find(q => q.id === quarterId);
+    if (!quarter) return;
+    store
+      .upsertQuarterData(activeVersionId, { ...quarter, notes })
+      .catch(() => error(t('common.saveError')));
   };
 
   const handleNavigateToProject = (projectId: string) => {
@@ -319,6 +330,7 @@ const AppContent: React.FC = () => {
                               absences={plannerAbsences}
                               holidays={holidays}
                               onUpdateForecast={handleForecastUpdate}
+                              onUpdateNotes={handleForecastNotes}
                               readOnly={!isLatestVersion}
                           />
                         </AnimatedPage>

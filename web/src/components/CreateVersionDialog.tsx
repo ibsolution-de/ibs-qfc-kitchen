@@ -48,6 +48,9 @@ export const CreateVersionDialog: React.FC<CreateVersionDialogProps> = ({ isOpen
             className="w-full px-3 py-2 border border-charcoal-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
           />
         </div>
+        <p className="text-xs text-charcoal-500 bg-charcoal-50 border border-charcoal-100 rounded-lg p-3">
+          {t('version.copyHint')}
+        </p>
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="ghost" onClick={onClose}>{t('version.cancel')}</Button>
           <Button type="submit">{t('version.create')}</Button>

@@ -11,6 +11,14 @@ use crate::proto::session::UserRole;
 const DEFAULT_BIND: &str = "0.0.0.0:8080";
 const DEFAULT_DB_PATH: &str = "./qfc.db";
 const DEFAULT_ROLE: &str = "employee";
+/// Default number of plan revisions (frozen planning snapshots) the system
+/// keeps, used when neither `QFC_PLAN_REVISION_RETENTION` nor the
+/// `settings.plan_revision_retention` meta override is set.
+pub const DEFAULT_PLAN_REVISION_RETENTION: i64 = 5;
+
+/// The retention values an operator may configure. Kept in sync with the
+/// admin UI's selector options (2/3/5/10).
+pub const VALID_PLAN_REVISION_RETENTIONS: &[i64] = &[2, 3, 5, 10];
 
 /// The local-dev identity assumed for requests missing auth headers, parsed
 /// from `QFC_DEV_USER=email|Display Name`. Must be unset in production.
@@ -37,6 +45,11 @@ pub struct Config {
     /// role `admin` instead of `default_role` on first sighting
     /// (`QFC_ADMIN_EMAILS`, comma-separated, optional; empty if unset).
     pub admin_emails: Vec<String>,
+    /// How many plan revisions (frozen planning snapshots) the system keeps
+    /// (`QFC_PLAN_REVISION_RETENTION`, one of 2/3/5/10; default 5). Only the
+    /// startup fallback — admins can override it at runtime via
+    /// `AdminService::UpdateAppSettings` (stored in the `meta` table).
+    pub plan_revision_retention: i64,
 }
 
 /// A malformed environment variable. Kept separate from [`AppError`](crate::error::AppError)
@@ -56,6 +69,10 @@ pub enum ConfigError {
         "QFC_DEFAULT_ROLE={value:?} is not a valid default role (valid values: employee, pm, bl, sales — admin is deliberately not accepted as a default)"
     )]
     InvalidDefaultRole { value: String },
+    #[error(
+        "QFC_PLAN_REVISION_RETENTION={value:?} is not a valid plan revision retention (valid values: 2, 3, 5, 10)"
+    )]
+    InvalidPlanRevisionRetention { value: String },
 }
 
 impl Config {
@@ -85,13 +102,31 @@ impl Config {
             .map(|raw| parse_admin_emails(&raw))
             .unwrap_or_default();
 
+        let plan_revision_retention = match env::var("QFC_PLAN_REVISION_RETENTION") {
+            Ok(raw) => parse_plan_revision_retention(&raw)?,
+            Err(_) => DEFAULT_PLAN_REVISION_RETENTION,
+        };
+
         Ok(Self {
             bind,
             db_path,
             dev_user,
             default_role,
             admin_emails,
+            plan_revision_retention,
         })
+    }
+}
+
+/// Parse `QFC_PLAN_REVISION_RETENTION` into one of the allowed retention
+/// values (2/3/5/10), mirroring the set `settings::update` accepts stores,
+/// so env and database can never drift apart on what is a legal value.
+fn parse_plan_revision_retention(raw: &str) -> Result<i64, ConfigError> {
+    match raw.trim().parse::<i64>() {
+        Ok(value) if VALID_PLAN_REVISION_RETENTIONS.contains(&value) => Ok(value),
+        _ => Err(ConfigError::InvalidPlanRevisionRetention {
+            value: raw.to_string(),
+        }),
     }
 }
 

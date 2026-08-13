@@ -53,6 +53,7 @@ export const ApplicationSetup: React.FC = () => {
 
   const [defaultRole, setDefaultRole] = useState<UserRole>('employee');
   const [emailsText, setEmailsText] = useState('');
+  const [planRevisionRetention, setPlanRevisionRetention] = useState(5);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -64,6 +65,7 @@ export const ApplicationSetup: React.FC = () => {
     if (!settings) return;
     setDefaultRole(settings.defaultRole);
     setEmailsText(settings.adminEmails.join('\n'));
+    setPlanRevisionRetention(settings.planRevisionRetention);
   }, [settings]);
 
   const handleSave = () => {
@@ -79,7 +81,7 @@ export const ApplicationSetup: React.FC = () => {
     }
     setValidationError(null);
     setSaving(true);
-    save({ defaultRole, adminEmails })
+    save({ defaultRole, adminEmails, planRevisionRetention })
       .then(() => success(t('toast.settingsSaved')))
       .catch((err: unknown) => toastError(settingsErrorMessage(err, t)))
       .finally(() => setSaving(false));
@@ -142,6 +144,28 @@ export const ApplicationSetup: React.FC = () => {
                   ? settings.environment.adminEmails.join(', ')
                   : t('admin.setup.environmentEmpty')}
               </p>
+            </FormField>
+
+            <FormField label={t('admin.setup.planRevisionRetentionLabel')} htmlFor="settingsRetention">
+              <div className="flex items-center">
+                <SelectInput
+                  id="settingsRetention"
+                  value={planRevisionRetention}
+                  onChange={e => setPlanRevisionRetention(parseInt(e.target.value, 10))}
+                  className="max-w-xs"
+                >
+                  {[2, 3, 5, 10].map(value => (
+                    <option key={value} value={value}>{value}</option>
+                  ))}
+                </SelectInput>
+                {settings.planRevisionRetentionOverridden && <OverrideBadge label={t('admin.setup.overrideBadge')} />}
+              </div>
+              <p className="mt-1.5 text-xs text-charcoal-500">{t('admin.setup.planRevisionRetentionHint')}</p>
+              {!settings.planRevisionRetentionOverridden && (
+                <p className="mt-1 text-xs text-charcoal-500">
+                  {t('admin.setup.environmentLabel')}: {settings.environment.planRevisionRetention}
+                </p>
+              )}
             </FormField>
 
             <p className="text-xs text-charcoal-500 bg-charcoal-50 border border-charcoal-100 rounded-lg p-3">

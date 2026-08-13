@@ -140,6 +140,46 @@ describe('planner', () => {
       expect(result).toEqual(['2024-06-03', '2024-06-10', '2024-06-17', '2024-06-24']);
     });
 
+    it('returns the same whole-month weekdays via projectMode month', () => {
+      const result = computeTargetDates({
+        baseDate: new Date(2024, 5, 10), // Monday
+        mode: 'project',
+        projectMode: 'month',
+        repeatDays: [1, 3], // Monday + Wednesday
+      });
+      expect(result).toEqual([
+        '2024-06-03',
+        '2024-06-05',
+        '2024-06-10',
+        '2024-06-12',
+        '2024-06-17',
+        '2024-06-19',
+        '2024-06-24',
+        '2024-06-26',
+      ]);
+    });
+
+    it('supports weekend weekdays in whole-month mode', () => {
+      const result = computeTargetDates({
+        baseDate: new Date(2024, 5, 10),
+        mode: 'project',
+        projectMode: 'month',
+        repeatDays: [0, 6], // Sunday + Saturday
+      });
+      expect(result).toEqual(['2024-06-01', '2024-06-02', '2024-06-08', '2024-06-09', '2024-06-15', '2024-06-16', '2024-06-22', '2024-06-23', '2024-06-29', '2024-06-30']);
+    });
+
+    it('plans a working-day count over multiple days like absences', () => {
+      const result = computeTargetDates({
+        baseDate: new Date(2024, 5, 7), // Friday
+        mode: 'project',
+        projectMode: 'days',
+        duration: 3,
+      });
+      // Same weekend-skipping semantics as the absence mode.
+      expect(result).toEqual(['2024-06-07', '2024-06-10', '2024-06-11']);
+    });
+
     it('skips weekends for consecutive absences', () => {
       const result = computeTargetDates({
         baseDate: new Date(2024, 5, 7), // Friday

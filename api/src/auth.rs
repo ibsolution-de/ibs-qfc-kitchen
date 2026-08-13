@@ -233,8 +233,17 @@ async fn upsert_and_load(
 
     // First-seen path: resolve the effective seed settings (database
     // override over environment) only now that they are actually needed.
-    let (default_role, admin_emails, _, _) =
-        settings::effective(pool, default_role, admin_emails).await?;
+    // Only the role + admin list are consumed here — the retention value
+    // is irrelevant to seeding, so the static default is passed as its env
+    // fallback (the authority for the real fallback is `Config`, which
+    // `AdminService`/`PlanningService` hold).
+    let (default_role, admin_emails, _, _, _, _) = settings::effective(
+        pool,
+        default_role,
+        admin_emails,
+        crate::config::DEFAULT_PLAN_REVISION_RETENTION,
+    )
+    .await?;
     let seed_roles: Vec<UserRole> = if admin_emails
         .iter()
         .any(|admin| admin.eq_ignore_ascii_case(email))

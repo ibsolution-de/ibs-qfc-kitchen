@@ -59,20 +59,52 @@ use crate::time::now_millis;
 pub struct PlanningServiceImpl {
     pool: SqlitePool,
     hub: Hub,
+    /// How many plan revisions (frozen planning snapshots) the system
+    /// keeps: the startup fallback for the runtime-editable
+    /// `settings.plan_revision_retention` meta override (see
+    /// `reconcile_plan_revisions`). Older revisions are pruned once a new
+    /// one is created.
+    env_plan_revision_retention: i64,
 }
 
 impl PlanningServiceImpl {
+    /// Default retention for `new` (no env value): 5 revisions, matching
+    /// `config::DEFAULT_PLAN_REVISION_RETENTION` — kept in one place so any
+    /// drift between the two defaults is immediately visible.
+    const DEFAULT_ENV_RETENTION: i64 = 5;
+
     pub fn new(pool: SqlitePool, hub: Hub) -> Self {
-        Self { pool, hub }
+        Self::new_with_retention(pool, hub, Self::DEFAULT_ENV_RETENTION)
+    }
+
+    pub fn new_with_retention(pool: SqlitePool, hub: Hub, env_plan_revision_retention: i64) -> Self {
+        Self {
+            pool,
+            hub,
+            env_plan_revision_retention,
+        }
     }
 }
 
 impl PlanningService for PlanningServiceImpl {
     async fn list_versions(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, ListVersionsRequest>,
     ) -> ServiceResult<ListVersionsResponse> {
+        let current = auth::require(&ctx)?;
+        // Best-effort housekeeping on a read path: a rollover into a new
+        // quarter should auto-freeze a snapshot, and over-retention
+        // revisions should be pruned, but neither must ever take the
+        // whole app down with a load error — the same work is retried by
+        // the next request (see `reconcile_plan_revisions`).
+        let _ = reconcile_plan_revisions(
+            &self.pool,
+            &self.hub,
+            &current.email,
+            self.env_plan_revision_retention,
+        )
+        .await;
         let versions = list_version_metas(&self.pool).await?;
         Response::ok(ListVersionsResponse {
             versions,
@@ -98,6 +130,11 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, CreateVersionRequest>,
     ) -> ServiceResult<CreateVersionResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
+        // Note: the quarterly auto-snapshot and retention pruning run on
+        // `ListVersions` only — every SPA session starts with one, so both
+        // fire without additional calls, and keeping them off the mutation
+        // path guarantees a manual create interacts with exactly the
+        // versions it sees.
         let version = do_create_version(
             &self.pool,
             &self.hub,
@@ -249,6 +286,220 @@ async fn list_version_metas(pool: &SqlitePool) -> AppResult<Vec<PlanVersionMeta>
             },
         )
         .collect())
+}
+
+/// Plan-revision housekeeping, run best-effort on `ListVersions`:
+/// automatically freezes a snapshot at each quarter rollover, then prunes
+/// the history down to the configured retention. Errors are dropped (the
+/// caller logs nothing further) rather than taken down with the read path —
+/// the next request re-runs whatever failed, and the `ensure` half is
+/// guarded by its own always-visible invariant ("a revision named after
+/// the current quarter exists"), so a partial failure can never wedge a
+/// subsequent run.
+///
+/// Both halves are deliberately triggered on a *read* RPC: the SPA calls
+/// `ListVersions` on every load, which is what lets the automatic
+/// quarter-snapshot fire without a cron job, and keeps running servers
+/// correct even when they never receive a mutating call. Manual
+/// `CreateVersion` deliberately does NOT re-run it, so a manual create
+/// interacts with exactly the revisions the caller saw.
+async fn reconcile_plan_revisions(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    env_retention: i64,
+) -> AppResult<()> {
+    let retention = effective_retention(pool, env_retention).await?;
+    ensure_quarterly_revision(pool, hub, actor_email).await?;
+    prune_plan_revisions(pool, hub, actor_email, retention).await?;
+    Ok(())
+}
+
+/// The effective plan-revision retention: the `settings.plan_revision_retention`
+/// meta override when a valid one is stored, otherwise the startup
+/// environment value. Invalid stores (hand-edited or future-version rows)
+/// are logged by `settings` and fall back to the environment, mirroring
+/// how the other `settings.*` keys resolve.
+async fn effective_retention(pool: &SqlitePool, env_retention: i64) -> AppResult<i64> {
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT value FROM meta WHERE key = ?1")
+            .bind(crate::settings::PLAN_REVISION_RETENTION_KEY)
+            .fetch_optional(pool)
+            .await?;
+    Ok(match row {
+        Some((value,)) => crate::settings::retention_from_value(&value).unwrap_or(env_retention),
+        None => env_retention,
+    })
+}
+
+/// Guarantee the current quarter has a frozen plan revision.
+///
+/// When no `plan_version` is named after the quarter containing "now"
+/// (e.g. `Q3 2026`), deep-copies the latest revision into a new one with
+/// that name — the quarterly auto-snapshot. The check and the copy run in
+/// one transaction, so two concurrent requests racing the rollover cannot
+/// both create; the loser hits SQLite's single-writer lock and surfaces an
+/// error which the caller's best-effort handling absorbs (the winner's
+/// revision then satisfies the next run's name guard). A database whose
+/// only revision is literally named like the current quarter (e.g. the
+/// `2026` baseline) is treated as already snapshotted/covered and skipped.
+///
+/// No-op (still commits the read guard) when the quarter label already
+/// exists or no revision exists to copy from.
+async fn ensure_quarterly_revision(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+) -> AppResult<()> {
+    let Some(current_quarter) = quarter_label(now_millis()) else {
+        tracing::warn!("clock before 1970; skipping quarterly plan-revision snapshot");
+        return Ok(());
+    };
+
+    let mut tx = pool.begin().await?;
+
+    let named: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM plan_version WHERE name = ?1 LIMIT 1",
+    )
+    .bind(&current_quarter)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if named.is_some() {
+        tx.commit().await?;
+        return Ok(());
+    }
+
+    let latest: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM plan_version ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((latest_id,)) = latest else {
+        tx.commit().await?;
+        return Ok(());
+    };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let created_at_millis = now_millis();
+    sqlx::query(
+        "INSERT INTO plan_version (id, name, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+    )
+    .bind(&id)
+    .bind(&current_quarter)
+    .bind("Automatic quarterly plan snapshot.")
+    .bind(created_at_millis)
+    .bind(now_millis())
+    .execute(&mut *tx)
+    .await?;
+
+    copy_assignments(&mut tx, &latest_id, &id).await?;
+    copy_absences(&mut tx, &latest_id, &id).await?;
+    copy_quarter_data(&mut tx, &latest_id, &id).await?;
+
+    let meta = PlanVersionMeta {
+        id: id.clone(),
+        name: current_quarter,
+        description: Some("Automatic quarterly plan snapshot.".to_string()),
+        created_at_millis,
+        ..Default::default()
+    };
+
+    let mut pending = PendingEvents::new();
+    pending.push(
+        events::record(
+            &mut tx,
+            actor_email,
+            EntityKind::PlanVersion,
+            ChangeOp::Upsert,
+            &id,
+            Some(&id),
+            Some(meta.encode_to_vec()),
+        )
+        .await?,
+    );
+    tx.commit().await?;
+    hub.publish_all(pending);
+    Ok(())
+}
+
+/// Delete the oldest `plan_version` rows (with their cascade-deleted
+/// assignments/absences/quarter_data) until only `retention` remain.
+/// Never deletes the latest revision: pruning only ever removes from the
+/// front of the chronological list. Emits a `PLAN_VERSION` DELETE
+/// `change_log` row (and watch event) per pruned revision so connected
+/// clients drop the frozen view as it disappears. No-op when the count is
+/// already within the limit.
+async fn prune_plan_revisions(
+    pool: &SqlitePool,
+    hub: &Hub,
+    actor_email: &str,
+    retention: i64,
+) -> AppResult<()> {
+    if retention < 2 {
+        // Defensive: retention is validated to 2/3/5/10 upstream, but a
+        // misconfigured value must never allow deleting the last revision
+        // (the SPA has no empty-version state).
+        return Ok(());
+    }
+    let ids: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM plan_version ORDER BY created_at ASC, rowid ASC",
+    )
+    .fetch_all(pool)
+    .await?;
+    if ids.len() <= retention as usize {
+        return Ok(());
+    }
+    let victims = &ids[..ids.len() - retention as usize];
+
+    let mut tx = pool.begin().await?;
+    let mut pending = PendingEvents::new();
+    for (id,) in victims {
+        sqlx::query("DELETE FROM plan_version WHERE id = ?1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        pending.push(
+            events::record(
+                &mut tx,
+                actor_email,
+                EntityKind::PlanVersion,
+                ChangeOp::Delete,
+                id,
+                Some(id),
+                None,
+            )
+            .await?,
+        );
+    }
+    tx.commit().await?;
+    hub.publish_all(pending);
+    Ok(())
+}
+
+/// The quarter label containing `millis`, e.g. `"Q3 2026"` — the name the
+/// quarterly auto-snapshot gives its revisions, chosen so it parses back
+/// via the SPA's `parseQuarterName` (`Q{n} {year}`) which the forecast
+/// window currently matches. `None` for timestamps before the epoch (the
+/// civil-from-days algorithm needs a non-negative day count).
+fn quarter_label(millis: i64) -> Option<String> {
+    if millis < 0 {
+        return None;
+    }
+    // Civil date from epoch-millis, UTC ("civil_from_days", Howard Hinnant):
+    // the ordering semantics the version timeline needs — no chrono crate
+    // in this project, and the exact hour/day of the boundary does not
+    // matter, only which quarter the timestamp falls into.
+    let days = millis / 86_400_000;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if month <= 2 { yoe + era * 400 + 1 } else { yoe + era * 400 };
+    let quarter = (month - 1) / 3 + 1;
+    Some(format!("Q{quarter} {year}"))
 }
 
 /// Fetch the full `PlanVersion` (meta + assignments + absences + ordered

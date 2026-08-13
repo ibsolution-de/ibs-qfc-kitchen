@@ -56,6 +56,7 @@ fn svc(pool: &SqlitePool) -> AdminServiceImpl {
             dev_user_mode: false,
             env_default_role: UserRole::Employee,
             env_admin_emails: vec![],
+            env_plan_revision_retention: 5,
         },
     )
 }
@@ -607,6 +608,7 @@ async fn update_app_settings_persists_and_get_reflects_db_over_env() {
             dev_user_mode: false,
             env_default_role: UserRole::Employee,
             env_admin_emails: vec!["env-admin@example.com".to_string()],
+            env_plan_revision_retention: 5,
         },
     );
     let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
@@ -733,6 +735,7 @@ async fn invalid_db_values_fall_back_to_the_environment_per_key() {
             dev_user_mode: false,
             env_default_role: UserRole::Sales,
             env_admin_emails: vec![],
+            env_plan_revision_retention: 5,
         },
     );
     let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);
@@ -810,6 +813,7 @@ async fn get_system_status_reports_plausible_values() {
             dev_user_mode: true,
             env_default_role: UserRole::Employee,
             env_admin_emails: vec![],
+            env_plan_revision_retention: 5,
         },
     );
     let admin_ctx = || ctx_for("admin@example.com", vec![UserRole::Admin]);

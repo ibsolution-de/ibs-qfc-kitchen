@@ -536,14 +536,35 @@ async fn migrated_database_contains_the_baseline_plan_version() {
     let (pool, db) = common::temp_pool("planning").await;
     let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
 
-    // Migration 0005 guarantees a usable start: exactly the baseline
-    // version exists in every migrated database, with no demo data — the
-    // operator builds the first real plan from it (or copies it to a new
-    // version) inside the app.
+    // Migration 0005 guarantees a usable start: the baseline version exists
+    // in every migrated database, with no demo data — the operator builds
+    // the first real plan from it (or copies it to a new version) inside
+    // the app.
+    //
+    // Listing also runs the plan-revision housekeeping: the current quarter
+    // gets an automatic snapshot revision (deep copy of the latest), so a
+    // freshly seeded database shows baseline + "Q<n> <year>" rather than
+    // the bare baseline. Ordering is load-bearing (created_at ascending):
+    // the snapshot was created after the baseline and must sort last.
     let versions = list_versions(&svc).await.expect("list versions");
-    assert_eq!(versions.len(), 1, "baseline version must be the only one");
+    assert_eq!(versions.len(), 2, "baseline + automatic quarterly snapshot");
     assert_eq!(versions[0].id, BASELINE_VERSION_ID);
     assert_eq!(versions[0].name, "2026");
+    assert_ne!(versions[1].id, BASELINE_VERSION_ID);
+    let quarter_label = &versions[1].name;
+    // Shape-only assertion ("Q<1-4> <year>", the label the auto-snapshot
+    // uses) — the concrete quarter depends on the wall clock the test runs
+    // under, and hardcoding a year would make this test rot by date.
+    let bytes = quarter_label.as_bytes();
+    let digits_year = |start: usize| {
+        bytes.get(start..start + 4).is_some_and(|d| d.iter().all(u8::is_ascii_digit))
+    };
+    assert_eq!(bytes.len(), 7, "expected 'Q<n> yyyy', got {quarter_label:?}");
+    assert!(
+        bytes[0] == b'Q' && (b'1'..=b'4').contains(&bytes[1]) && bytes[2] == b' ',
+        "expected 'Q<1-4> yyyy', got {quarter_label:?}"
+    );
+    assert!(digits_year(3), "expected 'Q<n> yyyy', got {quarter_label:?}");
 
     db.cleanup(pool).await;
 }
@@ -1217,13 +1238,167 @@ async fn list_versions_orders_by_created_at_ascending() {
     let listed_ids: Vec<String> = versions.iter().map(|v| v.id.clone()).collect();
     // The migration-0005 baseline is the oldest version (created at
     // migration time) and must sort first; the fixture versions follow in
-    // creation order.
-    let mut expected = vec![BASELINE_VERSION_ID.to_string()];
-    expected.extend(ids);
+    // creation order; the automatic quarterly snapshot (created by the
+    // list's housekeeping, latest) sorts last.
     assert_eq!(
-        listed_ids, expected,
+        &listed_ids[..listed_ids.len() - 1],
+        &[BASELINE_VERSION_ID.to_string()].into_iter().chain(ids.clone()).collect::<Vec<_>>(),
         "must be ordered by created_at ascending (creation order)"
     );
+    assert_eq!(versions.len(), ids.len() + 2, "baseline + fixtures + quarterly snapshot");
+    assert!(
+        versions.last().map(|v| v.name.starts_with("Q")).unwrap_or(false),
+        "the newest revision must be the automatic quarterly snapshot, got {:?}",
+        versions.last().map(|v| v.name.as_str())
+    );
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn quarterly_snapshot_deep_copies_latest_state_and_runs_only_once() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+
+    // Build real state on a copy of the migration baseline, then let the
+    // list's housekeeping freeze it.
+    let version_id = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "Working".to_string(),
+            copy_from_version_id: Some(BASELINE_VERSION_ID.to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create working version")
+    .meta
+    .into_option()
+    .unwrap_or_default()
+    .id;
+    apply_assignments(
+        &svc,
+        ACTOR,
+        ApplyAssignmentsRequest {
+            version_id: version_id.clone(),
+            upserts: vec![Assignment {
+                employee_id: "emp-1".to_string(),
+                project_id: "proj-1".to_string(),
+                date: "2026-08-03".to_string(),
+                allocation: 0.5,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("assign ok");
+
+    let versions = list_versions(&svc).await.expect("list versions");
+    // Baseline + working + the automatic quarterly snapshot.
+    assert_eq!(versions.len(), 3, "baseline, working copy, quarterly snapshot");
+    let snapshot = versions.last().unwrap().clone();
+    assert_ne!(snapshot.id, version_id);
+    assert!(
+        snapshot.name.starts_with('Q'),
+        "snapshot must carry the quarter label, got {:?}",
+        snapshot.name
+    );
+
+    // The snapshot is a deep copy: it carries the assignment, the source is
+    // untouched.
+    assert_eq!(assignment_row_count(&pool, &snapshot.id).await, 1);
+    assert_eq!(assignment_row_count(&pool, &version_id).await, 1);
+
+    // Name-guarded: a second list must not create another snapshot.
+    let again = list_versions(&svc).await.expect("list again");
+    assert_eq!(again.len(), 3, "no duplicate quarterly snapshot");
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn list_versions_prunes_to_configured_retention_and_keeps_the_latest() {
+    let (pool, db) = common::temp_pool("planning").await;
+    // Environment fallback: keep only 2 revisions.
+    let svc = PlanningServiceImpl::new_with_retention(pool.clone(), events::Hub::new(), 2);
+
+    // Seed four revisions directly (skipping the service) with staggered
+    // created_at so their chronological order is unambiguous. The baseline
+    // from migration 0005 counts as a fifth.
+    let base = 1_700_000_000_000i64;
+    let names = ["Oldest", "Older", "Older2", "Newest-Before-Snapshot"];
+    for (i, name) in names.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO plan_version (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        )
+        .bind(format!("seed-{i}"))
+        .bind(name)
+        .bind(base + i as i64)
+        .bind(base + i as i64)
+        .execute(&pool)
+        .await
+        .expect("insert seeded version");
+    }
+    assert_eq!(plan_version_row_count(&pool).await, 5);
+
+    let versions = list_versions(&svc).await.expect("list versions");
+    // The quarterly snapshot is created (newest), then pruning cuts to the
+    // two newest. The migration baseline is created at migration time (=
+    // now, newer than the back-dated seeds), so the survivors are the
+    // baseline + the snapshot; the four back-dated seeds are pruned.
+    assert_eq!(versions.len(), 2, "only the newest 2 revisions remain");
+    assert_eq!(plan_version_row_count(&pool).await, 2);
+    assert_eq!(versions[0].id, BASELINE_VERSION_ID);
+    assert_eq!(versions[0].name, "2026");
+    assert!(versions[1].name.starts_with('Q'));
+
+    // Pruned revisions are announced as DELETE events, so connected clients
+    // drop the frozen view as it disappears.
+    let delete_events = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM change_log WHERE op = ?1 AND kind = ?2",
+    )
+    .bind(ChangeOp::Delete as i32)
+    .bind(EntityKind::PlanVersion as i32)
+    .fetch_one(&pool)
+    .await
+    .expect("count delete events");
+    assert_eq!(delete_events, 4, "all four back-dated seeds pruned");
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn meta_retention_override_wins_over_environment() {
+    let (pool, db) = common::temp_pool("planning").await;
+    // Environment says 10, but the meta override (what the admin UI
+    // writes) says 2 — the override must win.
+    let svc = PlanningServiceImpl::new_with_retention(pool.clone(), events::Hub::new(), 10);
+    sqlx::query(
+        "INSERT INTO meta (key, value) VALUES ('settings.plan_revision_retention', '2')",
+    )
+    .execute(&pool)
+    .await
+    .expect("write meta override");
+
+    let base = 1_700_000_000_000i64;
+    for i in 0..4 {
+        sqlx::query(
+            "INSERT INTO plan_version (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+        )
+        .bind(format!("m-{i}"))
+        .bind(format!("V{i}"))
+        .bind(base + i)
+        .bind(base + i)
+        .execute(&pool)
+        .await
+        .expect("insert version");
+    }
+
+    let versions = list_versions(&svc).await.expect("list versions");
+    assert_eq!(versions.len(), 2, "meta retention 2 overrides env 10");
+    assert_eq!(plan_version_row_count(&pool).await, 2);
 
     db.cleanup(pool).await;
 }

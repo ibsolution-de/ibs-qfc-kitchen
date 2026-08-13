@@ -58,6 +58,10 @@ pub struct AdminServiceImpl {
     /// against, and the `environment` half `GetAppSettings` reports.
     env_default_role: UserRole,
     env_admin_emails: Vec<String>,
+    /// Startup-environment plan-revision retention (`QFC_PLAN_REVISION_RETENTION`):
+    /// how many frozen planning snapshots the system keeps, and the fallback
+    /// `settings::effective` resolves against.
+    env_plan_revision_retention: i64,
 }
 
 /// Everything [`AdminServiceImpl::new`] needs beyond the pool — grouped
@@ -69,6 +73,7 @@ pub struct AdminServiceConfig {
     pub dev_user_mode: bool,
     pub env_default_role: UserRole,
     pub env_admin_emails: Vec<String>,
+    pub env_plan_revision_retention: i64,
 }
 
 impl AdminServiceImpl {
@@ -81,6 +86,7 @@ impl AdminServiceImpl {
             dev_user_mode: config.dev_user_mode,
             env_default_role: config.env_default_role,
             env_admin_emails: config.env_admin_emails,
+            env_plan_revision_retention: config.env_plan_revision_retention,
         }
     }
 }
@@ -128,13 +134,31 @@ impl AdminService for AdminServiceImpl {
         _request: ServiceRequest<'_, GetAppSettingsRequest>,
     ) -> ServiceResult<GetAppSettingsResponse> {
         let _current = auth::require_role(&ctx, UserRole::Admin)?;
-        let (default_role, admin_emails, default_role_overridden, admin_emails_overridden) =
-            settings::effective(&self.pool, self.env_default_role, &self.env_admin_emails).await?;
-        Response::ok(GetAppSettingsResponse {
-            effective: app_settings(default_role, admin_emails).into(),
-            environment: app_settings(self.env_default_role, self.env_admin_emails.clone()).into(),
+        let (
+            default_role,
+            admin_emails,
+            plan_revision_retention,
             default_role_overridden,
             admin_emails_overridden,
+            plan_revision_retention_overridden,
+        ) = settings::effective(
+            &self.pool,
+            self.env_default_role,
+            &self.env_admin_emails,
+            self.env_plan_revision_retention,
+        )
+        .await?;
+        Response::ok(GetAppSettingsResponse {
+            effective: app_settings(default_role, admin_emails, plan_revision_retention).into(),
+            environment: app_settings(
+                self.env_default_role,
+                self.env_admin_emails.clone(),
+                self.env_plan_revision_retention,
+            )
+            .into(),
+            default_role_overridden,
+            admin_emails_overridden,
+            plan_revision_retention_overridden,
             ..Default::default()
         })
     }
@@ -154,14 +178,41 @@ impl AdminService for AdminServiceImpl {
             .default_role
             .as_known()
             .unwrap_or(UserRole::Unspecified);
-        settings::update(&self.pool, default_role, &settings_msg.admin_emails).await?;
+        // The client sends the full desired retention; `None` (field
+        // omitted, e.g. by an older admin UI) keeps the current effective
+        // value rather than accidentally resetting it, so updates that
+        // only touch roles/emails behave identically to before.
+        let current_retention = settings::effective(
+            &self.pool,
+            self.env_default_role,
+            &self.env_admin_emails,
+            self.env_plan_revision_retention,
+        )
+        .await?
+        .2;
+        let plan_revision_retention = settings_msg
+            .plan_revision_retention
+            .map(i64::from)
+            .unwrap_or(current_retention);
+        settings::update(
+            &self.pool,
+            default_role,
+            &settings_msg.admin_emails,
+            plan_revision_retention,
+        )
+        .await?;
         // Re-read through `effective` rather than echoing the request back:
         // the response then provably shows what a reader would now see
         // (normalized values, environment fallback semantics included).
-        let (default_role, admin_emails, _, _) =
-            settings::effective(&self.pool, self.env_default_role, &self.env_admin_emails).await?;
+        let (default_role, admin_emails, plan_revision_retention, _, _, _) = settings::effective(
+            &self.pool,
+            self.env_default_role,
+            &self.env_admin_emails,
+            self.env_plan_revision_retention,
+        )
+        .await?;
         Response::ok(UpdateAppSettingsResponse {
-            effective: app_settings(default_role, admin_emails).into(),
+            effective: app_settings(default_role, admin_emails, plan_revision_retention).into(),
             ..Default::default()
         })
     }
@@ -206,12 +257,16 @@ impl AdminService for AdminServiceImpl {
 }
 
 /// Build the wire `AppSettings` from a resolved (or environment) value
-/// pair — one place so `effective` and `environment` can never drift in
+/// triple — one place so `effective` and `environment` can never drift in
 /// shape.
-fn app_settings(default_role: UserRole, admin_emails: Vec<String>) -> AppSettings {
+fn app_settings(default_role: UserRole, admin_emails: Vec<String>, plan_revision_retention: i64) -> AppSettings {
     AppSettings {
         default_role: default_role.into(),
         admin_emails,
+        // Retention is validated to one of 2/3/5/10 before it can reach
+        // this function (config parsing, `settings::update`), so the
+        // i64 → int32 narrowing is lossless.
+        plan_revision_retention: Some(plan_revision_retention as i32),
         ..Default::default()
     }
 }

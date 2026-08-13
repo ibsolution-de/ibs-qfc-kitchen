@@ -24,25 +24,45 @@ export interface DraftAbsence {
 export interface ComputeTargetDatesOptions {
   baseDate: Date;
   mode: 'project' | 'absence';
+  /**
+   * Project-mode scope:
+   * - `day`: the base date only (default).
+   * - `month`: every day in the base date's month matching `repeatDays`
+   *   ("plan the whole month" with weekday selection).
+   * - `days`: the next `duration` working days from the base date, like the
+   *   absence mode's day-count planning.
+   * `isRepeat` is a legacy alias for `month` (kept for existing callers).
+   */
+  projectMode?: 'day' | 'month' | 'days';
+  /** Legacy alias for `projectMode === 'month'`. */
   isRepeat?: boolean;
   repeatDays?: number[];
+  /**
+   * Working-day count for `projectMode === 'days'` (and the legacy absence
+   * path via `absenceDuration`).
+   */
+  duration?: number;
+  /** Absence-mode working-day count; legacy alias for `duration`. */
   absenceDuration?: number;
 }
 
 /**
  * Computes the ISO date strings that should be affected by a save operation.
  *
- * - Project mode without repeat: returns the base date only.
- * - Project mode with repeat: returns every day in the base date's month that
- *   matches one of the selected `repeatDays` (0 = Sunday, 1 = Monday, …).
+ * - Project mode with single-day scope: returns the base date only.
+ * - Project mode with whole-month scope: returns every day in the base
+ *   date's month that matches one of the selected `repeatDays` (0 =
+ *   Sunday, 1 = Monday, …).
+ * - Project mode with day-count scope: returns the next `duration` working
+ *   days (skipping weekends) starting from the base date.
  * - Absence mode: returns the next `absenceDuration` working days (skipping
  *   weekends) starting from the base date.
  */
 export function computeTargetDates(options: ComputeTargetDatesOptions): string[] {
-  const { baseDate, mode, isRepeat, repeatDays = [], absenceDuration = 1 } = options;
+  const { baseDate, mode, projectMode, isRepeat, repeatDays = [], duration, absenceDuration = 1 } = options;
 
   if (mode === 'project') {
-    if (isRepeat) {
+    if (projectMode === 'month' || isRepeat === true) {
       const monthStart = startOfMonth(baseDate);
       const monthEnd = endOfMonth(baseDate);
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -50,18 +70,26 @@ export function computeTargetDates(options: ComputeTargetDatesOptions): string[]
         .filter((d) => repeatDays.includes(getDay(d)))
         .map((d) => format(d, 'yyyy-MM-dd'));
     }
+    if (projectMode === 'days') {
+      return nextWorkingDays(baseDate, duration ?? 1);
+    }
     return [format(baseDate, 'yyyy-MM-dd')];
   }
 
   // Absence mode: consecutive working days (skip weekends)
+  return nextWorkingDays(baseDate, absenceDuration);
+}
+
+/** The next `count` working days (skipping weekends) starting at `baseDate`. */
+function nextWorkingDays(baseDate: Date, count: number): string[] {
   const dates: string[] = [];
-  let count = 0;
+  let collected = 0;
   let offset = 0;
-  while (count < absenceDuration) {
+  while (collected < count) {
     const d = addDays(baseDate, offset);
     if (!isWeekend(d)) {
       dates.push(format(d, 'yyyy-MM-dd'));
-      count++;
+      collected++;
     }
     offset++;
   }

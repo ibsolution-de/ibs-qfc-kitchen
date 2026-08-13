@@ -253,13 +253,21 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                 </p>
             )}
 
-            <div className="h-72 w-full">
-                <Chart
-                    definition={revenueChart}
-                    height={288}
-                    ariaLabel={t('financials.revenueForecast')}
-                />
-            </div>
+            {revenueRows.length > 0 ? (
+                <div className="h-72 w-full">
+                    <Chart
+                        definition={revenueChart}
+                        height={288}
+                        ariaLabel={t('financials.revenueForecast')}
+                    />
+                </div>
+            ) : (
+                <div className="h-72 w-full flex flex-col items-center justify-center rounded-lg border border-dashed border-charcoal-200 bg-charcoal-50/40 text-center px-6">
+                    <BarChart3 className="w-8 h-8 text-charcoal-300 mb-3" />
+                    <p className="text-sm font-medium text-charcoal-600">{t('financials.revenueNoData')}</p>
+                    <p className="text-xs text-charcoal-400 mt-1 max-w-md">{t('financials.revenueNoDataHint')}</p>
+                </div>
+            )}
 
             <table className="sr-only">
                 <caption>{t('accessibility.chartData')}: {t('financials.revenueForecast')}</caption>

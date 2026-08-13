@@ -5,6 +5,7 @@ import {
   isWeekend,
   startOfQuarter,
   addMonths,
+  type Locale,
 } from 'date-fns';
 import type {
   QuarterData,
@@ -36,7 +37,9 @@ export function parseQuarterName(name: string): { quarter: number; year: number 
 /**
  * Builds a rolling window of `count` quarters starting at the quarter
  * containing `today`, backed by whatever `persisted` rows already exist for
- * those quarters.
+ * those quarters. Defaults to 3 — the current quarter plus the two
+ * following ones (a 4th adds no planning value and makes the view
+ * crowded).
  *
  * Persisted rows are matched to a window slot by their *parsed* name
  * (quarter + year), not by id - real persisted rows carry server-assigned
@@ -52,7 +55,7 @@ export function parseQuarterName(name: string): { quarter: number; year: number 
 export function mergeForecastQuarters(
   persisted: QuarterData[],
   today: Date,
-  count = 4
+  count = 3
 ): QuarterData[] {
   const windowStart = startOfQuarter(today);
 
@@ -114,6 +117,12 @@ export interface QuarterCapacityInput {
   assignments: Assignment[];
   /** Full project catalog used to look up running project details. */
   allProjects: Project[];
+  /**
+   * date-fns locale used for the computed month names ('MMMM'). Defaults to
+   * the library default (en-US); pass for example `de` when the chart must
+   * show German month labels.
+   */
+  monthLocale?: Locale;
 }
 
 /**
@@ -125,7 +134,7 @@ export interface QuarterCapacityInput {
  * be parsed, the input quarter is returned unchanged.
  */
 export function computeQuarterCapacity(input: QuarterCapacityInput): QuarterData {
-  const { quarter, employees, absences, holidays, assignments, allProjects } = input;
+  const { quarter, employees, absences, holidays, assignments, allProjects, monthLocale } = input;
 
   const parsed = parseQuarterName(quarter.name);
   if (!parsed) return quarter;
@@ -137,12 +146,19 @@ export function computeQuarterCapacity(input: QuarterCapacityInput): QuarterData
   const qStartStr = format(qStart, 'yyyy-MM-dd');
   const qEndStr = format(qEnd, 'yyyy-MM-dd');
 
+  // Month labels for the header and the monthly-breakdown table. Fresh
+  // quarters arrive with an empty `months` array (nothing populates it
+  // server-side), which left the breakdown table header-less/row-less —
+  // the labels are calendar facts, so they are derived here, not persisted.
+  const localeOpts = monthLocale ? { locale: monthLocale } : undefined;
+  const months: string[] = [];
   const newTotalCapacity: number[] = [];
 
   for (let i = 0; i < 3; i++) {
     const mStart = new Date(year, startMonth + i, 1);
     const mEnd = endOfMonth(mStart);
     const days = eachDayOfInterval({ start: mStart, end: mEnd });
+    months.push(format(mStart, 'MMMM', localeOpts));
 
     let cap = 0;
     for (const emp of employees) {
@@ -183,6 +199,7 @@ export function computeQuarterCapacity(input: QuarterCapacityInput): QuarterData
 
   return {
     ...quarter,
+    months,
     totalCapacity: newTotalCapacity,
     runningProjects,
   };

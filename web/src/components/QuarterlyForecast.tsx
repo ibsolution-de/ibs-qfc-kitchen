@@ -18,6 +18,7 @@ import { Modal } from './ui/Modal';
 import { AsciiSpinner } from './ui/AsciiSpinner';
 import { forecastToJSON, downloadTextFile } from '../utils/export';
 import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 import {
   computeQuarterCapacity,
   computeMonthlyBreakdown,
@@ -34,6 +35,7 @@ interface QuarterlyForecastProps {
   absences: Absence[];
   holidays?: PublicHoliday[];
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
+  onUpdateNotes?: (quarterId: string, notes: string) => void;
   readOnly?: boolean;
 }
 
@@ -357,6 +359,7 @@ interface ForecastQuarterCardProps {
   assignments: Assignment[];
   readOnly: boolean;
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
+  onUpdateNotes?: (quarterId: string, notes: string) => void;
   isAddingMustWin: boolean;
   isAddingAlt: boolean;
   setAddingTo: (value: { qId: string; type: 'mustWin' | 'alternative' } | null) => void;
@@ -373,12 +376,13 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
   assignments,
   readOnly,
   onUpdateForecast,
+  onUpdateNotes,
   isAddingMustWin,
   isAddingAlt,
   setAddingTo,
   onRunMonteCarlo,
 }) => {
-  const { t, formatDate } = useLanguage();
+  const { t, language, formatDate } = useLanguage();
 
   const computedQuarter = useMemo(() => computeQuarterCapacity({
     quarter,
@@ -387,10 +391,26 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
     holidays,
     assignments,
     allProjects,
-  }), [quarter, employees, absences, holidays, assignments, allProjects]);
+    monthLocale: language === 'de' ? de : undefined,
+  }), [quarter, employees, absences, holidays, assignments, allProjects, language]);
 
   const metrics = useMemo(() => calculateCapacityMetrics(computedQuarter), [computedQuarter]);
   const monthlyData = useMemo(() => computeMonthlyBreakdown(computedQuarter, metrics), [computedQuarter, metrics]);
+
+  // Notes draft: typed locally, committed to the backend on blur so
+  // keystrokes never trigger RPCs or re-renders (same pattern as
+  // CommitNumberInput for the inline number fields).
+  const [notesDraft, setNotesDraft] = useState(quarter.notes ?? '');
+  useEffect(() => {
+    setNotesDraft(quarter.notes ?? '');
+  }, [quarter.id, quarter.notes]);
+
+  const commitNotes = useCallback(() => {
+    const trimmed = notesDraft.trim();
+    if (readOnly || !onUpdateNotes) return;
+    if (trimmed === (quarter.notes ?? '')) return;
+    onUpdateNotes(quarter.id, trimmed);
+  }, [notesDraft, readOnly, onUpdateNotes, quarter.id, quarter.notes]);
 
   const currentIds = useMemo(() => [
     ...computedQuarter.runningProjects,
@@ -446,7 +466,7 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
             {isCurrent && <Badge color="green">{t('forecast.current')}</Badge>}
           </div>
           <div className="flex gap-2 text-xs text-charcoal-500 font-mono">
-            {quarter.months.join(' · ')}
+            {computedQuarter.months.join(' · ')}
           </div>
         </div>
         {!readOnly && (
@@ -783,8 +803,36 @@ const ForecastQuarterCard = React.memo<ForecastQuarterCardProps>(({
 
         {/* Notes */}
         <div className="bg-yellow-50/50 p-3 rounded text-xs text-charcoal-600 border border-yellow-100">
-          <span className="font-semibold block mb-1">{t('forecast.notes')}</span>
-          {quarter.notes}
+          {readOnly ? (
+            <>
+              <span className="font-semibold block mb-1">{t('forecast.notes')}</span>
+              <p className="text-charcoal-600 whitespace-pre-wrap">{quarter.notes || t('forecast.notesEmpty')}</p>
+            </>
+          ) : (
+            <>
+              <label htmlFor={`forecastNotes-${quarter.id}`} className="font-semibold block mb-1">
+                {t('forecast.notes')}
+              </label>
+              <textarea
+                id={`forecastNotes-${quarter.id}`}
+                rows={3}
+                value={notesDraft}
+                onChange={e => setNotesDraft(e.target.value)}
+                onBlur={commitNotes}
+                onKeyDown={e => {
+                  // Ctrl/Cmd+Enter commits immediately without leaving the field.
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    commitNotes();
+                    e.currentTarget.blur();
+                  }
+                }}
+                placeholder={t('forecast.notesPlaceholder')}
+                className="w-full px-2 py-1.5 rounded border border-yellow-200 bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-400 resize-y"
+              />
+              <p className="mt-1 text-[10px] text-charcoal-400">{t('forecast.notesSaveHint')}</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -800,6 +848,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
   absences,
   holidays = [],
   onUpdateForecast,
+  onUpdateNotes,
   readOnly = false
 }) => {
   const { t, language } = useLanguage();
@@ -897,6 +946,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
           holidays,
           assignments,
           allProjects,
+          monthLocale: language === 'de' ? de : undefined,
         });
         const result = await generateForecastAnalysis(realData, apiKey, language);
         setAnalysisResult(result);
@@ -957,6 +1007,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({
                 assignments={assignments}
                 readOnly={readOnly}
                 onUpdateForecast={onUpdateForecast}
+                onUpdateNotes={onUpdateNotes}
                 isAddingMustWin={addingTo?.qId === quarter.id && addingTo?.type === 'mustWin'}
                 isAddingAlt={addingTo?.qId === quarter.id && addingTo?.type === 'alternative'}
                 setAddingTo={setAddingTo}

@@ -1,7 +1,7 @@
 //! Runtime-editable application settings, persisted as `settings.*` keys in
 //! the `meta` key/value table, with the startup environment
-//! (`QFC_DEFAULT_ROLE` / `QFC_ADMIN_EMAILS`) as the fallback for any key not
-//! (validly) overridden there.
+//! (`QFC_DEFAULT_ROLE` / `QFC_ADMIN_EMAILS` / `QFC_PLAN_REVISION_RETENTION`)
+//! as the fallback for any key not (validly) overridden there.
 //!
 //! # Precedence
 //!
@@ -32,6 +32,28 @@ pub(crate) const DEFAULT_ROLE_KEY: &str = "settings.default_role";
 /// `meta` key holding the admin-emails override: lower-case addresses,
 /// comma-separated, in the canonical form [`parse_email_list`] reads back.
 pub(crate) const ADMIN_EMAILS_KEY: &str = "settings.admin_emails";
+
+/// `meta` key holding the plan-revision retention override: one of 2/3/5/10
+/// as a decimal string, as parsed by [`retention_from_value`].
+pub(crate) const PLAN_REVISION_RETENTION_KEY: &str = "settings.plan_revision_retention";
+
+/// The retention values an admin may configure — the same set `config`'s
+/// `QFC_PLAN_REVISION_RETENTION` parser accepts, so env and database can
+/// never drift apart on what is a legal value. `settings` defines it (rather
+/// than importing from `config`) so the meta-table layer stays independent
+/// of the startup-env layer, matching how `role_from_name` already works.
+pub(crate) const VALID_RETENTIONS: &[i64] = &[2, 3, 5, 10];
+
+/// Parse a stored `settings.plan_revision_retention` value back into an
+/// i64, accepting only the configured set (2/3/5/10). Returns `None` for
+/// anything else — an unrecognized value must fall back to the
+/// environment, never break the read path.
+pub(crate) fn retention_from_value(raw: &str) -> Option<i64> {
+    match raw.trim().parse::<i64>() {
+        Ok(value) if VALID_RETENTIONS.contains(&value) => Some(value),
+        _ => None,
+    }
+}
 
 /// The lower-case name of a role, as used by the `settings.*` `meta` values
 /// and by `QFC_DEFAULT_ROLE` — the inverse of [`role_from_name`].
@@ -98,11 +120,13 @@ pub(crate) async fn effective(
     pool: &SqlitePool,
     env_default: UserRole,
     env_admins: &[String],
-) -> AppResult<(UserRole, Vec<String>, bool, bool)> {
+    env_retention: i64,
+) -> AppResult<(UserRole, Vec<String>, i64, bool, bool, bool)> {
     let rows: Vec<(String, String)> =
-        sqlx::query_as("SELECT key, value FROM meta WHERE key IN (?1, ?2)")
+        sqlx::query_as("SELECT key, value FROM meta WHERE key IN (?1, ?2, ?3)")
             .bind(DEFAULT_ROLE_KEY)
             .bind(ADMIN_EMAILS_KEY)
+            .bind(PLAN_REVISION_RETENTION_KEY)
             .fetch_all(pool)
             .await?;
 
@@ -110,6 +134,8 @@ pub(crate) async fn effective(
     let mut default_role_overridden = false;
     let mut admin_emails = env_admins.to_vec();
     let mut admin_emails_overridden = false;
+    let mut plan_revision_retention = env_retention;
+    let mut plan_revision_retention_overridden = false;
 
     for (key, value) in rows {
         match key.as_str() {
@@ -132,9 +158,21 @@ pub(crate) async fn effective(
                 admin_emails = parse_email_list(&value);
                 admin_emails_overridden = true;
             }
-            // The SELECT above restricts to the two known keys, so this is
+            PLAN_REVISION_RETENTION_KEY => match retention_from_value(&value) {
+                Some(retention) => {
+                    plan_revision_retention = retention;
+                    plan_revision_retention_overridden = true;
+                }
+                None => {
+                    tracing::warn!(
+                        value,
+                        "meta: invalid {PLAN_REVISION_RETENTION_KEY} value; falling back to QFC_PLAN_REVISION_RETENTION"
+                    );
+                }
+            },
+            // The SELECT above restricts to the three known keys, so this is
             // unreachable; matched defensively rather than with
-            // unreachable!() so a future third key degrades to "ignored"
+            // unreachable!() so a future fourth key degrades to "ignored"
             // instead of a panic on the auth hot path.
             other => {
                 tracing::warn!(key = other, "meta: unexpected settings key; ignoring");
@@ -145,8 +183,10 @@ pub(crate) async fn effective(
     Ok((
         default_role,
         admin_emails,
+        plan_revision_retention,
         default_role_overridden,
         admin_emails_overridden,
+        plan_revision_retention_overridden,
     ))
 }
 
@@ -162,12 +202,18 @@ pub(crate) async fn update(
     pool: &SqlitePool,
     default_role: UserRole,
     admin_emails: &[String],
+    plan_revision_retention: i64,
 ) -> AppResult<()> {
     if matches!(default_role, UserRole::Admin | UserRole::Unspecified) {
         return Err(AppError::InvalidArgument(
             "default_role must be one of employee, pm, bl, sales (admin is not allowed as a default)"
                 .to_string(),
         ));
+    }
+    if !VALID_RETENTIONS.contains(&plan_revision_retention) {
+        return Err(AppError::InvalidArgument(format!(
+            "plan_revision_retention must be one of {VALID_RETENTIONS:?}"
+        )));
     }
     let normalized: Vec<String> = admin_emails
         .iter()
@@ -185,6 +231,10 @@ pub(crate) async fn update(
     for (key, value) in [
         (DEFAULT_ROLE_KEY, role_to_name(default_role).to_string()),
         (ADMIN_EMAILS_KEY, normalized.join(",")),
+        (
+            PLAN_REVISION_RETENTION_KEY,
+            plan_revision_retention.to_string(),
+        ),
     ] {
         sqlx::query(
             "INSERT INTO meta (key, value) VALUES (?1, ?2)

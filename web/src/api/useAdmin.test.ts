@@ -47,10 +47,11 @@ function makeStatusResponse() {
 }
 
 const settingsResponse = {
-  effective: { defaultRole: UserRole.PM, adminEmails: ['ada@example.com'] },
-  environment: { defaultRole: UserRole.EMPLOYEE, adminEmails: [] },
+  effective: { defaultRole: UserRole.PM, adminEmails: ['ada@example.com'], planRevisionRetention: 5 },
+  environment: { defaultRole: UserRole.EMPLOYEE, adminEmails: [], planRevisionRetention: 10 },
   defaultRoleOverridden: true,
   adminEmailsOverridden: false,
+  planRevisionRetentionOverridden: false,
 };
 
 beforeEach(() => {
@@ -127,6 +128,8 @@ describe('useAppSettings', () => {
     expect(result.current.settings?.environment.defaultRole).toBe('employee');
     expect(result.current.settings?.defaultRoleOverridden).toBe(true);
     expect(result.current.settings?.adminEmails).toEqual(['ada@example.com']);
+    expect(result.current.settings?.planRevisionRetention).toBe(5);
+    expect(result.current.settings?.environment.planRevisionRetention).toBe(10);
   });
 
   it('save sends the proto role and refetches the effective settings', async () => {
@@ -137,11 +140,11 @@ describe('useAppSettings', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'));
 
     await act(async () => {
-      await result.current.save({ defaultRole: 'bl', adminEmails: ['grace@example.com'] });
+      await result.current.save({ defaultRole: 'bl', adminEmails: ['grace@example.com'], planRevisionRetention: 3 });
     });
 
     expect(adminClient.updateAppSettings).toHaveBeenCalledWith({
-      settings: { defaultRole: UserRole.BL, adminEmails: ['grace@example.com'] },
+      settings: { defaultRole: UserRole.BL, adminEmails: ['grace@example.com'], planRevisionRetention: 3 },
     });
     expect(adminClient.getAppSettings).toHaveBeenCalledTimes(2);
   });
@@ -155,7 +158,7 @@ describe('useAppSettings', () => {
 
     await expect(
       act(async () => {
-        await result.current.save({ defaultRole: 'employee', adminEmails: [] });
+        await result.current.save({ defaultRole: 'employee', adminEmails: [], planRevisionRetention: 5 });
       })
     ).rejects.toThrow('denied');
   });

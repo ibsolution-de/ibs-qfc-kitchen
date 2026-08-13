@@ -38,10 +38,11 @@ vi.mock('../ui/Toast', () => ({
 import { ApplicationSetup } from './ApplicationSetup';
 
 const settingsResponse = {
-  effective: { defaultRole: UserRole.PM, adminEmails: ['ada@example.com'] },
-  environment: { defaultRole: UserRole.EMPLOYEE, adminEmails: ['boss@company.com'] },
+  effective: { defaultRole: UserRole.PM, adminEmails: ['ada@example.com'], planRevisionRetention: 5 },
+  environment: { defaultRole: UserRole.EMPLOYEE, adminEmails: ['boss@company.com'], planRevisionRetention: 10 },
   defaultRoleOverridden: true,
   adminEmailsOverridden: false,
+  planRevisionRetentionOverridden: false,
 };
 
 const renderPage = () =>
@@ -95,7 +96,11 @@ describe('ApplicationSetup', () => {
 
     await waitFor(() =>
       expect(adminClient.updateAppSettings).toHaveBeenCalledWith({
-        settings: { defaultRole: UserRole.BL, adminEmails: ['ada@example.com', 'grace@example.com'] },
+        settings: {
+          defaultRole: UserRole.BL,
+          adminEmails: ['ada@example.com', 'grace@example.com'],
+          planRevisionRetention: 5,
+        },
       })
     );
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Settings saved successfully.'));
