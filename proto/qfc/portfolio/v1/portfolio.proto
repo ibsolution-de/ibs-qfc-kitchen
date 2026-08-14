@@ -30,6 +30,19 @@ enum PipelineStage {
   PIPELINE_STAGE_CLOSED = 5;
 }
 
+// An account (Beauftragung) is a concrete engagement a project is broken
+// into: normally with its own start/end dates and a concrete budget, and
+// either already received (`CONFIRMED`) or still being requested (e.g.
+// verbally agreed, `REQUESTED`). Resources are planned onto accounts to
+// check whether the account budget can be drawn.
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  // The engagement has been received.
+  ACCOUNT_STATUS_CONFIRMED = 1;
+  // Still in request (e.g. verbally agreed); budget not yet fixed.
+  ACCOUNT_STATUS_REQUESTED = 2;
+}
+
 enum ProjectHealth {
   PROJECT_HEALTH_UNSPECIFIED = 0;
   PROJECT_HEALTH_GOOD = 1;
@@ -51,6 +64,28 @@ message Milestone {
   // YYYY-MM-DD
   string date = 3;
   MilestonePhase phase = 4;
+}
+
+// A concrete engagement (Beauftragung) belonging to exactly one project.
+// The server stores these in their own table and embeds them into
+// `Project.accounts` on every read; clients manage them via
+// `UpsertAccount`/`DeleteAccount`, never by sending them inside a
+// `Project` upsert (the server strips them before persisting the blob).
+message Account {
+  string id = 1;
+  string project_id = 2;
+  // Free-form display label, e.g. "PO 2026-01" or "Rahmenvertrag".
+  string name = 3;
+  AccountStatus status = 4;
+  // YYYY-MM-DD calendar dates (dates convention: plain string, no time of
+  // day, no time zone), matching `Project.start_date`/`end_date`.
+  optional string start_date = 5;
+  optional string end_date = 6;
+  // The concrete budget of this account, as a decimal string in the same
+  // display convention as `Project.budget` (e.g. "80k" or "100000") —
+  // machine-readable money is deliberately avoided here the same way it is
+  // on the project; the client parses it via its `parseBudget` helper.
+  optional string budget = 7;
 }
 
 message Project {
@@ -82,6 +117,10 @@ message Project {
   optional PipelineStage stage = 16;
   optional ProjectHealth health = 17;
   optional string north_star_metric_id = 18;
+  // The project's accounts (Beauftragungen). Server-enriched: filled in on
+  // every read from the `account` table, stripped before the project blob
+  // is persisted (see `Account`'s comment).
+  repeated Account accounts = 19;
 }
 
 message ListProjectsRequest {}
@@ -104,8 +143,26 @@ message DeleteProjectRequest {
 
 message DeleteProjectResponse {}
 
+message UpsertAccountRequest {
+  Account account = 1;
+}
+
+message UpsertAccountResponse {
+  Account account = 1;
+}
+
+message DeleteAccountRequest {
+  string id = 1;
+}
+
+message DeleteAccountResponse {}
+
 service ProjectService {
   rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
   rpc UpsertProject(UpsertProjectRequest) returns (UpsertProjectResponse);
   rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+  // Create/update one account; deletion cascades to the assignments
+  // planned against it.
+  rpc UpsertAccount(UpsertAccountRequest) returns (UpsertAccountResponse);
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 }

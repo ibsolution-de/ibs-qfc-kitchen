@@ -19,7 +19,10 @@ import {
   ProjectSchema,
   ProjectColor,
   ProjectStatus,
+  AccountSchema,
+  AccountStatus,
   type Project as ProjectProto,
+  type Account as AccountProto,
 } from './gen/qfc/portfolio/v1/portfolio_pb.js';
 import { LiveStoreProvider, useLiveStore } from './liveStore';
 
@@ -46,6 +49,8 @@ const { teamClient, customerClient, projectClient, planningClient, strategyClien
       listProjects: vi.fn(),
       upsertProject: vi.fn(),
       deleteProject: vi.fn(),
+      upsertAccount: vi.fn(),
+      deleteAccount: vi.fn(),
     },
     planningClient: {
       listHolidays: vi.fn(),
@@ -104,11 +109,27 @@ function makeEmployeeProto(): EmployeeProto {
   });
 }
 
-function makePlanVersionMetaProto(overrides: Partial<PlanVersionMetaProto> = {}): PlanVersionMetaProto {
+/**
+ * Domain-shaped init for the meta proto: spreads of `Partial<Message>` types
+ * reintroduce the generated `$typeName` marker and fail `create`'s
+ * `MessageInit` check, so the overrides carry just the scalar fields.
+ */
+function makePlanVersionMetaProto(
+  overrides: {
+    id?: string;
+    name?: string;
+    description?: string;
+    createdAtMillis?: bigint;
+    owner?: string;
+    ownerName?: string;
+  } = {}
+): PlanVersionMetaProto {
   return create(PlanVersionMetaSchema, {
     id: 'v1',
     name: 'Version 1',
     createdAtMillis: 1704067200000n, // 2024-01-01T00:00:00Z
+    owner: 'system',
+    ownerName: 'System',
     ...overrides,
   });
 }
@@ -137,7 +158,7 @@ function makeAssignmentProto(overrides: Partial<AssignmentProto> = {}): Assignme
   });
 }
 
-function makeProjectProto(id: string, name: string): ProjectProto {
+function makeProjectProto(id: string, name: string, accounts: AccountProto[] = []): ProjectProto {
   return create(ProjectSchema, {
     id,
     name,
@@ -149,6 +170,29 @@ function makeProjectProto(id: string, name: string): ProjectProto {
     endDate: '2026-03-31',
     hourlyRate: '100',
     milestones: [],
+    accounts,
+  });
+}
+
+function makeAccountProto(overrides: Partial<AccountProto> = {}): AccountProto {
+  return create(AccountSchema, {
+    id: 'acc1',
+    projectId: 'p1',
+    name: 'PO 2026-01',
+    status: AccountStatus.CONFIRMED,
+    ...overrides,
+  });
+}
+
+function makeAccountEvent(seq: bigint, account: AccountProto, op: ChangeOp = ChangeOp.UPSERT): ChangeEvent {
+  return create(ChangeEventSchema, {
+    seq,
+    kind: EntityKind.ACCOUNT,
+    op,
+    entityId: account.id,
+    actorEmail: 'actor@example.com',
+    tsMillis: 0n,
+    body: op === ChangeOp.DELETE ? { case: undefined } : { case: 'account', value: account },
   });
 }
 
@@ -591,5 +635,101 @@ describe('LiveStoreProvider / useLiveStore', () => {
     const quarter = result.current.versions[0]!.forecastData[0]!;
     expect(quarter.runningProjects).toHaveLength(0);
     expect(quarter.mustWinOpportunities).toHaveLength(0);
+  });
+
+  it('an ACCOUNT UPSERT event patches the accounts of the matching project only', async () => {
+    projectClient.listProjects.mockResolvedValue({
+      projects: [makeProjectProto('p1', 'Rocket'), makeProjectProto('p2', 'Bare')],
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([makeAccountEvent(1n, makeAccountProto())], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await waitFor(() => expect(result.current.projects[0]!.accounts).toHaveLength(1));
+    expect(result.current.projects[0]!.accounts).toEqual([
+      expect.objectContaining({ id: 'acc1', projectId: 'p1', name: 'PO 2026-01', status: 'confirmed' }),
+    ]);
+    // The other project's accounts stay untouched.
+    expect(result.current.projects[1]!.accounts).toEqual([]);
+  });
+
+  it('an ACCOUNT DELETE event removes the account from the matching project', async () => {
+    projectClient.listProjects.mockResolvedValue({
+      projects: [makeProjectProto('p1', 'Rocket', [makeAccountProto()])],
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([makeAccountEvent(1n, makeAccountProto(), ChangeOp.DELETE)], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await waitFor(() => expect(result.current.projects[0]!.accounts).toHaveLength(0));
+  });
+
+  it('a PROJECT upsert event preserves existing accounts when the server blob carries none', async () => {
+    projectClient.listProjects.mockResolvedValue({
+      projects: [makeProjectProto('p1', 'Rocket', [makeAccountProto()])],
+    });
+    eventClient.watch.mockImplementation((_req: unknown, opts: { signal: AbortSignal }) =>
+      makeWatchStream([makeProjectEvent(1n, makeProjectProto('p1', 'Renamed'))], opts.signal)
+    );
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    // The event's project blob has no accounts, but the previous entry's
+    // accounts must survive the upsert.
+    await waitFor(() => expect(result.current.projects[0]!.name).toBe('Renamed'));
+    expect(result.current.projects[0]!.accounts).toEqual([
+      expect.objectContaining({ id: 'acc1', projectId: 'p1', name: 'PO 2026-01', status: 'confirmed' }),
+    ]);
+  });
+
+  it('saveAccount upserts into the matching project accounts and returns the saved account', async () => {
+    projectClient.listProjects.mockResolvedValue({ projects: [makeProjectProto('p1', 'Rocket')] });
+    projectClient.upsertAccount.mockResolvedValue({ account: makeAccountProto() });
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    let returned!: Awaited<ReturnType<typeof result.current.saveAccount>>;
+    await act(async () => {
+      returned = await result.current.saveAccount({
+        id: 'acc1',
+        projectId: 'p1',
+        name: 'PO 2026-01',
+        status: 'confirmed',
+      });
+    });
+
+    expect(projectClient.upsertAccount).toHaveBeenCalledWith({
+      account: expect.objectContaining({ id: 'acc1', projectId: 'p1' }),
+    });
+    expect(returned).toEqual(expect.objectContaining({ id: 'acc1', projectId: 'p1', status: 'confirmed' }));
+    expect(result.current.projects[0]!.accounts).toEqual([
+      expect.objectContaining({ id: 'acc1', projectId: 'p1', status: 'confirmed' }),
+    ]);
+  });
+
+  it('deleteAccount removes the account from state on success', async () => {
+    projectClient.listProjects.mockResolvedValue({
+      projects: [makeProjectProto('p1', 'Rocket', [makeAccountProto()])],
+    });
+    projectClient.deleteAccount.mockResolvedValue({});
+
+    const { result } = renderHook(() => useLiveStore(), { wrapper: LiveStoreProvider });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(result.current.projects[0]!.accounts).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.deleteAccount('acc1');
+    });
+
+    expect(projectClient.deleteAccount).toHaveBeenCalledWith({ id: 'acc1' });
+    expect(result.current.projects[0]!.accounts).toEqual([]);
   });
 });

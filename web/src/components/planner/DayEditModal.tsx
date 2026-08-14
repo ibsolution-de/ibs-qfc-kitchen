@@ -77,6 +77,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
           projectId: a.projectId,
           allocation: Math.min(a.allocation || 1, 1),
           assignmentId: a.id,
+          accountId: a.accountId,
         }));
 
       setDraftAssignments(existing);
@@ -156,8 +157,19 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
     onDeleteAbsence(selectedCell.empId, dateStr);
   };
 
+  const getProject = (id: string) => projects.find((p) => p.id === id);
+
+  /** Drafts are identified per (project, account); legacy drafts use ''. */
+  const draftKey = (draft: Pick<DraftAssignment, 'projectId' | 'accountId'>) =>
+    `${draft.projectId}|${draft.accountId ?? ''}`;
+
   const addDraftProject = (projectId: string) => {
-    if (draftAssignments.some((d) => d.projectId === projectId)) return;
+    const accounts = getProject(projectId)?.accounts ?? [];
+    // A project with accounts always defaults to its first account; the
+    // duplicate guard is per (project, account).
+    const accountId = accounts.length > 0 ? accounts[0]!.id : undefined;
+    const key = draftKey({ projectId, accountId });
+    if (draftAssignments.some((d) => draftKey(d) === key)) return;
 
     const currentTotalAlloc = draftAssignments.reduce((acc, curr) => acc + curr.allocation, 0);
     const currentTotalHours = currentTotalAlloc * 8;
@@ -171,18 +183,27 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
       {
         projectId,
         allocation: defaultHours / 8,
+        accountId,
       },
     ]);
   };
 
-  const updateDraftHours = (projectId: string, hours: number) => {
+  const updateDraftHours = (projectId: string, accountId: string | undefined, hours: number) => {
+    const key = draftKey({ projectId, accountId });
     setDraftAssignments((prev) =>
-      prev.map((d) => (d.projectId === projectId ? { ...d, allocation: hours / 8 } : d))
+      prev.map((d) => (draftKey(d) === key ? { ...d, allocation: hours / 8 } : d))
     );
   };
 
-  const removeDraftAssignment = (projectId: string) => {
-    setDraftAssignments((prev) => prev.filter((d) => d.projectId !== projectId));
+  const updateDraftAccount = (draft: DraftAssignment, accountId: string) => {
+    setDraftAssignments((prev) =>
+      prev.map((d) => (d === draft ? { ...d, accountId } : d))
+    );
+  };
+
+  const removeDraftAssignment = (projectId: string, accountId: string | undefined) => {
+    const key = draftKey({ projectId, accountId });
+    setDraftAssignments((prev) => prev.filter((d) => draftKey(d) !== key));
   };
 
   const toggleRepeatDay = (dayIndex: number) => {
@@ -196,8 +217,6 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
     const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return labels[idx];
   };
-
-  const getProject = (id: string) => projects.find((p) => p.id === id);
 
   const title = selectedCell
     ? `${t('planner.oneClickAssign')} - ${format(selectedCell.date, 'EEE, dd. MMMM')}`
@@ -422,7 +441,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
 
                       return (
                         <div
-                          key={draft.projectId}
+                          key={draftKey(draft)}
                           className={`relative p-2.5 rounded-lg border flex flex-col gap-2 transition-all bg-white shadow-sm hover:shadow-md ${
                             (PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border
                           }`}
@@ -445,7 +464,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                             </div>
                             {!selectedCellReadOnly && (
                               <button
-                                onClick={() => removeDraftAssignment(draft.projectId)}
+                                onClick={() => removeDraftAssignment(draft.projectId, draft.accountId)}
                                 className="text-charcoal-300 hover:text-red-500 transition-colors -mt-0.5 -mr-0.5 p-0.5"
                                 title={t('planner.remove')}
                               >
@@ -453,6 +472,28 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                               </button>
                             )}
                           </div>
+
+                          {(proj.accounts ?? []).length > 0 && (
+                            <select
+                              value={draft.accountId ?? ''}
+                              disabled={selectedCellReadOnly}
+                              onChange={(e) => updateDraftAccount(draft, e.target.value)}
+                              aria-label={t('planner.account')}
+                              className={`w-full text-[11px] font-medium bg-white border border-charcoal-200 rounded-md px-1.5 py-1 text-charcoal-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${
+                                selectedCellReadOnly ? 'disabled:opacity-50 disabled:cursor-not-allowed' : 'cursor-pointer'
+                              }`}
+                            >
+                              <option value="" disabled>
+                                {t('planner.selectAccount')}
+                              </option>
+                              {(proj.accounts ?? []).map((account) => (
+                                <option key={account.id} value={account.id}>
+                                  {account.name} — {account.status}
+                                  {account.budget ? ` / ${account.budget}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          )}
 
                           <div className="flex items-center gap-2">
                             <input
@@ -463,7 +504,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                               value={hours}
                               disabled={selectedCellReadOnly}
                               onChange={(e) =>
-                                updateDraftHours(draft.projectId, parseFloat(e.target.value))
+                                updateDraftHours(draft.projectId, draft.accountId, parseFloat(e.target.value))
                               }
                               className={`flex-1 h-1.5 bg-charcoal-100 rounded-lg appearance-none accent-charcoal-700 ${
                                 selectedCellReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'
@@ -585,7 +626,12 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                     return true;
                   })
                   .map((project) => {
-                    const isAdded = draftAssignments.some((d) => d.projectId === project.id);
+                    const projectAccounts = project.accounts ?? [];
+                    const firstAccountKey = draftKey({
+                      projectId: project.id,
+                      accountId: projectAccounts.length > 0 ? projectAccounts[0]!.id : undefined,
+                    });
+                    const isAdded = draftAssignments.some((d) => draftKey(d) === firstAccountKey);
                     return (
                       <button
                         key={project.id}
@@ -680,7 +726,7 @@ export const DayEditModal = React.memo<DayEditModalProps>(function DayEditModal(
                     const hours = allocationToHours(draft.allocation);
                     return (
                       <div
-                        key={draft.projectId}
+                        key={draftKey(draft)}
                         className={`text-[10px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm flex items-center gap-1 ${
                           (PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg
                         } ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text} ${

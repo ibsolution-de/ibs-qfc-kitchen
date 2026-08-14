@@ -27,6 +27,7 @@ enum EntityKind {
   ENTITY_KIND_STRATEGIC_GOAL = 8;
   ENTITY_KIND_NORTH_STAR_METRIC = 9;
   ENTITY_KIND_ONE_ON_ONE_SESSION = 10;
+  ENTITY_KIND_ACCOUNT = 11;
 }
 
 message ChangeEvent {
@@ -49,6 +50,7 @@ message ChangeEvent {
     qfc.strategy.v1.StrategicGoal strategic_goal = 17;
     qfc.strategy.v1.NorthStarMetric north_star_metric = 18;
     qfc.growth.v1.OneOnOneSession one_on_one_session = 19;
+    qfc.portfolio.v1.Account account = 20;
   }
 }
 

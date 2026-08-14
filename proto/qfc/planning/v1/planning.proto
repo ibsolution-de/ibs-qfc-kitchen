@@ -19,6 +19,11 @@ message Assignment {
   string date = 5;
   // Fraction of an 8h day, range 0.1-1.0; overload is evaluated against employee availability.
   double allocation = 6;
+  // The account (Beauftragung) the work is planned against. Empty means
+  // legacy project-level planning (rows created before accounts existed);
+  // when set, the server guarantees the account exists and belongs to
+  // `project_id`, and uniqueness is scoped per account.
+  optional string account_id = 7;
 }
 
 message Absence {
@@ -67,6 +72,13 @@ message PlanVersionMeta {
   // strings. google.protobuf.Timestamp is deliberately not used — plain
   // millis keep both the Rust (buffa) and TS (protobuf-es) sides trivial.
   int64 created_at_millis = 4;
+  // The PM (user email) this plan and its revision history belong to. The
+  // deployment baseline and automatic quarterly snapshots are owned by the
+  // literal owner "system" and are read-only for every user.
+  string owner = 5;
+  // Display name for `owner`: the user's name when a `users` row exists,
+  // "System" for system-owned plans, otherwise the owner string itself.
+  string owner_name = 6;
 }
 
 message PlanVersion {

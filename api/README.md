@@ -26,10 +26,10 @@ business case and backed by one `Impl` in `api/src/services/`:
 | `events.v1` | live-sync spine | `EventService` | `Watch` (server stream) |
 | `team.v1` | employee master data | `TeamService` | `ListEmployees`, `UpsertEmployee`, `DeleteEmployee` |
 | `crm.v1` | customers | `CustomerService` | `ListCustomers`, `UpsertCustomer`, `DeleteCustomer` |
-| `portfolio.v1` | projects | `ProjectService` | `ListProjects`, `UpsertProject`, `DeleteProject` |
+| `portfolio.v1` | projects + accounts (Beauftragungen) | `ProjectService` | `ListProjects`, `UpsertProject`, `DeleteProject`, `UpsertAccount`, `DeleteAccount` |
 | `strategy.v1` | strategic goals + North Star metrics | `StrategyService` | `ListGoals`, `UpsertGoal`, `DeleteGoal`, `ListNorthStarMetrics`, `UpsertNorthStarMetric`, `DeleteNorthStarMetric` |
 | `growth.v1` | 1:1 sessions | `GrowthService` | `ListSessions`, `UpsertSession`, `DeleteSession` |
-| `planning.v1` | plan revisions (frozen planning snapshots), assignments, absences, forecast data, holidays | `PlanningService` | `ListVersions`, `GetVersion`, `CreateVersion`, `UpdateVersionMeta`, `DeleteVersion`, `ApplyAssignments`, `ApplyAbsences`, `UpsertQuarterData`, `DeleteQuarterData`, `ListHolidays` |
+| `planning.v1` | per-PM plan revisions (frozen planning snapshots), assignments, absences, forecast data, holidays | `PlanningService` | `ListVersions`, `GetVersion`, `CreateVersion`, `UpdateVersionMeta`, `DeleteVersion`, `ApplyAssignments`, `ApplyAbsences`, `UpsertQuarterData`, `DeleteQuarterData`, `ListHolidays` |
 
 All eight are registered on the `connectrpc::Router` in `main.rs`.
 
@@ -108,6 +108,25 @@ since the planner filters/queries them directly.
   directly). `quarter_data` pairs typed key/position columns with an
   encoded-blob payload for the parts of the message that don't reduce to
   scalars (month arrays, linked project ids, ...).
+- `plan_version` additionally carries an `owner` column (the owning PM's
+  email, or the literal `'system'` for the deployment baseline and the
+  automatic quarterly snapshots): each PM owns their own plan and its
+  revision history. Mutations require ownership (`bl` may manage every
+  non-system plan), and only the newest revision *of that owner* is
+  editable — parallel planning by multiple PMs into the same projects is
+  scoped, not serialized. Quarterly snapshots and retention pruning run
+  per owner.
+- `account`: the project's accounts (Beauftragungen), one row per
+  engagement with `status` (`confirmed` = received, `requested` = in
+  request), optional start/end dates and a display-string budget.
+  `Project.accounts` is enriched from this table on every read; accounts
+  are stripped from the project blob before it is persisted. Deleting an
+  account cascades to the `assignment` rows planned against it.
+- `assignment` gains an optional `account_id` (FK, `ON DELETE CASCADE`):
+  resources are planned onto accounts to check whether the account budget
+  can be drawn. `NULL` means legacy project-level planning; two partial
+  unique indexes keep one cell per `(version, employee, account, date)` and
+  per the legacy `(version, employee, project, date)` key respectively.
 - `change_log`: append-only audit/event log backing live sync (below).
 - `users`: local accounts keyed by email, upserted by the auth middleware.
 - `meta`: small key/value store (currently just the seed-completion marker).

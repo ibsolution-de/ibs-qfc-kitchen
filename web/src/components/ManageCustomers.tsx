@@ -6,7 +6,7 @@ import { Briefcase, Mail, Building2, UserCircle, PieChart, AlertTriangle, CheckC
 import { PASTEL_VARIANTS } from '../constants';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { parseBudget } from '../utils/money';
+import { projectBudget } from '../utils/accounts';
 import { uid } from '../utils/uid';
 import { PageHeader } from './ui/PageHeader';
 import { ProgressBar } from './ui/ProgressBar';
@@ -90,8 +90,9 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
       const plannedDays = assignments.filter(a => a.projectId === p.id).length;
       const volume = p.volume || 1; // Avoid divide by zero
 
-      // Calculate Budget
-      const budget = parseBudget(p.budget) ?? 0;
+      // Calculate Budget (effective: Σ account budgets, falling back to the
+      // project's estimated budget when the project has no accounts)
+      const budget = projectBudget(p);
 
       // Estimate value consumed based on % complete of volume
       // Formula: (Planned Days / Volume) * Budget
@@ -256,6 +257,11 @@ export const ManageCustomers: React.FC<ManageCustomersProps> = ({ customers, pro
                               {proj.name}
                             </button>
                             <div className="text-xs text-charcoal-500">{proj.topic || '-'}</div>
+                            {(proj.accounts ?? []).length > 0 && (
+                              <div className="text-[10px] text-charcoal-400">
+                                {t('customers.accountsCount').replace('{{count}}', String((proj.accounts ?? []).length))}
+                              </div>
+                            )}
                           </div>
                           {proj.status === 'opportunity' && (
                             <span className="text-[10px] bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded border border-orange-100 font-medium">OPP</span>

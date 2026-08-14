@@ -28,13 +28,24 @@ describe('export utils', () => {
     ];
 
     const projects: Project[] = [
-      { id: 'p1', name: 'Project A', client: 'Client A', color: 'blue', status: 'active' },
+      {
+        id: 'p1',
+        name: 'Project A',
+        client: 'Client A',
+        color: 'blue',
+        status: 'active',
+        accounts: [
+          { id: 'acct-1', projectId: 'p1', name: 'Account Alpha', status: 'confirmed' },
+          { id: 'acct-2', projectId: 'p1', name: 'Account \"Quoted\", Beta', status: 'requested', budget: '80k' },
+        ],
+      },
       { id: 'p2', name: 'Project \"B\", C', client: 'Client B', color: 'green', status: 'active' },
     ];
 
     const assignments: Assignment[] = [
-      { id: 'a1', employeeId: 'e1', projectId: 'p1', date: '2024-06-10', allocation: 0.5 },
+      { id: 'a1', employeeId: 'e1', projectId: 'p1', date: '2024-06-10', allocation: 0.5, accountId: 'acct-1' },
       { id: 'a2', employeeId: 'e2', projectId: 'p2', date: '2024-06-11', allocation: 1 },
+      { id: 'a3', employeeId: 'e1', projectId: 'p1', date: '2024-06-10', allocation: 0.25, accountId: 'acct-2' },
     ];
 
     const absences: Absence[] = [
@@ -53,13 +64,28 @@ describe('export utils', () => {
       const csv = assignmentsToCSV(employees, projects, assignments, absences);
       const vacationRow = csv.split('\n').find(line => line.includes('vacation'));
       expect(vacationRow).toBeDefined();
-      expect(vacationRow).toContain(',2024-06-12,,vacation');
+      expect(vacationRow).toContain(',,,2024-06-12,,vacation');
+    });
+
+    it('emits the account column for account-planned assignments', () => {
+      const csv = assignmentsToCSV(employees, projects, assignments, absences);
+      const a1Row = csv.split('\n').find(line => line.includes('Account Alpha'));
+      expect(a1Row).toBeDefined();
+      // employee,project,account,date,...  — account follows the project field.
+      expect(a1Row).toContain('Project A,Account Alpha,2024-06-10');
+    });
+
+    it('emits an empty account for legacy assignments and escaped account names', () => {
+      const csv = assignmentsToCSV(employees, projects, assignments, absences);
+      // Legacy assignment: `"Alice ""Bob"" Smith","Project ""B"", C",,2024-06-11,8,...`
+      expect(csv).toContain(',2024-06-11,8,assignment');
+      expect(csv).toContain('"Account ""Quoted"", Beta"');
     });
 
     it('produces the correct row count for mixed data', () => {
       const csv = assignmentsToCSV(employees, projects, assignments, absences);
       const lines = csv.trim().split('\n');
-      expect(lines[0]).toBe('employee,project,date,allocation_hours,type');
+      expect(lines[0]).toBe('employee,project,account,date,allocation_hours,type');
       expect(lines).toHaveLength(1 + assignments.length + absences.length);
     });
   });

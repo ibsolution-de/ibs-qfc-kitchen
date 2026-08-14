@@ -50,6 +50,8 @@ interface ResourcePlannerProps {
   absences: Absence[];
   projects: Project[];
   holidays?: PublicHoliday[];
+  /** Assignments other PMs planned (aggregate minus own plan) — shown as dimmed, non-interactive context. */
+  contextAssignments?: Assignment[];
   onAssignmentChange: (assignments: Assignment[]) => void;
   onAbsenceChange: (absences: Absence[]) => void;
   onNavigateToEmployee?: (employeeId: string) => void;
@@ -261,6 +263,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
   absences,
   projects,
   holidays = [],
+  contextAssignments = [],
   onAssignmentChange,
   onAbsenceChange,
   onNavigateToEmployee,
@@ -362,6 +365,10 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
 
   const assignmentIndex = useMemo(() => buildAssignmentIndex(assignments), [assignments]);
   const absenceIndex = useMemo(() => buildAbsenceIndex(absences), [absences]);
+  // Foreign plans (other PMs' latest versions) are an index of their own —
+  // kept strictly separate from the own-plan index so context chips never
+  // influence overload/conflict/drag logic.
+  const contextIndex = useMemo(() => buildAssignmentIndex(contextAssignments), [contextAssignments]);
 
   const filteredAssignmentIndex = useMemo(() => {
     if (activeProjectFilter.kind === 'all') return assignmentIndex;
@@ -599,19 +606,21 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
             employees,
             holidays
           );
+          const dateStr = format(day, 'yyyy-MM-dd');
           const isWknd = isWeekend(day);
           const isMonday = getDay(day) === 1;
           const isTodayCell = isToday(day);
           const isInteractive = !readOnly && !isWknd && !holiday && !absence;
           const isCellClickable = !readOnly && !isWknd && !holiday;
-          const dailyLoad = getDailyLoad(emp.id, format(day, 'yyyy-MM-dd'), assignmentIndex);
+          const dailyLoad = getDailyLoad(emp.id, dateStr, assignmentIndex);
           const cellIsOverloaded = isOverloaded(dailyLoad, emp);
           const conflict = hasCriticalConflict(dayAssignments, projectMap);
 
           return {
             date: day,
-            dateStr: format(day, 'yyyy-MM-dd'),
+            dateStr,
             entries: dayAssignments,
+            contextEntries: contextIndex.get(`${emp.id}|${dateStr}`) ?? [],
             absence,
             holiday,
             isInteractive,
@@ -634,6 +643,7 @@ export const ResourcePlanner: React.FC<ResourcePlannerProps> = ({
     employees,
     assignmentIndex,
     absenceIndex,
+    contextIndex,
     projectMap,
     assignments,
     filteredAssignmentIndex,

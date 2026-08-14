@@ -9,7 +9,8 @@ import { scaleBand } from '@tanstack/charts/scales/band';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
 import { tooltip } from '@tanstack/charts/tooltip';
 import { Chart } from '@tanstack/charts/react';
-import { compareBudgets, MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
+import { MARGIN_THRESHOLDS, parseBudget } from '../utils/money';
+import { projectBudget, confirmedBudget, requestedBudget, accountPlannedDays, projectPlannedDays, plannedCost } from '../utils/accounts';
 import { PageHeader } from './ui/PageHeader';
 
 interface FinancialOverviewProps {
@@ -32,20 +33,28 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
   // 1. Calculate Project Profitability / Margins (unfiltered, for KPIs and forecast)
   const allProjectFinancials = useMemo(() => {
     return projects.map(p => {
-        const budget = parseBudget(p.budget) ?? 0;
+        // Effective budget: Σ account budgets, falling back to the project's
+        // estimated budget when the project has no accounts.
+        const budgetNum = projectBudget(p);
+        const confirmedNum = confirmedBudget(p);
+        const requestedNum = requestedBudget(p);
         const hourlyRate = p.hourlyRate || 100;
         
-        // Calculate total planned days (all time) for this project
-        const plannedDays = assignments.filter(a => a.projectId === p.id).reduce((acc, a) => acc + (a.allocation || 1), 0);
-        const plannedCost = plannedDays * 8 * hourlyRate;
+        // Calculate total planned days (all time) for this project — includes
+        // account-bound rows, legacy NULL-account rows and unknown-account rows.
+        const plannedDays = projectPlannedDays(assignments, p.id);
+        const plannedCostNum = plannedCost(plannedDays, hourlyRate);
         
-        const margin = budget - plannedCost;
-        const marginPercent = budget > 0 ? (margin / budget) * 100 : 0;
+        const margin = budgetNum - plannedCostNum;
+        const marginPercent = budgetNum > 0 ? (margin / budgetNum) * 100 : 0;
         
         return {
             ...p,
-            budgetNum: budget,
-            plannedCost,
+            budgetNum,
+            confirmedNum,
+            requestedNum,
+            plannedDays,
+            plannedCost: plannedCostNum,
             margin,
             marginPercent
         };
@@ -86,7 +95,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
 
         // Handle budget comparison by parsed numeric value
         if (field === 'budget') {
-            return compareBudgets(a.budget, b.budget) * (sortConfig.direction === 'asc' ? 1 : -1);
+            return (a.budgetNum - b.budgetNum) * (sortConfig.direction === 'asc' ? 1 : -1);
         }
 
         const valA = a[field] as number;
@@ -102,7 +111,23 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
     ? allProjectFinancials.reduce((sum, p) => sum + p.marginPercent, 0) / allProjectFinancials.length 
     : 0;
 
-  // 3. Revenue Forecast (Next 4 Quarters) — uses the unfiltered financial list
+  // 3. Revenue Forecast (Next 4 Quarters) — uses the unfiltered financial list.
+  // Revenue items: one per CONFIRMED account (its budget spread over the
+  // account's own dates); a project WITHOUT accounts falls back to the
+  // project-level estimated budget over the project dates. Requested accounts
+  // are too uncertain to forecast and stay out (visible in table + KPI).
+  const revenueItems = useMemo(() => {
+    return allProjectFinancials.flatMap(p => {
+      const accounts = p.accounts ?? [];
+      if (accounts.length === 0) {
+        return [{ client: p.client, budgetNum: parseBudget(p.budget) ?? 0, startDate: p.startDate, endDate: p.endDate }];
+      }
+      return accounts
+        .filter(a => a.status === 'confirmed')
+        .map(a => ({ client: p.client, budgetNum: parseBudget(a.budget) ?? 0, startDate: a.startDate, endDate: a.endDate }));
+    });
+  }, [allProjectFinancials]);
+
   const quarters = useMemo(() => {
     const startQ = startOfQuarter(currentDate);
     
@@ -124,38 +149,38 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
         };
     });
 
-    // Distribute Project Budget across quarters linearly
-    allProjectFinancials.forEach(p => {
-        if (!p.startDate || !p.endDate) return;
-        const pStart = new Date(p.startDate);
-        const pEnd = new Date(p.endDate);
-        const totalDuration = pEnd.getTime() - pStart.getTime();
+    // Distribute each revenue item's budget across quarters linearly
+    revenueItems.forEach(item => {
+        if (!item.startDate || !item.endDate) return;
+        const itemStart = new Date(item.startDate);
+        const itemEnd = new Date(item.endDate);
+        const totalDuration = itemEnd.getTime() - itemStart.getTime();
         if(totalDuration <= 0) return;
 
         result.forEach(q => {
             // Calculate overlap
-            const overlapStart = new Date(Math.max(pStart.getTime(), q.start.getTime()));
-            const overlapEnd = new Date(Math.min(pEnd.getTime(), q.end.getTime()));
+            const overlapStart = new Date(Math.max(itemStart.getTime(), q.start.getTime()));
+            const overlapEnd = new Date(Math.min(itemEnd.getTime(), q.end.getTime()));
             
             if (overlapStart < overlapEnd) {
                 const overlapDuration = overlapEnd.getTime() - overlapStart.getTime();
                 const ratio = overlapDuration / totalDuration;
-                const quarterRevenue = p.budgetNum * ratio;
+                const quarterRevenue = item.budgetNum * ratio;
                 
                 q.totalRevenue += quarterRevenue;
-                q.breakdown[p.client] = (q.breakdown[p.client] || 0) + quarterRevenue;
+                q.breakdown[item.client] = (q.breakdown[item.client] || 0) + quarterRevenue;
             }
         });
     });
     return result;
-  }, [allProjectFinancials, currentDate]);
+  }, [revenueItems, currentDate]);
 
   const allClientsInForecast: string[] = Array.from(new Set(quarters.flatMap(q => Object.keys(q.breakdown))));
 
-  // True when there is budget data to forecast, but none of it can be
-  // plotted because no project carries a start/end date.
-  const forecastMissingDates = allProjectFinancials.length > 0
-    && allProjectFinancials.every(p => !p.startDate || !p.endDate);
+  // True when there is forecast budget to spread, but none of it can be
+  // plotted because no confirmed-account/fallback item carries start/end dates.
+  const forecastMissingDates = revenueItems.length > 0
+    && revenueItems.every(item => !item.startDate || !item.endDate);
 
   // Long-form rows for TanStack Charts stacked bar
   const revenueRows = useMemo(() => {
@@ -387,7 +412,8 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                      </thead>
                      <tbody className="divide-y divide-charcoal-100">
                          {projectFinancials.map(p => (
-                             <tr key={p.id} className="hover:bg-charcoal-50/50 transition-colors">
+                             <React.Fragment key={p.id}>
+                             <tr className="hover:bg-charcoal-50/50 transition-colors">
                                  <td className="px-6 py-4 font-medium text-charcoal-900">
                                      <div className="flex items-center gap-3">
                                          <Folder className={`w-4 h-4 flex-shrink-0 ${(PASTEL_VARIANTS[p.color] ?? PASTEL_VARIANTS.gray).text}`} />
@@ -415,12 +441,45 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({ projects, 
                                              {t('financials.lowMargin')}
                                          </span>
                                      ) : (
-                                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border-green-200">
                                              <CheckCircle className="w-3 h-3" /> {t('financials.healthy')}
                                          </span>
                                      )}
                                  </td>
                              </tr>
+                             {/* Per-account rows (Beauftragungen): account budget vs
+                                 planned cost, utilization and draw-status. */}
+                             {(p.accounts ?? []).map(account => {
+                                 const accountBudget = parseBudget(account.budget) ?? 0;
+                                 const accountDays = accountPlannedDays(assignments, account.id);
+                                 const accountCost = plannedCost(accountDays, p.hourlyRate);
+                                 const utilization = accountBudget > 0 ? (accountCost / accountBudget) * 100 : 0;
+                                 const drawable = accountCost <= accountBudget;
+                                 return (
+                                     <tr key={account.id} className="bg-charcoal-50/40 text-xs">
+                                         <td className="px-6 py-2 text-charcoal-600">
+                                             <div className="flex items-center gap-2 pl-7">
+                                                 <span className="font-medium text-charcoal-700">{account.name}</span>
+                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${account.status === 'confirmed' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-orange-100 text-orange-800 border-orange-200'}`}>
+                                                     {account.status === 'confirmed' ? t('projects.statusConfirmed') : t('projects.statusRequested')}
+                                                 </span>
+                                                 <span className="text-[10px] text-charcoal-400 font-mono">
+                                                     {account.startDate ? `${account.startDate} – ${account.endDate || 'TBD'}` : 'TBD'}
+                                                 </span>
+                                             </div>
+                                         </td>
+                                         <td className="px-6 py-2 text-right font-mono text-charcoal-600">€{accountBudget.toLocaleString()}</td>
+                                         <td className="px-6 py-2 text-right font-mono text-charcoal-600" title={`${accountDays.toFixed(2)}d`}>€{accountCost.toLocaleString()}</td>
+                                         <td className="px-6 py-2 text-right font-mono text-charcoal-600">{utilization.toFixed(0)}%</td>
+                                         <td className="px-6 py-2 text-center">
+                                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${drawable ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
+                                                 {drawable ? t('financials.drawable') : t('financials.overrun')}
+                                             </span>
+                                         </td>
+                                     </tr>
+                                 );
+                             })}
+                             </React.Fragment>
                          ))}
                          {projectFinancials.length === 0 && (
                              <tr>

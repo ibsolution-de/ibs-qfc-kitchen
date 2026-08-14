@@ -1,6 +1,6 @@
 
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { Sidebar } from './components/Sidebar';
@@ -16,6 +16,7 @@ import { LiveStoreProvider, useLiveStore } from './api/liveStore';
 import { computeDelta } from './api/delta';
 import { hasPlanningAccess, getLandingRoute } from './utils/access';
 import { mergeForecastQuarters } from './utils/forecast';
+import { currentPlanAssignments, currentPlanAbsences, ownerHasPlan, canEditVersion, isLatestOfOwner, SYSTEM_OWNER } from './utils/planAggregate';
 
 const QuarterlyForecast = React.lazy(() => import('./components/QuarterlyForecast').then(m => ({ default: m.QuarterlyForecast })));
 const ManageTeam = React.lazy(() => import('./components/ManageTeam').then(m => ({ default: m.ManageTeam })));
@@ -43,7 +44,7 @@ const FullScreenMessage: React.FC<{ children: React.ReactNode }> = ({ children }
 );
 
 const AppContent: React.FC = () => {
-  const { isRole } = useAuth();
+  const { user, isRole } = useAuth();
   const { t } = useLanguage();
   const { success, error } = useToast();
   const navigate = useNavigate();
@@ -54,22 +55,66 @@ const AppContent: React.FC = () => {
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
   const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
 
-  // Active Version State - the server seeds at least one version, so `versions`
-  // is non-empty by the time AppContent mounts (see the LiveStore gate below).
+  // Active Version State - the server seeds at least one version, so
+  // `versions` is non-empty by the time AppContent mounts (see the
+  // LiveStore gate below). Default to the caller's OWN newest plan (their
+  // editable plan); plain employees and bl/sales fall back to the newest
+  // global version (read-only for everyone but the owner and bl).
+  const userEmail = user.id; // The session `id` IS the normalized email
   const [activeVersionId, setActiveVersionId] = useState<string>(
-    () => versions[versions.length - 1]?.id ?? ''
+    () => {
+      const own = versions.filter(v => v.owner === userEmail);
+      return (own[own.length - 1]?.id) ?? versions[versions.length - 1]?.id ?? '';
+    }
   );
 
   const latestVersion = versions[versions.length - 1];
-  const isLatestVersion = activeVersionId === latestVersion?.id;
+
+  // Each PM edits their own plan: the active version is the one selected
+  // in the sidebar, falling back to the caller's newest owned version and
+  // finally to the newest version overall (the baseline).
+  const ownLatestVersion = useMemo(
+    () => versions.filter(v => v.owner === userEmail).at(-1),
+    [versions, userEmail]
+  );
 
   const activeVersion = useMemo(
-    () => versions.find(v => v.id === activeVersionId) ?? latestVersion,
-    [versions, activeVersionId, latestVersion]
+    () => versions.find(v => v.id === activeVersionId) ?? ownLatestVersion ?? latestVersion,
+    [versions, activeVersionId, ownLatestVersion, latestVersion]
   );
 
   const plannerAssignments = activeVersion?.assignments ?? [];
   const plannerAbsences = activeVersion?.absences ?? [];
+
+  // Determine ReadOnly state for Planner.
+  // Read only if: the active version is not the caller's own latest (so
+  // frozen revisions, other PMs' plans, and all system baselines are
+  // view-only), OR the user lacks planning access (pm/bl). `employee` is
+  // no longer mutually exclusive with `pm`/`bl`, so an employee+pm user
+  // must keep write access - see `hasPlanningAccess`, which Sidebar.tsx's
+  // version-history visibility derives from the same way so the two can
+  // never drift apart.
+  const isPlannerReadOnly =
+    !hasPlanningAccess(isRole) ||
+    !activeVersion ||
+    activeVersion.owner === SYSTEM_OWNER ||
+    !isLatestOfOwner(activeVersion, versions) ||
+    (!canEditVersion(activeVersion, user.id, versions) && !isRole('bl'));
+  const isPlannerWritable = !isPlannerReadOnly;
+
+  // Analysis views (MyOverview, Financials, Forecast, Customers, Team,
+  // Strategy) consume the aggregate: the newest version of every
+  // non-system owner, so employees see their full schedule across all PM
+  // plans. The planner itself keeps the caller's own plan.
+  const currentAssignments = useMemo(() => currentPlanAssignments(versions), [versions]);
+  const currentAbsences = useMemo(() => currentPlanAbsences(versions), [versions]);
+
+  // Foreign context for the planner: aggregate minus the caller's own plan
+  // (matched by assignment id), rendered read-only/dimmed in the grid.
+  const contextAssignments = useMemo(() => {
+    const ownIds = new Set(plannerAssignments.map(a => a.id));
+    return currentAssignments.filter(a => !ownIds.has(a.id));
+  }, [currentAssignments, plannerAssignments]);
 
   const versionStartDate = useToday();
 
@@ -127,7 +172,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleAssignmentChange = (newAssignments: Assignment[]) => {
-    if (!isLatestVersion) {
+    if (!isPlannerWritable) {
       console.warn('handleAssignmentChange: active version is read-only, ignoring update');
       return;
     }
@@ -137,7 +182,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleAbsenceChange = (newAbsences: Absence[]) => {
-    if (!isLatestVersion) {
+    if (!isPlannerWritable) {
       console.warn('handleAbsenceChange: active version is read-only, ignoring update');
       return;
     }
@@ -147,9 +192,9 @@ const AppContent: React.FC = () => {
   };
 
   const handleCreateVersion = (name: string, description: string) => {
-    // Plan revisions branch only from the LATEST revision — frozen
-    // snapshots are read-only and never serve as a copy source (the user
-    // can, however, flip back to an old revision afterwards to inspect it).
+    // New revisions branch from the newest version (kept as copy source
+    // for continuity); the server now allows copying from any revision,
+    // including frozen snapshots.
     store
       .createVersion(name, description || undefined, latestVersion?.id)
       .then(newVersion => {
@@ -214,13 +259,26 @@ const AppContent: React.FC = () => {
       navigate(`/my-overview/${encodeURIComponent(employeeId)}`);
   };
 
-  // Determine ReadOnly state for Planner.
-  // Read only if: not the latest version, OR the user lacks planning access
-  // (pm/bl). `employee` is no longer mutually exclusive with `pm`/`bl`, so an
-  // employee+pm user must keep write access - see `hasPlanningAccess`, which
-  // Sidebar.tsx's version-history visibility derives from the same way so
-  // the two can never drift apart.
-  const isPlannerReadOnly = !isLatestVersion || !hasPlanningAccess(isRole);
+  // Plan owners get a plan of their own: on first load, when the caller is
+  // a planner (pm/bl) but owns no version yet, create the default plan once.
+  // `autoCreateTriedRef` prevents loops if creation succeeds while the watch
+  // stream has not yet delivered the new version (ownerHasPlan would still
+  // be false for one render).
+  const autoCreateTriedRef = useRef(false);
+  useEffect(() => {
+    if (store.status !== 'ready') return;
+    if (!hasPlanningAccess(isRole)) return;
+    if (ownerHasPlan(versions, user.id)) return;
+    if (autoCreateTriedRef.current) return;
+    autoCreateTriedRef.current = true;
+    store
+      .createVersion(t('sidebar.defaultPlanName'), undefined)
+      .then(v => {
+        setActiveVersionId(v.id);
+        success(t('toast.planCreated'));
+      })
+      .catch(() => error(t('common.saveError')));
+  }, [store, store.status, isRole, versions, user.id, t, success, error]);
 
   // Reset Highlight effects when navigating away from specific views
   useEffect(() => {
@@ -265,9 +323,9 @@ const AppContent: React.FC = () => {
             <Route path="/my-overview" element={
                 <AnimatedPage>
                   <MyOverview
-                      assignments={plannerAssignments}
+                      assignments={currentAssignments}
                       projects={projects}
-                      absences={plannerAbsences}
+                      absences={currentAbsences}
                       employees={employees}
                       holidays={holidays}
                       oneOnOnes={oneOnOnes}
@@ -278,9 +336,9 @@ const AppContent: React.FC = () => {
             <Route path="/my-overview/:employeeId" element={
                 <AnimatedPage>
                   <MyOverview
-                      assignments={plannerAssignments}
+                      assignments={currentAssignments}
                       projects={projects}
-                      absences={plannerAbsences}
+                      absences={currentAbsences}
                       employees={employees}
                       holidays={holidays}
                       oneOnOnes={oneOnOnes}
@@ -295,6 +353,7 @@ const AppContent: React.FC = () => {
                       employees={employees}
                       assignments={plannerAssignments}
                       absences={plannerAbsences}
+                      contextAssignments={contextAssignments}
                       projects={projects}
                       holidays={holidays}
                       onAssignmentChange={handleAssignmentChange}
@@ -325,13 +384,13 @@ const AppContent: React.FC = () => {
                           <QuarterlyForecast
                               data={forecastData}
                               allProjects={projects}
-                              assignments={plannerAssignments}
+                              assignments={currentAssignments}
                               employees={employees}
-                              absences={plannerAbsences}
+                              absences={currentAbsences}
                               holidays={holidays}
                               onUpdateForecast={handleForecastUpdate}
                               onUpdateNotes={handleForecastNotes}
-                              readOnly={!isLatestVersion}
+                              readOnly={isPlannerReadOnly}
                           />
                         </AnimatedPage>
                     } />
@@ -345,7 +404,7 @@ const AppContent: React.FC = () => {
                               onUpdateOneOnOnes={handleUpdateOneOnOnes}
                               onNavigateToEmployee={handleNavigateToEmployee}
                               projects={projects}
-                              assignments={plannerAssignments}
+                              assignments={currentAssignments}
                           />
                         </AnimatedPage>
                     } />
@@ -354,7 +413,7 @@ const AppContent: React.FC = () => {
                         <AnimatedPage>
                           <FinancialOverview
                               projects={projects}
-                              assignments={plannerAssignments}
+                              assignments={currentAssignments}
                               currentDate={versionStartDate}
                           />
                         </AnimatedPage>
@@ -364,7 +423,7 @@ const AppContent: React.FC = () => {
                         <AnimatedPage>
                           <StrategyModule
                               projects={projects}
-                              assignments={plannerAssignments}
+                              assignments={currentAssignments}
                               goals={goals}
                               northStars={northStars}
                               onUpdateGoals={handleUpdateGoals}
@@ -382,6 +441,8 @@ const AppContent: React.FC = () => {
                             projects={projects}
                             onUpdateProjects={handleUpdateProjects}
                             highlightedProjectId={highlightedProjectId}
+                            onSaveAccount={(account) => { void store.saveAccount(account); }}
+                            onDeleteAccount={(id) => { void store.deleteAccount(id); }}
                         />
                     </AnimatedPage>
                 } />
@@ -392,7 +453,7 @@ const AppContent: React.FC = () => {
                   <ManageCustomers
                       customers={customers}
                       projects={projects}
-                      assignments={plannerAssignments}
+                      assignments={currentAssignments}
                       onNavigateToProject={handleNavigateToProject}
                       onUpdateCustomers={handleUpdateCustomers}
                   />

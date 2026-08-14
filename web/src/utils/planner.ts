@@ -14,6 +14,8 @@ export interface DraftAssignment {
   projectId: string;
   allocation: number;
   assignmentId?: string;
+  /** Account (Beauftragung) the work is planned against; unset = legacy project-level planning. */
+  accountId?: string;
 }
 
 export interface DraftAbsence {
@@ -176,6 +178,10 @@ export function mergeDayEntries(
           projectId: draft.projectId,
           date: dateStr,
           allocation: draft.allocation,
+          // Drafts are initialized from the existing row's accountId
+          // (DayEditModal), so re-saving an assignment keeps its account;
+          // a changed account select threads the new value through here.
+          accountId: draft.accountId,
         });
       });
     });

@@ -12,6 +12,8 @@ import {
   customerToProto,
   milestoneFromProto,
   milestoneToProto,
+  accountFromProto,
+  accountToProto,
   projectFromProto,
   projectToProto,
   assignmentFromProto,
@@ -39,6 +41,7 @@ import {
   pipelineStageMapping,
   projectHealthMapping,
   milestonePhaseMapping,
+  accountStatusMapping,
   employmentTypeMapping,
   ikigaiZoneMapping,
   absenceTypeMapping,
@@ -48,7 +51,7 @@ import {
   userRoleMapping,
 } from './adapters';
 import type { EnumMapping } from './adapters';
-import { ProjectColor, ProjectStatus, PipelineStage, ProjectHealth, MilestonePhase } from './gen/qfc/portfolio/v1/portfolio_pb.js';
+import { ProjectColor, ProjectStatus, PipelineStage, ProjectHealth, MilestonePhase, AccountStatus } from './gen/qfc/portfolio/v1/portfolio_pb.js';
 import { EmploymentType, IkigaiZone } from './gen/qfc/team/v1/team_pb.js';
 import { AbsenceType } from './gen/qfc/planning/v1/planning_pb.js';
 import { StrategyPerspective } from './gen/qfc/strategy/v1/strategy_pb.js';
@@ -58,6 +61,7 @@ import type {
   Employee,
   Customer,
   Project,
+  Account,
   Assignment,
   Absence,
   PublicHoliday,
@@ -121,6 +125,23 @@ const minimalCustomer: Customer = {
   email: 'bare@example.com',
 };
 
+const fullAccount: Account = {
+  id: 'acc1',
+  projectId: 'p1',
+  name: 'PO 2026-01',
+  status: 'confirmed',
+  startDate: '2026-01-01',
+  endDate: '2026-12-31',
+  budget: '80k',
+};
+
+const minimalAccount: Account = {
+  id: 'acc2',
+  projectId: 'p1',
+  name: 'Rahmenvertrag',
+  status: 'requested',
+};
+
 const fullProject: Project = {
   id: 'p1',
   name: 'Rocket Launch',
@@ -136,6 +157,7 @@ const fullProject: Project = {
   isCritical: true,
   hourlyRate: 120.5,
   milestones: [{ id: 'm1', name: 'Kickoff', date: '2026-01-05', phase: 'planning' }],
+  accounts: [fullAccount],
   probability: 90,
   stage: 'negotiation',
   health: 'warning',
@@ -148,6 +170,7 @@ const minimalProject: Project = {
   client: 'Bare Corp',
   color: 'gray',
   status: 'opportunity',
+  accounts: [],
 };
 
 const fullAssignment: Assignment = {
@@ -199,6 +222,8 @@ const fullPlanVersion: PlanVersion = {
   name: 'Baseline',
   description: 'The initial plan',
   createdAt: 1767225600000, // 2026-01-01T00:00:00Z
+  owner: 'pm@example.com',
+  ownerName: 'Ada Lovelace',
   assignments: [fullAssignment],
   absences: [fullAbsence],
   forecastData: [fullQuarter],
@@ -208,6 +233,8 @@ const minimalPlanVersion: PlanVersion = {
   id: 'v2',
   name: 'Bare',
   createdAt: 1767225600000, // 2026-01-01T00:00:00Z
+  owner: 'system',
+  ownerName: 'System',
   assignments: [],
   absences: [],
   forecastData: [],
@@ -328,6 +355,26 @@ describe('Milestone', () => {
   });
 });
 
+describe('Account', () => {
+  it('round-trips fully populated', () => {
+    expect(accountFromProto(accountToProto(fullAccount))).toEqual(fullAccount);
+  });
+
+  it('round-trips with optionals absent', () => {
+    const result = accountFromProto(accountToProto(minimalAccount));
+    expect(result).toEqual(minimalAccount);
+    expect(result.startDate).toBeUndefined();
+    expect(result.endDate).toBeUndefined();
+    expect(result.budget).toBeUndefined();
+  });
+
+  it('throws a descriptive error for ACCOUNT_STATUS_UNSPECIFIED', () => {
+    const proto = accountToProto(minimalAccount);
+    proto.status = AccountStatus.UNSPECIFIED;
+    expect(() => accountFromProto(proto)).toThrow(/Account acc2: status/);
+  });
+});
+
 describe('Project', () => {
   it('round-trips fully populated', () => {
     expect(projectFromProto(projectToProto(fullProject))).toEqual(fullProject);
@@ -349,6 +396,11 @@ describe('Project', () => {
     expect(result.stage).toBeUndefined();
     expect(result.health).toBeUndefined();
     expect(result.northStarMetricId).toBeUndefined();
+    expect(result.accounts).toEqual([]);
+  });
+
+  it('round-trips embedded accounts', () => {
+    expect(projectFromProto(projectToProto(fullProject)).accounts).toEqual([fullAccount]);
   });
 
   it('throws a descriptive error for PROJECT_COLOR_UNSPECIFIED', () => {
@@ -387,6 +439,19 @@ describe('Assignment', () => {
     const proto = assignmentToProto(fullAssignment, 'v1');
     expect(proto.versionId).toBe('v1');
     expect(assignmentFromProto(proto)).toEqual(fullAssignment);
+  });
+
+  it('passes accountId through both directions', () => {
+    const withAccount = { ...fullAssignment, accountId: 'acc1' };
+    const proto = assignmentToProto(withAccount, 'v1');
+    expect(proto.accountId).toBe('acc1');
+    expect(assignmentFromProto(proto)).toEqual(withAccount);
+  });
+
+  it('leaves accountId unset when absent', () => {
+    const proto = assignmentToProto(fullAssignment, 'v1');
+    expect(proto.accountId).toBeUndefined();
+    expect(assignmentFromProto(proto).accountId).toBeUndefined();
   });
 });
 
@@ -464,6 +529,16 @@ describe('PlanVersion', () => {
     expect(planVersion).toEqual(minimalPlanVersion);
     expect(planVersion.description).toBeUndefined();
     expect(missingProjectIds).toEqual([]);
+  });
+
+  it('carries owner and ownerName through the version meta', () => {
+    const proto = planVersionToProto(fullPlanVersion);
+    expect(proto.meta).not.toBeUndefined();
+    expect(proto.meta!.owner).toBe('pm@example.com');
+    expect(proto.meta!.ownerName).toBe('Ada Lovelace');
+    const { planVersion } = planVersionFromProto(planVersionToProto(minimalPlanVersion), projectsById);
+    expect(planVersion.owner).toBe('system');
+    expect(planVersion.ownerName).toBe('System');
   });
 
   it('throws when meta is missing', () => {
@@ -622,6 +697,10 @@ describe('enum coverage', () => {
 
   it('MilestonePhase maps every value both ways', () => {
     expectFullEnumCoverage(MilestonePhase, milestonePhaseMapping, MilestonePhase.UNSPECIFIED);
+  });
+
+  it('AccountStatus maps every value both ways', () => {
+    expectFullEnumCoverage(AccountStatus, accountStatusMapping, AccountStatus.UNSPECIFIED);
   });
 
   it('EmploymentType maps every value both ways', () => {

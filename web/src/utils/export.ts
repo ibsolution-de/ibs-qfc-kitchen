@@ -26,22 +26,26 @@ export function assignmentsToCSV(
   assignments: Assignment[],
   absences: Absence[]
 ): string {
-  const header = 'employee,project,date,allocation_hours,type';
+  const header = 'employee,project,account,date,allocation_hours,type';
   const employeeMap = new Map(employees.map(e => [e.id, e.name]));
   const projectMap = new Map(projects.map(p => [p.id, p.name]));
+  const accountMap = new Map(
+    projects.flatMap(p => (p.accounts ?? [])).map(a => [a.id, a.name])
+  );
 
   const assignmentRows = assignments.map(a => {
     const employeeName = employeeMap.get(a.employeeId) || a.employeeId;
     const projectName = projectMap.get(a.projectId) || a.projectId;
+    const accountName = a.accountId ? accountMap.get(a.accountId) : undefined;
     const hours = Math.round(a.allocation * 8 * 100) / 100;
-    return [employeeName, projectName, a.date, String(hours), 'assignment']
+    return [employeeName, projectName, accountName ?? '', a.date, String(hours), 'assignment']
       .map(csvEscape)
       .join(',');
   });
 
   const absenceRows = absences.map(a => {
     const employeeName = employeeMap.get(a.employeeId) || a.employeeId;
-    return [employeeName, '', a.date, '', a.type]
+    return [employeeName, '', '', a.date, '', a.type]
       .map(csvEscape)
       .join(',');
   });

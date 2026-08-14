@@ -50,10 +50,16 @@ use crate::proto::planning::{
 use crate::proto::session::UserRole;
 use crate::time::now_millis;
 
+/// The owner (as stored in `plan_version.owner`) of the deployment
+/// baseline and the automatic quarterly snapshots. Such versions are
+/// read-only for every user (`require_mutable_by` refuses them before any
+/// ownership check).
+const SYSTEM_OWNER: &str = "system";
+
 /// Actor identity used for automatic housekeeping writes (quarterly snapshot,
 /// retention pruning) so they are not attributed to whichever user happened
 /// to call `ListVersions` first.
-const SYSTEM_ACTOR: &str = "system";
+const SYSTEM_ACTOR: &str = SYSTEM_OWNER;
 
 /// The deployment baseline plan version inserted by migration 0005. It is
 /// protected from retention pruning so a fresh/reset database always has at
@@ -81,7 +87,11 @@ impl PlanningServiceImpl {
         Self::new_with_retention(pool, hub, Self::DEFAULT_ENV_RETENTION)
     }
 
-    pub fn new_with_retention(pool: SqlitePool, hub: Hub, env_plan_revision_retention: i64) -> Self {
+    pub fn new_with_retention(
+        pool: SqlitePool,
+        hub: Hub,
+        env_plan_revision_retention: i64,
+    ) -> Self {
         Self {
             pool,
             hub,
@@ -161,13 +171,9 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, UpdateVersionMetaRequest>,
     ) -> ServiceResult<UpdateVersionMetaResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
-        let meta = do_update_version_meta(
-            &self.pool,
-            &self.hub,
-            &current.email,
-            request.to_owned_message(),
-        )
-        .await?;
+        let meta =
+            do_update_version_meta(&self.pool, &self.hub, &current, request.to_owned_message())
+                .await?;
         Response::ok(UpdateVersionMetaResponse {
             meta: meta.into(),
             ..Default::default()
@@ -181,7 +187,7 @@ impl PlanningService for PlanningServiceImpl {
     ) -> ServiceResult<DeleteVersionResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let version_id = request.version_id.to_string();
-        do_delete_version(&self.pool, &self.hub, &current.email, &version_id).await?;
+        do_delete_version(&self.pool, &self.hub, &current, &version_id).await?;
         Response::ok(DeleteVersionResponse::default())
     }
 
@@ -191,13 +197,8 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, ApplyAssignmentsRequest>,
     ) -> ServiceResult<ApplyAssignmentsResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
-        let seq = do_apply_assignments(
-            &self.pool,
-            &self.hub,
-            &current.email,
-            request.to_owned_message(),
-        )
-        .await?;
+        let seq = do_apply_assignments(&self.pool, &self.hub, &current, request.to_owned_message())
+            .await?;
         Response::ok(ApplyAssignmentsResponse {
             seq,
             ..Default::default()
@@ -210,13 +211,8 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, ApplyAbsencesRequest>,
     ) -> ServiceResult<ApplyAbsencesResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
-        let seq = do_apply_absences(
-            &self.pool,
-            &self.hub,
-            &current.email,
-            request.to_owned_message(),
-        )
-        .await?;
+        let seq =
+            do_apply_absences(&self.pool, &self.hub, &current, request.to_owned_message()).await?;
         Response::ok(ApplyAbsencesResponse {
             seq,
             ..Default::default()
@@ -229,13 +225,9 @@ impl PlanningService for PlanningServiceImpl {
         request: ServiceRequest<'_, UpsertQuarterDataRequest>,
     ) -> ServiceResult<UpsertQuarterDataResponse> {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
-        let quarter = do_upsert_quarter_data(
-            &self.pool,
-            &self.hub,
-            &current.email,
-            request.to_owned_message(),
-        )
-        .await?;
+        let quarter =
+            do_upsert_quarter_data(&self.pool, &self.hub, &current, request.to_owned_message())
+                .await?;
         Response::ok(UpsertQuarterDataResponse {
             quarter: quarter.into(),
             ..Default::default()
@@ -250,7 +242,7 @@ impl PlanningService for PlanningServiceImpl {
         let current = auth::require_any_role(&ctx, &[UserRole::Pm, UserRole::Bl])?;
         let version_id = request.version_id.to_string();
         let id = request.id.to_string();
-        do_delete_quarter_data(&self.pool, &self.hub, &current.email, &version_id, &id).await?;
+        do_delete_quarter_data(&self.pool, &self.hub, &current, &version_id, &id).await?;
         Response::ok(DeleteQuarterDataResponse::default())
     }
 
@@ -276,20 +268,32 @@ impl PlanningService for PlanningServiceImpl {
 /// created back to back always sort in creation order rather than however
 /// SQLite happens to return equal keys.
 async fn list_version_metas(pool: &SqlitePool) -> AppResult<Vec<PlanVersionMeta>> {
-    let rows: Vec<(String, String, Option<String>, i64)> = sqlx::query_as(
-        "SELECT id, name, description, created_at FROM plan_version ORDER BY created_at ASC, rowid ASC",
+    let rows: Vec<(String, String, Option<String>, i64, String, String)> = sqlx::query_as(
+        "SELECT v.id, v.name, v.description, v.created_at, v.owner, COALESCE(u.name, v.owner)
+         FROM plan_version v
+         LEFT JOIN users u ON u.email = v.owner
+         ORDER BY v.created_at ASC, v.rowid ASC",
     )
     .fetch_all(pool)
     .await?;
     Ok(rows
         .into_iter()
         .map(
-            |(id, name, description, created_at_millis)| PlanVersionMeta {
-                id,
-                name,
-                description,
-                created_at_millis,
-                ..Default::default()
+            |(id, name, description, created_at_millis, owner, owner_name)| {
+                let owner_name = if owner == SYSTEM_OWNER {
+                    "System".to_string()
+                } else {
+                    owner_name
+                };
+                PlanVersionMeta {
+                    id,
+                    name,
+                    description,
+                    created_at_millis,
+                    owner,
+                    owner_name,
+                    ..Default::default()
+                }
             },
         )
         .collect())
@@ -328,31 +332,34 @@ async fn reconcile_plan_revisions(
 /// are logged by `settings` and fall back to the environment, mirroring
 /// how the other `settings.*` keys resolve.
 async fn effective_retention(pool: &SqlitePool, env_retention: i64) -> AppResult<i64> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT value FROM meta WHERE key = ?1")
-            .bind(crate::settings::PLAN_REVISION_RETENTION_KEY)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM meta WHERE key = ?1")
+        .bind(crate::settings::PLAN_REVISION_RETENTION_KEY)
+        .fetch_optional(pool)
+        .await?;
     Ok(match row {
         Some((value,)) => crate::settings::retention_from_value(&value).unwrap_or(env_retention),
         None => env_retention,
     })
 }
 
-/// Guarantee the current quarter has a frozen plan revision.
+/// Guarantee the current quarter has a frozen plan revision **per owner**
+/// (`plan_version.owner`): each owner's revision history gets its own
+/// quarterly auto-snapshot, deep-copied from that owner's latest revision
+/// and owned by the same owner.
 ///
-/// When no `plan_version` is named after the quarter containing "now"
-/// (e.g. `Q3 2026`), deep-copies the latest revision into a new one with
-/// that name — the quarterly auto-snapshot. The check and the copy run in
-/// one transaction, so two concurrent requests racing the rollover cannot
-/// both create; the loser hits SQLite's single-writer lock and surfaces an
-/// error which the caller's best-effort handling absorbs (the winner's
-/// revision then satisfies the next run's name guard). A database whose
-/// only revision is literally named like the current quarter (e.g. the
-/// `2026` baseline) is treated as already snapshotted/covered and skipped.
+/// When no `plan_version` named after the quarter containing "now"
+/// (e.g. `Q3 2026`) exists for an owner, deep-copies that owner's latest
+/// revision into a new one with that name. The per-owner name check and
+/// copy run in one transaction, so two concurrent requests racing the
+/// rollover cannot both create; the loser hits SQLite's single-writer lock
+/// and surfaces an error which the caller's best-effort handling absorbs
+/// (the winner's revision then satisfies the next run's name guard). A
+/// database whose only revision is literally named like the current quarter
+/// (e.g. the `2026` baseline) is treated as already snapshotted/covered and
+/// skipped for that owner.
 ///
-/// No-op (still commits the read guard) when the quarter label already
-/// exists or no revision exists to copy from.
+/// No-op (still commits read guards) when every owner already has the
+/// quarter label or no revision exists to copy from.
 async fn ensure_quarterly_revision(
     pool: &SqlitePool,
     hub: &Hub,
@@ -365,73 +372,90 @@ async fn ensure_quarterly_revision(
 
     let mut tx = pool.begin().await?;
 
-    let named: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM plan_version WHERE name = ?1 LIMIT 1",
-    )
-    .bind(&current_quarter)
-    .fetch_optional(&mut *tx)
-    .await?;
-    if named.is_some() {
-        tx.commit().await?;
-        return Ok(());
-    }
-
-    let latest_id = fetch_latest_version_id(&mut *tx).await?;
-    let Some(latest_id) = latest_id else {
-        tx.commit().await?;
-        return Ok(());
-    };
-
-    let id = uuid::Uuid::new_v4().to_string();
-    let created_at_millis = now_millis();
-    sqlx::query(
-        "INSERT INTO plan_version (id, name, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-    )
-    .bind(&id)
-    .bind(&current_quarter)
-    .bind("Automatic quarterly plan snapshot.")
-    .bind(created_at_millis)
-    .bind(now_millis())
-    .execute(&mut *tx)
-    .await?;
-
-    copy_assignments(&mut tx, &latest_id, &id).await?;
-    copy_absences(&mut tx, &latest_id, &id).await?;
-    copy_quarter_data(&mut tx, &latest_id, &id).await?;
-
-    let meta = PlanVersionMeta {
-        id: id.clone(),
-        name: current_quarter,
-        description: Some("Automatic quarterly plan snapshot.".to_string()),
-        created_at_millis,
-        ..Default::default()
-    };
-
+    let owners: Vec<String> = sqlx::query_scalar("SELECT DISTINCT owner FROM plan_version")
+        .fetch_all(&mut *tx)
+        .await?;
     let mut pending = PendingEvents::new();
-    pending.push(
-        events::record(
-            &mut tx,
-            actor_email,
-            EntityKind::PlanVersion,
-            ChangeOp::Upsert,
-            &id,
-            Some(&id),
-            Some(meta.encode_to_vec()),
+    for owner in owners {
+        let named: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM plan_version WHERE owner = ?1 AND name = ?2 LIMIT 1",
         )
-        .await?,
-    );
+        .bind(&owner)
+        .bind(&current_quarter)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if named.is_some() {
+            continue;
+        }
+
+        let latest_id: Option<String> = sqlx::query_scalar(
+            "SELECT id FROM plan_version WHERE owner = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
+        )
+        .bind(&owner)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(latest_id) = latest_id else {
+            continue;
+        };
+
+        let id = uuid::Uuid::new_v4().to_string();
+        let created_at_millis = now_millis();
+        sqlx::query(
+            "INSERT INTO plan_version (id, name, description, created_at, updated_at, owner) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        )
+        .bind(&id)
+        .bind(&current_quarter)
+        .bind("Automatic quarterly plan snapshot.")
+        .bind(created_at_millis)
+        .bind(now_millis())
+        .bind(&owner)
+        .execute(&mut *tx)
+        .await?;
+
+        copy_assignments(&mut tx, &latest_id, &id).await?;
+        copy_absences(&mut tx, &latest_id, &id).await?;
+        copy_quarter_data(&mut tx, &latest_id, &id).await?;
+
+        let meta = PlanVersionMeta {
+            id: id.clone(),
+            name: current_quarter.clone(),
+            description: Some("Automatic quarterly plan snapshot.".to_string()),
+            created_at_millis,
+            owner: owner.clone(),
+            owner_name: if owner == SYSTEM_OWNER {
+                "System".to_string()
+            } else {
+                owner.clone()
+            },
+            ..Default::default()
+        };
+
+        pending.push(
+            events::record(
+                &mut tx,
+                actor_email,
+                EntityKind::PlanVersion,
+                ChangeOp::Upsert,
+                &id,
+                Some(&id),
+                Some(meta.encode_to_vec()),
+            )
+            .await?,
+        );
+    }
     tx.commit().await?;
     hub.publish_all(pending);
     Ok(())
 }
 
 /// Delete the oldest `plan_version` rows (with their cascade-deleted
-/// assignments/absences/quarter_data) until only `retention` remain.
-/// Never deletes the latest revision: pruning only ever removes from the
-/// front of the chronological list. Emits a `PLAN_VERSION` DELETE
-/// `change_log` row (and watch event) per pruned revision so connected
-/// clients drop the frozen view as it disappears. No-op when the count is
-/// already within the limit.
+/// assignments/absences/quarter_data) of **each owner** until only
+/// `retention` remain **per owner**. Never deletes the latest revision of
+/// an owner: pruning only ever removes from the front of that owner's
+/// chronological list. Emits a `PLAN_VERSION` DELETE `change_log` row (and
+/// watch event) per pruned revision so connected clients drop the frozen
+/// view as it disappears. No-op when every owner's count is already within
+/// the limit.
 async fn prune_plan_revisions(
     pool: &SqlitePool,
     hub: &Hub,
@@ -444,46 +468,53 @@ async fn prune_plan_revisions(
         // (the SPA has no empty-version state).
         return Ok(());
     }
-    let ids: Vec<String> = sqlx::query_as::<_, (String,)>(
-        "SELECT id FROM plan_version ORDER BY created_at ASC, rowid ASC",
-    )
-    .fetch_all(pool)
-    .await?
-    .into_iter()
-    .map(|(id,)| id)
-    .collect();
+    let owners: Vec<String> = sqlx::query_scalar("SELECT owner FROM plan_version GROUP BY owner")
+        .fetch_all(pool)
+        .await?;
 
-    // The deployment baseline is protected from pruning; retention counts
-    // user revisions only, so the baseline is kept alongside up to
-    // `retention` newest user revisions.
-    let user_ids: Vec<String> = ids
-        .into_iter()
-        .filter(|id| id != BASELINE_VERSION_ID)
-        .collect();
-    if user_ids.len() <= retention as usize {
-        return Ok(());
-    }
-    let victims = &user_ids[..user_ids.len() - retention as usize];
-
-    let mut tx = pool.begin().await?;
     let mut pending = PendingEvents::new();
-    for id in victims {
-        sqlx::query("DELETE FROM plan_version WHERE id = ?1")
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-        pending.push(
-            events::record(
-                &mut tx,
-                actor_email,
-                EntityKind::PlanVersion,
-                ChangeOp::Delete,
-                id,
-                Some(id),
-                None,
-            )
-            .await?,
-        );
+    let mut tx = pool.begin().await?;
+    for owner in owners {
+        let ids: Vec<String> = sqlx::query_as::<_, (String,)>(
+            "SELECT id FROM plan_version WHERE owner = ?1 ORDER BY created_at ASC, rowid ASC",
+        )
+        .bind(&owner)
+        .fetch_all(&mut *tx)
+        .await?
+        .into_iter()
+        .map(|(id,)| id)
+        .collect();
+
+        // The deployment baseline is protected from pruning; retention
+        // counts that owner's user revisions only, so the baseline is kept
+        // alongside up to `retention` newest user revisions.
+        let user_ids: Vec<String> = ids
+            .into_iter()
+            .filter(|id| id != BASELINE_VERSION_ID)
+            .collect();
+        if user_ids.len() <= retention as usize {
+            continue;
+        }
+        let victims = &user_ids[..user_ids.len() - retention as usize];
+
+        for id in victims {
+            sqlx::query("DELETE FROM plan_version WHERE id = ?1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            pending.push(
+                events::record(
+                    &mut tx,
+                    actor_email,
+                    EntityKind::PlanVersion,
+                    ChangeOp::Delete,
+                    id,
+                    Some(id),
+                    None,
+                )
+                .await?,
+            );
+        }
     }
     tx.commit().await?;
     hub.publish_all(pending);
@@ -511,7 +542,11 @@ fn quarter_label(millis: i64) -> Option<String> {
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = if month <= 2 { yoe + era * 400 + 1 } else { yoe + era * 400 };
+    let year = if month <= 2 {
+        yoe + era * 400 + 1
+    } else {
+        yoe + era * 400
+    };
     let quarter = (month - 1) / 3 + 1;
     Some(format!("Q{quarter} {year}"))
 }
@@ -521,20 +556,7 @@ fn quarter_label(millis: i64) -> Option<String> {
 /// `plan_version` row matches.
 async fn fetch_version(pool: &SqlitePool, version_id: &str) -> AppResult<PlanVersion> {
     let mut conn = pool.acquire().await?;
-    let meta_row: Option<(String, Option<String>, i64)> =
-        sqlx::query_as("SELECT name, description, created_at FROM plan_version WHERE id = ?1")
-            .bind(version_id)
-            .fetch_optional(&mut *conn)
-            .await?;
-    let (name, description, created_at_millis) =
-        meta_row.ok_or_else(|| AppError::NotFound("plan_version", version_id.to_string()))?;
-    let meta = PlanVersionMeta {
-        id: version_id.to_string(),
-        name,
-        description,
-        created_at_millis,
-        ..Default::default()
-    };
+    let meta = fetch_version_meta(&mut conn, version_id).await?;
 
     let assignments = fetch_assignments(&mut conn, version_id).await?;
     let absences = fetch_absences(&mut conn, version_id).await?;
@@ -545,6 +567,40 @@ async fn fetch_version(pool: &SqlitePool, version_id: &str) -> AppResult<PlanVer
         assignments,
         absences,
         forecast_data,
+        ..Default::default()
+    })
+}
+
+/// Fetch one `plan_version` row as `PlanVersionMeta` (meta fields plus
+/// `owner` and the display `owner_name`, resolved via `users` — "System"
+/// for the system owner), or `AppError::NotFound` if no row matches.
+async fn fetch_version_meta(
+    conn: &mut SqliteConnection,
+    version_id: &str,
+) -> AppResult<PlanVersionMeta> {
+    let row: Option<(String, Option<String>, i64, String, String)> = sqlx::query_as(
+        "SELECT v.name, v.description, v.created_at, v.owner, COALESCE(u.name, v.owner)
+         FROM plan_version v
+         LEFT JOIN users u ON u.email = v.owner
+         WHERE v.id = ?1",
+    )
+    .bind(version_id)
+    .fetch_optional(&mut *conn)
+    .await?;
+    let (name, description, created_at_millis, owner, owner_name) =
+        row.ok_or_else(|| AppError::NotFound("plan_version", version_id.to_string()))?;
+    let owner_name = if owner == SYSTEM_OWNER {
+        "System".to_string()
+    } else {
+        owner_name
+    };
+    Ok(PlanVersionMeta {
+        id: version_id.to_string(),
+        name,
+        description,
+        created_at_millis,
+        owner,
+        owner_name,
         ..Default::default()
     })
 }
@@ -569,28 +625,24 @@ async fn do_create_version(
 
     let mut tx = pool.begin().await?;
 
-    if let Some(source_id) = request.copy_from_version_id.as_deref() {
-        if !version_exists(&mut tx, source_id).await? {
-            return Err(AppError::NotFound("plan_version", source_id.to_string()));
-        }
-        require_latest_version(&mut tx, source_id)
-            .await
-            .map_err(|e| match e {
-                AppError::FailedPrecondition(_) => AppError::FailedPrecondition(
-                    "can only create a new plan revision from the latest revision".to_string(),
-                ),
-                other => other,
-            })?;
+    if let Some(source_id) = request.copy_from_version_id.as_deref()
+        && !version_exists(&mut tx, source_id).await?
+    {
+        return Err(AppError::NotFound("plan_version", source_id.to_string()));
+        // Copying from any existing revision is allowed — frozen or foreign
+        // snapshots are valid sources; only the source's existence is
+        // required.
     }
 
     sqlx::query(
-        "INSERT INTO plan_version (id, name, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO plan_version (id, name, description, created_at, updated_at, owner) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     )
     .bind(&id)
     .bind(&request.name)
     .bind(request.description.as_deref())
     .bind(created_at_millis)
     .bind(now_millis())
+    .bind(actor_email)
     .execute(&mut *tx)
     .await?;
 
@@ -608,6 +660,8 @@ async fn do_create_version(
         name: request.name,
         description: request.description,
         created_at_millis,
+        owner: actor_email.to_string(),
+        owner_name: actor_email.to_string(),
         ..Default::default()
     };
 
@@ -641,7 +695,7 @@ async fn do_create_version(
 async fn do_update_version_meta(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     request: UpdateVersionMetaRequest,
 ) -> AppResult<PlanVersionMeta> {
     if request.name.trim().is_empty() {
@@ -651,42 +705,32 @@ async fn do_update_version_meta(
     }
 
     let mut tx = pool.begin().await?;
-    if !version_exists(&mut tx, &request.version_id).await? {
-        return Err(AppError::NotFound(
-            "plan_version",
-            request.version_id.clone(),
-        ));
-    }
-    require_latest_version(&mut tx, &request.version_id).await?;
+    let owner = fetch_version_owner(&mut tx, &request.version_id).await?;
+    require_mutable_by(current, &owner)?;
+    require_latest_owned_version(&mut tx, &request.version_id, &owner).await?;
 
-    // `RETURNING created_at` both applies the update and confirms whether a
-    // row existed in one round trip: `None` means `id` didn't match
-    // anything, so nothing was written.
-    let created_at_millis: Option<i64> = sqlx::query_scalar(
-        "UPDATE plan_version SET name = ?1, description = ?2, updated_at = ?3 WHERE id = ?4 RETURNING created_at",
+    // The UPDATE only ever changes name/description; the owner and display
+    // name are untouched columns, re-read via `fetch_version_meta` for the
+    // response/event payload below.
+    sqlx::query(
+        "UPDATE plan_version SET name = ?1, description = ?2, updated_at = ?3 WHERE id = ?4",
     )
     .bind(&request.name)
     .bind(request.description.as_deref())
     .bind(now_millis())
     .bind(&request.version_id)
-    .fetch_optional(&mut *tx)
+    .execute(&mut *tx)
     .await?;
-    let created_at_millis = created_at_millis
-        .ok_or_else(|| AppError::NotFound("plan_version", request.version_id.clone()))?;
 
-    let meta = PlanVersionMeta {
-        id: request.version_id.clone(),
-        name: request.name,
-        description: request.description,
-        created_at_millis,
-        ..Default::default()
-    };
+    let mut meta = fetch_version_meta(&mut tx, &request.version_id).await?;
+    meta.name = request.name;
+    meta.description = request.description;
 
     let mut pending = PendingEvents::new();
     pending.push(
         events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::PlanVersion,
             ChangeOp::Upsert,
             &request.version_id,
@@ -704,18 +748,26 @@ async fn do_update_version_meta(
 /// Delete a plan version, cascading (via `ON DELETE CASCADE`, which
 /// requires SQLite's `foreign_keys` pragma to be on — see `db::connect`) to
 /// its assignments/absences/quarter_data.
+///
+/// Unlike the other mutation paths, deletion is not restricted to the
+/// owner's latest revision: an owner may delete any of their own revisions
+/// (even a frozen intermediary one), mirroring the pre-ownership model
+/// where delete was never frozen-restricted. Only the owner (or a `bl`
+/// managing their plans) may delete, and system-owned revisions are
+/// read-only for everyone.
 async fn do_delete_version(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     version_id: &str,
 ) -> AppResult<()> {
     let mut tx = pool.begin().await?;
-    if !version_exists(&mut tx, version_id).await? {
-        return Err(AppError::NotFound("plan_version", version_id.to_string()));
-    }
+    let owner = fetch_version_owner(&mut tx, version_id).await?;
+    require_mutable_by(current, &owner)?;
     // The SPA has no empty state for "zero plan versions" — refuse to
-    // delete the last one rather than let a client paint that state.
+    // delete the last one rather than let a client paint that state. The
+    // guard is global (not per owner): a fresh/reset database must always
+    // retain at least its baseline revision.
     let total_versions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM plan_version")
         .fetch_one(&mut *tx)
         .await?;
@@ -734,7 +786,7 @@ async fn do_delete_version(
     pending.push(
         events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::PlanVersion,
             ChangeOp::Delete,
             version_id,
@@ -755,7 +807,7 @@ async fn do_delete_version(
 async fn do_apply_assignments(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     request: ApplyAssignmentsRequest,
 ) -> AppResult<i64> {
     let version_id = request.version_id;
@@ -768,34 +820,55 @@ async fn do_apply_assignments(
     }
 
     let mut tx = pool.begin().await?;
-    if !version_exists(&mut tx, &version_id).await? {
-        return Err(AppError::NotFound("plan_version", version_id));
-    }
-    require_latest_version(&mut tx, &version_id).await?;
+    let owner = fetch_version_owner(&mut tx, &version_id).await?;
+    require_mutable_by(current, &owner)?;
+    require_latest_owned_version(&mut tx, &version_id, &owner).await?;
     // `change_log.seq` is `AUTOINCREMENT`, so every event this call writes
     // from here on is strictly greater than this starting point.
     let mut seq = current_max_seq(&mut tx).await?;
 
     let mut pending = PendingEvents::new();
     for upsert in request.upserts {
+        // An assignment onto an account (Beauftragung) binds to one
+        // project: the account must exist and belong to the assignment's
+        // own project. Legacy planning (`account_id` unset) is unaffected.
+        if let Some(account_id) = upsert.account_id.as_deref()
+            && !account_id.is_empty()
+        {
+            let account_project: Option<String> =
+                sqlx::query_scalar("SELECT project_id FROM account WHERE id = ?1")
+                    .bind(account_id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+            let account_project = account_project
+                .ok_or_else(|| AppError::NotFound("account", account_id.to_string()))?;
+            if account_project != upsert.project_id {
+                return Err(AppError::InvalidArgument(format!(
+                    "assignment.account_id {account_id:?} does not belong to assignment.project_id {:?}",
+                    upsert.project_id
+                )));
+            }
+        }
+
         let id = resolve_assignment_id(
             &mut tx,
             &version_id,
             &upsert.employee_id,
-            &upsert.project_id,
             &upsert.date,
+            upsert.account_id.as_deref(),
             &upsert.id,
         )
         .await?;
 
         sqlx::query(
-            "INSERT INTO assignment (id, version_id, employee_id, project_id, date, allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-             ON CONFLICT(id) DO UPDATE SET version_id = excluded.version_id, employee_id = excluded.employee_id, project_id = excluded.project_id, date = excluded.date, allocation = excluded.allocation",
+            "INSERT INTO assignment (id, version_id, employee_id, project_id, account_id, date, allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET version_id = excluded.version_id, employee_id = excluded.employee_id, project_id = excluded.project_id, account_id = excluded.account_id, date = excluded.date, allocation = excluded.allocation",
         )
         .bind(&id)
         .bind(&version_id)
         .bind(&upsert.employee_id)
         .bind(&upsert.project_id)
+        .bind(upsert.account_id.as_deref())
         .bind(&upsert.date)
         .bind(upsert.allocation)
         .execute(&mut *tx)
@@ -806,13 +879,14 @@ async fn do_apply_assignments(
             version_id: version_id.clone(),
             employee_id: upsert.employee_id,
             project_id: upsert.project_id,
+            account_id: upsert.account_id,
             date: upsert.date,
             allocation: upsert.allocation,
             ..Default::default()
         };
         let event = events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::Assignment,
             ChangeOp::Upsert,
             &id,
@@ -833,7 +907,7 @@ async fn do_apply_assignments(
         if result.rows_affected() > 0 {
             let event = events::record(
                 &mut tx,
-                actor_email,
+                &current.email,
                 EntityKind::Assignment,
                 ChangeOp::Delete,
                 &delete_id,
@@ -855,7 +929,7 @@ async fn do_apply_assignments(
 async fn do_apply_absences(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     request: ApplyAbsencesRequest,
 ) -> AppResult<i64> {
     let version_id = request.version_id;
@@ -865,10 +939,9 @@ async fn do_apply_absences(
     }
 
     let mut tx = pool.begin().await?;
-    if !version_exists(&mut tx, &version_id).await? {
-        return Err(AppError::NotFound("plan_version", version_id));
-    }
-    require_latest_version(&mut tx, &version_id).await?;
+    let owner = fetch_version_owner(&mut tx, &version_id).await?;
+    require_mutable_by(current, &owner)?;
+    require_latest_owned_version(&mut tx, &version_id, &owner).await?;
     let mut seq = current_max_seq(&mut tx).await?;
 
     let mut pending = PendingEvents::new();
@@ -907,7 +980,7 @@ async fn do_apply_absences(
         };
         let event = events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::Absence,
             ChangeOp::Upsert,
             &id,
@@ -928,7 +1001,7 @@ async fn do_apply_absences(
         if result.rows_affected() > 0 {
             let event = events::record(
                 &mut tx,
-                actor_email,
+                &current.email,
                 EntityKind::Absence,
                 ChangeOp::Delete,
                 &delete_id,
@@ -952,7 +1025,7 @@ async fn do_apply_absences(
 async fn do_upsert_quarter_data(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     request: UpsertQuarterDataRequest,
 ) -> AppResult<QuarterData> {
     let version_id = request.version_id;
@@ -965,10 +1038,9 @@ async fn do_upsert_quarter_data(
     }
 
     let mut tx = pool.begin().await?;
-    if !version_exists(&mut tx, &version_id).await? {
-        return Err(AppError::NotFound("plan_version", version_id));
-    }
-    require_latest_version(&mut tx, &version_id).await?;
+    let owner = fetch_version_owner(&mut tx, &version_id).await?;
+    require_mutable_by(current, &owner)?;
+    require_latest_owned_version(&mut tx, &version_id, &owner).await?;
 
     // Only the INSERT path consumes `position` (the ON CONFLICT branch
     // below updates `data` alone), so the MAX(position)+1 aggregate runs
@@ -1003,7 +1075,7 @@ async fn do_upsert_quarter_data(
     pending.push(
         events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::QuarterData,
             ChangeOp::Upsert,
             &quarter.id,
@@ -1023,12 +1095,14 @@ async fn do_upsert_quarter_data(
 async fn do_delete_quarter_data(
     pool: &SqlitePool,
     hub: &Hub,
-    actor_email: &str,
+    current: &crate::auth::CurrentUser,
     version_id: &str,
     id: &str,
 ) -> AppResult<()> {
     let mut tx = pool.begin().await?;
-    require_latest_version(&mut tx, version_id).await?;
+    let owner = fetch_version_owner(&mut tx, version_id).await?;
+    require_mutable_by(current, &owner)?;
+    require_latest_owned_version(&mut tx, version_id, &owner).await?;
     let result = sqlx::query("DELETE FROM quarter_data WHERE version_id = ?1 AND id = ?2")
         .bind(version_id)
         .bind(id)
@@ -1042,7 +1116,7 @@ async fn do_delete_quarter_data(
     pending.push(
         events::record(
             &mut tx,
-            actor_email,
+            &current.email,
             EntityKind::QuarterData,
             ChangeOp::Delete,
             id,
@@ -1060,8 +1134,8 @@ async fn fetch_assignments(
     conn: &mut SqliteConnection,
     version_id: &str,
 ) -> AppResult<Vec<Assignment>> {
-    let rows: Vec<(String, String, String, String, f64)> = sqlx::query_as(
-        "SELECT id, employee_id, project_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
+    let rows: Vec<(String, String, String, Option<String>, String, f64)> = sqlx::query_as(
+        "SELECT id, employee_id, project_id, account_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
     )
     .bind(version_id)
     .fetch_all(&mut *conn)
@@ -1069,11 +1143,12 @@ async fn fetch_assignments(
     Ok(rows
         .into_iter()
         .map(
-            |(id, employee_id, project_id, date, allocation)| Assignment {
+            |(id, employee_id, project_id, account_id, date, allocation)| Assignment {
                 id,
                 version_id: version_id.to_string(),
                 employee_id,
                 project_id,
+                account_id,
                 date,
                 allocation,
                 ..Default::default()
@@ -1128,23 +1203,24 @@ async fn copy_assignments(
     source_id: &str,
     new_version_id: &str,
 ) -> AppResult<Vec<Assignment>> {
-    let rows: Vec<(String, String, String, f64)> = sqlx::query_as(
-        "SELECT employee_id, project_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
+    let rows: Vec<(String, String, Option<String>, String, f64)> = sqlx::query_as(
+        "SELECT employee_id, project_id, account_id, date, allocation FROM assignment WHERE version_id = ?1 ORDER BY id",
     )
     .bind(source_id)
     .fetch_all(&mut *conn)
     .await?;
 
     let mut copied = Vec::with_capacity(rows.len());
-    for (employee_id, project_id, date, allocation) in rows {
+    for (employee_id, project_id, account_id, date, allocation) in rows {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO assignment (id, version_id, employee_id, project_id, date, allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO assignment (id, version_id, employee_id, project_id, account_id, date, allocation) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )
         .bind(&id)
         .bind(new_version_id)
         .bind(&employee_id)
         .bind(&project_id)
+        .bind(account_id.as_deref())
         .bind(&date)
         .bind(allocation)
         .execute(&mut *conn)
@@ -1154,6 +1230,7 @@ async fn copy_assignments(
             version_id: new_version_id.to_string(),
             employee_id,
             project_id,
+            account_id,
             date,
             allocation,
             ..Default::default()
@@ -1248,26 +1325,60 @@ async fn version_exists(conn: &mut SqliteConnection, id: &str) -> AppResult<bool
     Ok(found.is_some())
 }
 
-/// Fetch the newest `plan_version.id` according to the canonical sort
-/// (`created_at DESC, rowid DESC`). Returns `None` when the table is empty.
-async fn fetch_latest_version_id(conn: &mut SqliteConnection) -> AppResult<Option<String>> {
-    let latest: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM plan_version ORDER BY created_at DESC, rowid DESC LIMIT 1",
-    )
-    .fetch_optional(&mut *conn)
-    .await?;
-    Ok(latest.map(|(id,)| id))
+/// Fetch the `plan_version.owner` for `id`, or `AppError::NotFound` if no
+/// row matches. The per-owner mutation gates start from this: every
+/// mutating path resolves the owning PM (or `"system"`) before applying
+/// [`require_mutable_by`]/[`require_latest_owned_version`].
+async fn fetch_version_owner(conn: &mut SqliteConnection, version_id: &str) -> AppResult<String> {
+    let row: Option<(String,)> = sqlx::query_as("SELECT owner FROM plan_version WHERE id = ?1")
+        .bind(version_id)
+        .fetch_optional(&mut *conn)
+        .await?;
+    row.map(|(o,)| o)
+        .ok_or_else(|| AppError::NotFound("plan_version", version_id.to_string()))
 }
 
-/// Refuse to touch any revision other than the latest. The latest revision
-/// is the only one that may be mutated; older revisions are frozen snapshots.
-/// When the table is empty the check succeeds (no revision is frozen).
-async fn require_latest_version(
+/// Refuse a mutation the caller is not allowed to make on `owner`'s plan.
+///
+/// Callers already passed `require_any_role([Pm, Bl])`; this re-checks the
+/// owner-specific half of the contract: system-owned revisions (baseline,
+/// quarterly snapshots) are read-only for every user; a PM may only touch
+/// their own revisions; a `bl` manages every non-system plan.
+fn require_mutable_by(current: &crate::auth::CurrentUser, owner: &str) -> AppResult<()> {
+    let is_bl = current.roles.contains(&UserRole::Bl);
+    if owner == SYSTEM_OWNER {
+        return Err(AppError::FailedPrecondition(
+            "plan revision is frozen".to_string(),
+        ));
+    }
+    if owner == current.email {
+        return Ok(()); // owner (pm or bl)
+    }
+    if is_bl {
+        return Ok(()); // bl manages all plans
+    }
+    Err(AppError::PermissionDenied(
+        "caller is not the plan owner".to_string(),
+    ))
+}
+
+/// Refuse to mutate any revision other than the caller's-owner's newest.
+/// Within one owner's history the latest revision is the only editable one;
+/// older revisions are frozen snapshots of that owner. When the owner has
+/// no revisions the check succeeds (nothing is frozen).
+async fn require_latest_owned_version(
     conn: &mut SqliteConnection,
     version_id: &str,
+    owner: &str,
 ) -> AppResult<()> {
-    match &fetch_latest_version_id(conn).await? {
-        Some(latest_id) if latest_id != version_id => Err(AppError::FailedPrecondition(
+    let latest: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM plan_version WHERE owner = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    )
+    .bind(owner)
+    .fetch_optional(&mut *conn)
+    .await?;
+    match latest {
+        Some(id) if id != version_id => Err(AppError::FailedPrecondition(
             "plan revision is frozen".to_string(),
         )),
         _ => Ok(()),
@@ -1301,27 +1412,30 @@ async fn current_max_seq(conn: &mut SqliteConnection) -> AppResult<i64> {
 
 /// Resolve the `assignment.id` an `ApplyAssignments` upsert should write to.
 ///
-/// The unique index on `(version_id, employee_id, project_id, date)` means
-/// one employee/project/date combination is one cell: if a row already
-/// exists for that exact combination, its id is authoritative regardless of
-/// what id the client sent — writing to it (rather than the client's id)
-/// updates that cell in place instead of colliding with the unique index.
-/// Only when no row matches that combination does the client-supplied id
-/// (or a freshly generated one, if empty) apply.
+/// The unique indexes on `(version_id, employee_id, account_id, date)` (for
+/// account-planning rows) and `(version_id, employee_id, project_id, date)`
+/// (for legacy NULL-account rows) mean one employee/account/date — or
+/// employee/project/date without an account — combination is one cell: if a
+/// row already exists for that exact combination, its id is authoritative
+/// regardless of what id the client sent — writing to it (rather than the
+/// client's id) updates that cell in place instead of colliding with the
+/// unique index. Only when no row matches that combination does the
+/// client-supplied id (or a freshly generated one, if empty) apply. `IS`
+/// (rather than `=`) matches the NULL legacy account_id correctly.
 async fn resolve_assignment_id(
     conn: &mut SqliteConnection,
     version_id: &str,
     employee_id: &str,
-    project_id: &str,
     date: &str,
+    account_id: Option<&str>,
     requested_id: &str,
 ) -> AppResult<String> {
     let existing: Option<String> = sqlx::query_scalar(
-        "SELECT id FROM assignment WHERE version_id = ?1 AND employee_id = ?2 AND project_id = ?3 AND date = ?4",
+        "SELECT id FROM assignment WHERE version_id = ?1 AND employee_id = ?2 AND date = ?4 AND account_id IS ?3",
     )
     .bind(version_id)
     .bind(employee_id)
-    .bind(project_id)
+    .bind(account_id)
     .bind(date)
     .fetch_optional(&mut *conn)
     .await?;

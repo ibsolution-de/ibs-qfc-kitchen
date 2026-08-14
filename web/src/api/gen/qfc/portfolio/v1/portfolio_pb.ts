@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file qfc/portfolio/v1/portfolio.proto.
  */
 export const file_qfc_portfolio_v1_portfolio: GenFile = /*@__PURE__*/
-  fileDesc("CiBxZmMvcG9ydGZvbGlvL3YxL3BvcnRmb2xpby5wcm90bxIQcWZjLnBvcnRmb2xpby52MSJkCglNaWxlc3RvbmUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRkYXRlGAMgASgJEi8KBXBoYXNlGAQgASgOMiAucWZjLnBvcnRmb2xpby52MS5NaWxlc3RvbmVQaGFzZSLGBQoHUHJvamVjdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBmNsaWVudBgDIAEoCRItCgVjb2xvchgEIAEoDjIeLnFmYy5wb3J0Zm9saW8udjEuUHJvamVjdENvbG9yEi8KBnN0YXR1cxgFIAEoDjIfLnFmYy5wb3J0Zm9saW8udjEuUHJvamVjdFN0YXR1cxITCgZ2b2x1bWUYBiABKAVIAIgBARIXCgpzdGFydF9kYXRlGAcgASgJSAGIAQESFQoIZW5kX2RhdGUYCCABKAlIAogBARITCgZidWRnZXQYCSABKAlIA4gBARISCgV0b3BpYxgKIAEoCUgEiAEBEhIKBW5vdGVzGAsgASgJSAWIAQESGAoLaXNfY3JpdGljYWwYDCABKAhIBogBARIYCgtob3VybHlfcmF0ZRgNIAEoCUgHiAEBEi8KCm1pbGVzdG9uZXMYDiADKAsyGy5xZmMucG9ydGZvbGlvLnYxLk1pbGVzdG9uZRIYCgtwcm9iYWJpbGl0eRgPIAEoBUgIiAEBEjMKBXN0YWdlGBAgASgOMh8ucWZjLnBvcnRmb2xpby52MS5QaXBlbGluZVN0YWdlSAmIAQESNAoGaGVhbHRoGBEgASgOMh8ucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0SGVhbHRoSAqIAQESIQoUbm9ydGhfc3Rhcl9tZXRyaWNfaWQYEiABKAlIC4gBAUIJCgdfdm9sdW1lQg0KC19zdGFydF9kYXRlQgsKCV9lbmRfZGF0ZUIJCgdfYnVkZ2V0QggKBl90b3BpY0IICgZfbm90ZXNCDgoMX2lzX2NyaXRpY2FsQg4KDF9ob3VybHlfcmF0ZUIOCgxfcHJvYmFiaWxpdHlCCAoGX3N0YWdlQgkKB19oZWFsdGhCFwoVX25vcnRoX3N0YXJfbWV0cmljX2lkIhUKE0xpc3RQcm9qZWN0c1JlcXVlc3QiQwoUTGlzdFByb2plY3RzUmVzcG9uc2USKwoIcHJvamVjdHMYASADKAsyGS5xZmMucG9ydGZvbGlvLnYxLlByb2plY3QiQgoUVXBzZXJ0UHJvamVjdFJlcXVlc3QSKgoHcHJvamVjdBgBIAEoCzIZLnFmYy5wb3J0Zm9saW8udjEuUHJvamVjdCJDChVVcHNlcnRQcm9qZWN0UmVzcG9uc2USKgoHcHJvamVjdBgBIAEoCzIZLnFmYy5wb3J0Zm9saW8udjEuUHJvamVjdCIiChREZWxldGVQcm9qZWN0UmVxdWVzdBIKCgJpZBgBIAEoCSIXChVEZWxldGVQcm9qZWN0UmVzcG9uc2UqwgEKDFByb2plY3RDb2xvchIdChlQUk9KRUNUX0NPTE9SX1VOU1BFQ0lGSUVEEAASFgoSUFJPSkVDVF9DT0xPUl9CTFVFEAESFwoTUFJPSkVDVF9DT0xPUl9HUkVFThACEhgKFFBST0pFQ1RfQ09MT1JfUFVSUExFEAMSGAoUUFJPSkVDVF9DT0xPUl9PUkFOR0UQBBIWChJQUk9KRUNUX0NPTE9SX1BJTksQBRIWChJQUk9KRUNUX0NPTE9SX0dSQVkQBiqkAQoNUHJvamVjdFN0YXR1cxIeChpQUk9KRUNUX1NUQVRVU19VTlNQRUNJRklFRBAAEhkKFVBST0pFQ1RfU1RBVFVTX0FDVElWRRABEh4KGlBST0pFQ1RfU1RBVFVTX09QUE9SVFVOSVRZEAISHAoYUFJPSkVDVF9TVEFUVVNfQ09NUExFVEVEEAMSGgoWUFJPSkVDVF9TVEFUVVNfT05fSE9MRBAEKr4BCg1QaXBlbGluZVN0YWdlEh4KGlBJUEVMSU5FX1NUQUdFX1VOU1BFQ0lGSUVEEAASFwoTUElQRUxJTkVfU1RBR0VfTEVBRBABEhwKGFBJUEVMSU5FX1NUQUdFX1FVQUxJRklFRBACEhsKF1BJUEVMSU5FX1NUQUdFX1BST1BPU0FMEAMSHgoaUElQRUxJTkVfU1RBR0VfTkVHT1RJQVRJT04QBBIZChVQSVBFTElORV9TVEFHRV9DTE9TRUQQBSqBAQoNUHJvamVjdEhlYWx0aBIeChpQUk9KRUNUX0hFQUxUSF9VTlNQRUNJRklFRBAAEhcKE1BST0pFQ1RfSEVBTFRIX0dPT0QQARIaChZQUk9KRUNUX0hFQUxUSF9XQVJOSU5HEAISGwoXUFJPSkVDVF9IRUFMVEhfQ1JJVElDQUwQAyqtAQoOTWlsZXN0b25lUGhhc2USHwobTUlMRVNUT05FX1BIQVNFX1VOU1BFQ0lGSUVEEAASHAoYTUlMRVNUT05FX1BIQVNFX1BMQU5OSU5HEAESHwobTUlMRVNUT05FX1BIQVNFX0RFVkVMT1BNRU5UEAISGwoXTUlMRVNUT05FX1BIQVNFX1RFU1RJTkcQAxIeChpNSUxFU1RPTkVfUEhBU0VfREVQTE9ZTUVOVBAEMrMCCg5Qcm9qZWN0U2VydmljZRJdCgxMaXN0UHJvamVjdHMSJS5xZmMucG9ydGZvbGlvLnYxLkxpc3RQcm9qZWN0c1JlcXVlc3QaJi5xZmMucG9ydGZvbGlvLnYxLkxpc3RQcm9qZWN0c1Jlc3BvbnNlEmAKDVVwc2VydFByb2plY3QSJi5xZmMucG9ydGZvbGlvLnYxLlVwc2VydFByb2plY3RSZXF1ZXN0GicucWZjLnBvcnRmb2xpby52MS5VcHNlcnRQcm9qZWN0UmVzcG9uc2USYAoNRGVsZXRlUHJvamVjdBImLnFmYy5wb3J0Zm9saW8udjEuRGVsZXRlUHJvamVjdFJlcXVlc3QaJy5xZmMucG9ydGZvbGlvLnYxLkRlbGV0ZVByb2plY3RSZXNwb25zZWIGcHJvdG8z");
+  fileDesc("CiBxZmMvcG9ydGZvbGlvL3YxL3BvcnRmb2xpby5wcm90bxIQcWZjLnBvcnRmb2xpby52MSJkCglNaWxlc3RvbmUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRkYXRlGAMgASgJEi8KBXBoYXNlGAQgASgOMiAucWZjLnBvcnRmb2xpby52MS5NaWxlc3RvbmVQaGFzZSLUAQoHQWNjb3VudBIKCgJpZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEgwKBG5hbWUYAyABKAkSLwoGc3RhdHVzGAQgASgOMh8ucWZjLnBvcnRmb2xpby52MS5BY2NvdW50U3RhdHVzEhcKCnN0YXJ0X2RhdGUYBSABKAlIAIgBARIVCghlbmRfZGF0ZRgGIAEoCUgBiAEBEhMKBmJ1ZGdldBgHIAEoCUgCiAEBQg0KC19zdGFydF9kYXRlQgsKCV9lbmRfZGF0ZUIJCgdfYnVkZ2V0IvMFCgdQcm9qZWN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGY2xpZW50GAMgASgJEi0KBWNvbG9yGAQgASgOMh4ucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0Q29sb3ISLwoGc3RhdHVzGAUgASgOMh8ucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0U3RhdHVzEhMKBnZvbHVtZRgGIAEoBUgAiAEBEhcKCnN0YXJ0X2RhdGUYByABKAlIAYgBARIVCghlbmRfZGF0ZRgIIAEoCUgCiAEBEhMKBmJ1ZGdldBgJIAEoCUgDiAEBEhIKBXRvcGljGAogASgJSASIAQESEgoFbm90ZXMYCyABKAlIBYgBARIYCgtpc19jcml0aWNhbBgMIAEoCEgGiAEBEhgKC2hvdXJseV9yYXRlGA0gASgJSAeIAQESLwoKbWlsZXN0b25lcxgOIAMoCzIbLnFmYy5wb3J0Zm9saW8udjEuTWlsZXN0b25lEhgKC3Byb2JhYmlsaXR5GA8gASgFSAiIAQESMwoFc3RhZ2UYECABKA4yHy5xZmMucG9ydGZvbGlvLnYxLlBpcGVsaW5lU3RhZ2VICYgBARI0CgZoZWFsdGgYESABKA4yHy5xZmMucG9ydGZvbGlvLnYxLlByb2plY3RIZWFsdGhICogBARIhChRub3J0aF9zdGFyX21ldHJpY19pZBgSIAEoCUgLiAEBEisKCGFjY291bnRzGBMgAygLMhkucWZjLnBvcnRmb2xpby52MS5BY2NvdW50QgkKB192b2x1bWVCDQoLX3N0YXJ0X2RhdGVCCwoJX2VuZF9kYXRlQgkKB19idWRnZXRCCAoGX3RvcGljQggKBl9ub3Rlc0IOCgxfaXNfY3JpdGljYWxCDgoMX2hvdXJseV9yYXRlQg4KDF9wcm9iYWJpbGl0eUIICgZfc3RhZ2VCCQoHX2hlYWx0aEIXChVfbm9ydGhfc3Rhcl9tZXRyaWNfaWQiFQoTTGlzdFByb2plY3RzUmVxdWVzdCJDChRMaXN0UHJvamVjdHNSZXNwb25zZRIrCghwcm9qZWN0cxgBIAMoCzIZLnFmYy5wb3J0Zm9saW8udjEuUHJvamVjdCJCChRVcHNlcnRQcm9qZWN0UmVxdWVzdBIqCgdwcm9qZWN0GAEgASgLMhkucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0IkMKFVVwc2VydFByb2plY3RSZXNwb25zZRIqCgdwcm9qZWN0GAEgASgLMhkucWZjLnBvcnRmb2xpby52MS5Qcm9qZWN0IiIKFERlbGV0ZVByb2plY3RSZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURlbGV0ZVByb2plY3RSZXNwb25zZSJCChRVcHNlcnRBY2NvdW50UmVxdWVzdBIqCgdhY2NvdW50GAEgASgLMhkucWZjLnBvcnRmb2xpby52MS5BY2NvdW50IkMKFVVwc2VydEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkucWZjLnBvcnRmb2xpby52MS5BY2NvdW50IiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSrCAQoMUHJvamVjdENvbG9yEh0KGVBST0pFQ1RfQ09MT1JfVU5TUEVDSUZJRUQQABIWChJQUk9KRUNUX0NPTE9SX0JMVUUQARIXChNQUk9KRUNUX0NPTE9SX0dSRUVOEAISGAoUUFJPSkVDVF9DT0xPUl9QVVJQTEUQAxIYChRQUk9KRUNUX0NPTE9SX09SQU5HRRAEEhYKElBST0pFQ1RfQ09MT1JfUElOSxAFEhYKElBST0pFQ1RfQ09MT1JfR1JBWRAGKqQBCg1Qcm9qZWN0U3RhdHVzEh4KGlBST0pFQ1RfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGQoVUFJPSkVDVF9TVEFUVVNfQUNUSVZFEAESHgoaUFJPSkVDVF9TVEFUVVNfT1BQT1JUVU5JVFkQAhIcChhQUk9KRUNUX1NUQVRVU19DT01QTEVURUQQAxIaChZQUk9KRUNUX1NUQVRVU19PTl9IT0xEEAQqvgEKDVBpcGVsaW5lU3RhZ2USHgoaUElQRUxJTkVfU1RBR0VfVU5TUEVDSUZJRUQQABIXChNQSVBFTElORV9TVEFHRV9MRUFEEAESHAoYUElQRUxJTkVfU1RBR0VfUVVBTElGSUVEEAISGwoXUElQRUxJTkVfU1RBR0VfUFJPUE9TQUwQAxIeChpQSVBFTElORV9TVEFHRV9ORUdPVElBVElPThAEEhkKFVBJUEVMSU5FX1NUQUdFX0NMT1NFRBAFKmsKDUFjY291bnRTdGF0dXMSHgoaQUNDT1VOVF9TVEFUVVNfVU5TUEVDSUZJRUQQABIcChhBQ0NPVU5UX1NUQVRVU19DT05GSVJNRUQQARIcChhBQ0NPVU5UX1NUQVRVU19SRVFVRVNURUQQAiqBAQoNUHJvamVjdEhlYWx0aBIeChpQUk9KRUNUX0hFQUxUSF9VTlNQRUNJRklFRBAAEhcKE1BST0pFQ1RfSEVBTFRIX0dPT0QQARIaChZQUk9KRUNUX0hFQUxUSF9XQVJOSU5HEAISGwoXUFJPSkVDVF9IRUFMVEhfQ1JJVElDQUwQAyqtAQoOTWlsZXN0b25lUGhhc2USHwobTUlMRVNUT05FX1BIQVNFX1VOU1BFQ0lGSUVEEAASHAoYTUlMRVNUT05FX1BIQVNFX1BMQU5OSU5HEAESHwobTUlMRVNUT05FX1BIQVNFX0RFVkVMT1BNRU5UEAISGwoXTUlMRVNUT05FX1BIQVNFX1RFU1RJTkcQAxIeChpNSUxFU1RPTkVfUEhBU0VfREVQTE9ZTUVOVBAEMvcDCg5Qcm9qZWN0U2VydmljZRJdCgxMaXN0UHJvamVjdHMSJS5xZmMucG9ydGZvbGlvLnYxLkxpc3RQcm9qZWN0c1JlcXVlc3QaJi5xZmMucG9ydGZvbGlvLnYxLkxpc3RQcm9qZWN0c1Jlc3BvbnNlEmAKDVVwc2VydFByb2plY3QSJi5xZmMucG9ydGZvbGlvLnYxLlVwc2VydFByb2plY3RSZXF1ZXN0GicucWZjLnBvcnRmb2xpby52MS5VcHNlcnRQcm9qZWN0UmVzcG9uc2USYAoNRGVsZXRlUHJvamVjdBImLnFmYy5wb3J0Zm9saW8udjEuRGVsZXRlUHJvamVjdFJlcXVlc3QaJy5xZmMucG9ydGZvbGlvLnYxLkRlbGV0ZVByb2plY3RSZXNwb25zZRJgCg1VcHNlcnRBY2NvdW50EiYucWZjLnBvcnRmb2xpby52MS5VcHNlcnRBY2NvdW50UmVxdWVzdBonLnFmYy5wb3J0Zm9saW8udjEuVXBzZXJ0QWNjb3VudFJlc3BvbnNlEmAKDURlbGV0ZUFjY291bnQSJi5xZmMucG9ydGZvbGlvLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GicucWZjLnBvcnRmb2xpby52MS5EZWxldGVBY2NvdW50UmVzcG9uc2ViBnByb3RvMw");
 
 /**
  * @generated from message qfc.portfolio.v1.Milestone
@@ -45,6 +45,69 @@ export type Milestone = Message<"qfc.portfolio.v1.Milestone"> & {
  */
 export const MilestoneSchema: GenMessage<Milestone> = /*@__PURE__*/
   messageDesc(file_qfc_portfolio_v1_portfolio, 0);
+
+/**
+ * A concrete engagement (Beauftragung) belonging to exactly one project.
+ * The server stores these in their own table and embeds them into
+ * `Project.accounts` on every read; clients manage them via
+ * `UpsertAccount`/`DeleteAccount`, never by sending them inside a
+ * `Project` upsert (the server strips them before persisting the blob).
+ *
+ * @generated from message qfc.portfolio.v1.Account
+ */
+export type Account = Message<"qfc.portfolio.v1.Account"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string project_id = 2;
+   */
+  projectId: string;
+
+  /**
+   * Free-form display label, e.g. "PO 2026-01" or "Rahmenvertrag".
+   *
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * @generated from field: qfc.portfolio.v1.AccountStatus status = 4;
+   */
+  status: AccountStatus;
+
+  /**
+   * YYYY-MM-DD calendar dates (dates convention: plain string, no time of
+   * day, no time zone), matching `Project.start_date`/`end_date`.
+   *
+   * @generated from field: optional string start_date = 5;
+   */
+  startDate?: string | undefined;
+
+  /**
+   * @generated from field: optional string end_date = 6;
+   */
+  endDate?: string | undefined;
+
+  /**
+   * The concrete budget of this account, as a decimal string in the same
+   * display convention as `Project.budget` (e.g. "80k" or "100000") —
+   * machine-readable money is deliberately avoided here the same way it is
+   * on the project; the client parses it via its `parseBudget` helper.
+   *
+   * @generated from field: optional string budget = 7;
+   */
+  budget?: string | undefined;
+};
+
+/**
+ * Describes the message qfc.portfolio.v1.Account.
+ * Use `create(AccountSchema)` to create a new message.
+ */
+export const AccountSchema: GenMessage<Account> = /*@__PURE__*/
+  messageDesc(file_qfc_portfolio_v1_portfolio, 1);
 
 /**
  * @generated from message qfc.portfolio.v1.Project
@@ -155,6 +218,15 @@ export type Project = Message<"qfc.portfolio.v1.Project"> & {
    * @generated from field: optional string north_star_metric_id = 18;
    */
   northStarMetricId?: string | undefined;
+
+  /**
+   * The project's accounts (Beauftragungen). Server-enriched: filled in on
+   * every read from the `account` table, stripped before the project blob
+   * is persisted (see `Account`'s comment).
+   *
+   * @generated from field: repeated qfc.portfolio.v1.Account accounts = 19;
+   */
+  accounts: Account[];
 };
 
 /**
@@ -162,7 +234,7 @@ export type Project = Message<"qfc.portfolio.v1.Project"> & {
  * Use `create(ProjectSchema)` to create a new message.
  */
 export const ProjectSchema: GenMessage<Project> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 1);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 2);
 
 /**
  * @generated from message qfc.portfolio.v1.ListProjectsRequest
@@ -175,7 +247,7 @@ export type ListProjectsRequest = Message<"qfc.portfolio.v1.ListProjectsRequest"
  * Use `create(ListProjectsRequestSchema)` to create a new message.
  */
 export const ListProjectsRequestSchema: GenMessage<ListProjectsRequest> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 2);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 3);
 
 /**
  * @generated from message qfc.portfolio.v1.ListProjectsResponse
@@ -192,7 +264,7 @@ export type ListProjectsResponse = Message<"qfc.portfolio.v1.ListProjectsRespons
  * Use `create(ListProjectsResponseSchema)` to create a new message.
  */
 export const ListProjectsResponseSchema: GenMessage<ListProjectsResponse> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 3);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 4);
 
 /**
  * @generated from message qfc.portfolio.v1.UpsertProjectRequest
@@ -209,7 +281,7 @@ export type UpsertProjectRequest = Message<"qfc.portfolio.v1.UpsertProjectReques
  * Use `create(UpsertProjectRequestSchema)` to create a new message.
  */
 export const UpsertProjectRequestSchema: GenMessage<UpsertProjectRequest> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 4);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 5);
 
 /**
  * @generated from message qfc.portfolio.v1.UpsertProjectResponse
@@ -226,7 +298,7 @@ export type UpsertProjectResponse = Message<"qfc.portfolio.v1.UpsertProjectRespo
  * Use `create(UpsertProjectResponseSchema)` to create a new message.
  */
 export const UpsertProjectResponseSchema: GenMessage<UpsertProjectResponse> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 5);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 6);
 
 /**
  * @generated from message qfc.portfolio.v1.DeleteProjectRequest
@@ -243,7 +315,7 @@ export type DeleteProjectRequest = Message<"qfc.portfolio.v1.DeleteProjectReques
  * Use `create(DeleteProjectRequestSchema)` to create a new message.
  */
 export const DeleteProjectRequestSchema: GenMessage<DeleteProjectRequest> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 6);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 7);
 
 /**
  * @generated from message qfc.portfolio.v1.DeleteProjectResponse
@@ -256,7 +328,71 @@ export type DeleteProjectResponse = Message<"qfc.portfolio.v1.DeleteProjectRespo
  * Use `create(DeleteProjectResponseSchema)` to create a new message.
  */
 export const DeleteProjectResponseSchema: GenMessage<DeleteProjectResponse> = /*@__PURE__*/
-  messageDesc(file_qfc_portfolio_v1_portfolio, 7);
+  messageDesc(file_qfc_portfolio_v1_portfolio, 8);
+
+/**
+ * @generated from message qfc.portfolio.v1.UpsertAccountRequest
+ */
+export type UpsertAccountRequest = Message<"qfc.portfolio.v1.UpsertAccountRequest"> & {
+  /**
+   * @generated from field: qfc.portfolio.v1.Account account = 1;
+   */
+  account?: Account | undefined;
+};
+
+/**
+ * Describes the message qfc.portfolio.v1.UpsertAccountRequest.
+ * Use `create(UpsertAccountRequestSchema)` to create a new message.
+ */
+export const UpsertAccountRequestSchema: GenMessage<UpsertAccountRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_portfolio_v1_portfolio, 9);
+
+/**
+ * @generated from message qfc.portfolio.v1.UpsertAccountResponse
+ */
+export type UpsertAccountResponse = Message<"qfc.portfolio.v1.UpsertAccountResponse"> & {
+  /**
+   * @generated from field: qfc.portfolio.v1.Account account = 1;
+   */
+  account?: Account | undefined;
+};
+
+/**
+ * Describes the message qfc.portfolio.v1.UpsertAccountResponse.
+ * Use `create(UpsertAccountResponseSchema)` to create a new message.
+ */
+export const UpsertAccountResponseSchema: GenMessage<UpsertAccountResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_portfolio_v1_portfolio, 10);
+
+/**
+ * @generated from message qfc.portfolio.v1.DeleteAccountRequest
+ */
+export type DeleteAccountRequest = Message<"qfc.portfolio.v1.DeleteAccountRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message qfc.portfolio.v1.DeleteAccountRequest.
+ * Use `create(DeleteAccountRequestSchema)` to create a new message.
+ */
+export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
+  messageDesc(file_qfc_portfolio_v1_portfolio, 11);
+
+/**
+ * @generated from message qfc.portfolio.v1.DeleteAccountResponse
+ */
+export type DeleteAccountResponse = Message<"qfc.portfolio.v1.DeleteAccountResponse"> & {
+};
+
+/**
+ * Describes the message qfc.portfolio.v1.DeleteAccountResponse.
+ * Use `create(DeleteAccountResponseSchema)` to create a new message.
+ */
+export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
+  messageDesc(file_qfc_portfolio_v1_portfolio, 12);
 
 /**
  * @generated from enum qfc.portfolio.v1.ProjectColor
@@ -384,6 +520,42 @@ export const PipelineStageSchema: GenEnum<PipelineStage> = /*@__PURE__*/
   enumDesc(file_qfc_portfolio_v1_portfolio, 2);
 
 /**
+ * An account (Beauftragung) is a concrete engagement a project is broken
+ * into: normally with its own start/end dates and a concrete budget, and
+ * either already received (`CONFIRMED`) or still being requested (e.g.
+ * verbally agreed, `REQUESTED`). Resources are planned onto accounts to
+ * check whether the account budget can be drawn.
+ *
+ * @generated from enum qfc.portfolio.v1.AccountStatus
+ */
+export enum AccountStatus {
+  /**
+   * @generated from enum value: ACCOUNT_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The engagement has been received.
+   *
+   * @generated from enum value: ACCOUNT_STATUS_CONFIRMED = 1;
+   */
+  CONFIRMED = 1,
+
+  /**
+   * Still in request (e.g. verbally agreed); budget not yet fixed.
+   *
+   * @generated from enum value: ACCOUNT_STATUS_REQUESTED = 2;
+   */
+  REQUESTED = 2,
+}
+
+/**
+ * Describes the enum qfc.portfolio.v1.AccountStatus.
+ */
+export const AccountStatusSchema: GenEnum<AccountStatus> = /*@__PURE__*/
+  enumDesc(file_qfc_portfolio_v1_portfolio, 3);
+
+/**
  * @generated from enum qfc.portfolio.v1.ProjectHealth
  */
 export enum ProjectHealth {
@@ -412,7 +584,7 @@ export enum ProjectHealth {
  * Describes the enum qfc.portfolio.v1.ProjectHealth.
  */
 export const ProjectHealthSchema: GenEnum<ProjectHealth> = /*@__PURE__*/
-  enumDesc(file_qfc_portfolio_v1_portfolio, 3);
+  enumDesc(file_qfc_portfolio_v1_portfolio, 4);
 
 /**
  * @generated from enum qfc.portfolio.v1.MilestonePhase
@@ -448,7 +620,7 @@ export enum MilestonePhase {
  * Describes the enum qfc.portfolio.v1.MilestonePhase.
  */
 export const MilestonePhaseSchema: GenEnum<MilestonePhase> = /*@__PURE__*/
-  enumDesc(file_qfc_portfolio_v1_portfolio, 4);
+  enumDesc(file_qfc_portfolio_v1_portfolio, 5);
 
 /**
  * @generated from service qfc.portfolio.v1.ProjectService
@@ -477,6 +649,25 @@ export const ProjectService: GenService<{
     methodKind: "unary";
     input: typeof DeleteProjectRequestSchema;
     output: typeof DeleteProjectResponseSchema;
+  },
+  /**
+   * Create/update one account; deletion cascades to the assignments
+   * planned against it.
+   *
+   * @generated from rpc qfc.portfolio.v1.ProjectService.UpsertAccount
+   */
+  upsertAccount: {
+    methodKind: "unary";
+    input: typeof UpsertAccountRequestSchema;
+    output: typeof UpsertAccountResponseSchema;
+  },
+  /**
+   * @generated from rpc qfc.portfolio.v1.ProjectService.DeleteAccount
+   */
+  deleteAccount: {
+    methodKind: "unary";
+    input: typeof DeleteAccountRequestSchema;
+    output: typeof DeleteAccountResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_qfc_portfolio_v1_portfolio, 0);

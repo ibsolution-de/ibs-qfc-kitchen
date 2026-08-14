@@ -103,6 +103,21 @@ describe('PlannerCell', () => {
     expect(screen.getByTestId('planner-cell-absence')).toBeInTheDocument();
   });
 
+  it('renders foreign context entries as dimmed, non-draggable chips', () => {
+    const contextAssignment: Assignment = {
+      id: 'foreign-1',
+      employeeId: 'e1',
+      projectId: 'p1',
+      date: '2024-06-10',
+      allocation: 0.5,
+    };
+    renderCell({ contextEntries: [contextAssignment] });
+    const chip = screen.getByTestId('planner-cell-context');
+    expect(chip).toHaveTextContent('Mission to Mars');
+    // Non-interactive: never draggable (own entries are draggable="true").
+    expect(chip).not.toHaveAttribute('draggable', 'true');
+  });
+
   it('overloaded cell shows overload styling', () => {
     renderCell({ isOverloaded: true });
     expect(screen.getByTestId('planner-cell-overload')).toBeInTheDocument();

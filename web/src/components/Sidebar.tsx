@@ -7,6 +7,7 @@ import { PlanVersion, Employee, Project } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { ConfirmDialog } from './ui/ConfirmDialog';
 import { diffVersions } from '../utils/versions';
+import { SYSTEM_OWNER, isLatestOfOwner, canEditVersion } from '../utils/planAggregate';
 import { hasPlanningAccess } from '../utils/access';
 import { useSettings } from '../contexts/SettingsContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -104,13 +105,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   }, [editingVersionId]);
 
-  const latestVersionId = versions[versions.length - 1]?.id;
-
   const startEditing = (version: PlanVersion) => {
     setEditingVersionId(version.id);
     setEditingName(version.name);
   };
-
   const handleCompareSelect = (id: string) => {
     if (compareBaseId === null) {
       setCompareBaseId(id);
@@ -325,7 +323,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-1 relative">
                   {versions.slice().reverse().map((version) => {
                       const isActive = activeVersionId === version.id;
-                      const isLatest = version.id === latestVersionId;
+                      // "Latest" is per owner: every PM's newest revision is
+                      // current for them; everything else — including all
+                      // system-owned baseline/snapshot revisions — is frozen.
+                      const isLatest = isLatestOfOwner(version, versions);
+                      // Rename only the caller's own newest revision; the
+                      // server enforces the same gate on update_version_meta.
+                      const canRename = canEditVersion(version, user.id, versions);
+                      // Delete mirrors the server: the owner (or a bl
+                      // managing their plans) may delete any non-system
+                      // revision; the per-owner latest stays protected
+                      // client-side, as before.
+                      const isOwnedOrManaged = version.owner === user.id || isRole('bl');
+                      const canDelete =
+                        version.owner !== SYSTEM_OWNER && isOwnedOrManaged && !isLatest;
                       const isEditing = editingVersionId === version.id;
                       const isSelectedCompare = compareBaseId === version.id || compareTargetId === version.id;
 
@@ -373,11 +384,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                           className="w-full text-sm font-medium leading-tight text-charcoal-900 bg-white border border-charcoal-200 rounded px-2 py-1 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                         />
                                       ) : (
-                                        <div className={`text-sm font-medium leading-tight ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
-                                            {version.name}
-                                        </div>
+                                        <>
+                                          <div className={`text-sm font-medium leading-tight ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
+                                              {version.name}
+                                          </div>
+                                          <div className="text-[10px] text-charcoal-400 leading-tight">
+                                              {version.ownerName}
+                                          </div>
+                                        </>
                                       )}
-                                      {!isEditing && !compareMode && (
+                                      {!isEditing && !compareMode && canRename && (
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                           <button
                                             onClick={(e) => {
@@ -390,7 +406,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                           >
                                             <Pencil className="w-3 h-3" />
                                           </button>
-                                          {!isLatest && (
+                                          {canDelete && (
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();

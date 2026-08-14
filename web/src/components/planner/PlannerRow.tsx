@@ -8,6 +8,8 @@ export interface CellViewModel {
   date: Date;
   dateStr: string;
   entries: Assignment[];
+  /** Foreign (other PM) assignments on this day — rendered dimmed, non-interactive. */
+  contextEntries: Assignment[];
   absence: Absence | undefined;
   holiday: PublicHoliday | undefined;
   isInteractive: boolean;
@@ -144,6 +146,7 @@ export const PlannerRow = React.memo<PlannerRowProps>(function PlannerRow({
           date={cell.date}
           employee={employee}
           entries={cell.entries}
+          contextEntries={cell.contextEntries}
           projectMap={projectMap}
           absence={cell.absence}
           holiday={cell.holiday}

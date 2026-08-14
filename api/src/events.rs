@@ -316,6 +316,7 @@ fn decode_body(kind: EntityKind, payload: Option<&[u8]>) -> AppResult<Option<Bod
         EntityKind::Employee => Body::from(team::Employee::decode_from_slice(bytes)?),
         EntityKind::Customer => Body::from(crm::Customer::decode_from_slice(bytes)?),
         EntityKind::Project => Body::from(portfolio::Project::decode_from_slice(bytes)?),
+        EntityKind::Account => Body::from(portfolio::Account::decode_from_slice(bytes)?),
         EntityKind::PlanVersion => Body::from(planning::PlanVersionMeta::decode_from_slice(bytes)?),
         EntityKind::Assignment => Body::from(planning::Assignment::decode_from_slice(bytes)?),
         EntityKind::Absence => Body::from(planning::Absence::decode_from_slice(bytes)?),

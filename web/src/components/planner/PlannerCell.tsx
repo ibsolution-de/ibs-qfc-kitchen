@@ -20,6 +20,8 @@ export interface PlannerCellProps {
   date: Date;
   employee: Employee;
   entries: Assignment[];
+  /** Foreign (other PM) assignments on this day — dimmed, never interactive. */
+  contextEntries?: Assignment[];
   projectMap: Map<string, Project>;
   absence: Absence | undefined;
   holiday: PublicHoliday | undefined;
@@ -52,6 +54,7 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
   date,
   employee,
   entries,
+  contextEntries = [],
   projectMap,
   absence,
   holiday,
@@ -280,6 +283,42 @@ export const PlannerCell = React.memo<PlannerCellProps>(function PlannerCell({
                     <X className="w-2.5 h-2.5 pointer-coarse:w-3.5 pointer-coarse:h-3.5" />
                   </button>
                 )}
+              </div>
+            );
+          })}
+
+        {!absence &&
+          !holiday &&
+          contextEntries.map((a) => {
+            const proj = projectMap.get(a.projectId);
+            if (!proj) return null;
+
+            const hours = allocationToHours(a.allocation || 1);
+            const formattedHours =
+              hours % 1 === 0 ? hours.toString() : hours.toFixed(1).replace(/\.0$/, '');
+
+            // Foreign (other PM) plans are context only: dimmed, never
+            // draggable/clickable, never counted in overload/conflict.
+            return (
+              <div
+                key={a.id}
+                data-testid="planner-cell-context"
+                title={t('planner.foreignContext')}
+                className={`
+                  text-[9px] pl-1 pr-0.5 py-0.5 rounded border shadow-sm select-none
+                  opacity-60 cursor-default flex items-center justify-between gap-1 pointer-events-none
+                  ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).bg}
+                  ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).text}
+                  ${(PASTEL_VARIANTS[proj.color] ?? PASTEL_VARIANTS.gray).border}
+                `}
+              >
+                <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+                  <Folder className="w-2.5 h-2.5 flex-shrink-0" />
+                  <span className="truncate">{proj.name}</span>
+                  <span className="text-[8px] font-bold opacity-70 border border-current px-0.5 rounded whitespace-nowrap">
+                    {formattedHours}h
+                  </span>
+                </div>
               </div>
             );
           })}

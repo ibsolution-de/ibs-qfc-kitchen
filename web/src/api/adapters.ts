@@ -33,13 +33,16 @@ import {
 import {
   ProjectSchema,
   MilestoneSchema,
+  AccountSchema,
   ProjectColor,
   ProjectStatus,
   PipelineStage,
   ProjectHealth,
   MilestonePhase,
+  AccountStatus,
   type Project as ProjectProto,
   type Milestone as MilestoneProto,
+  type Account as AccountProto,
 } from './gen/qfc/portfolio/v1/portfolio_pb.js';
 import {
   CustomerSchema,
@@ -84,6 +87,7 @@ import type {
   IkigaiItem,
   Project,
   Milestone,
+  Account,
   Customer,
   Assignment,
   Absence,
@@ -224,6 +228,11 @@ export const milestonePhaseMapping: EnumMapping<MilestonePhase, Milestone['phase
   [MilestonePhase.DEVELOPMENT, 'development'],
   [MilestonePhase.TESTING, 'testing'],
   [MilestonePhase.DEPLOYMENT, 'deployment'],
+]);
+
+export const accountStatusMapping: EnumMapping<AccountStatus, Account['status']> = buildEnumMapping([
+  [AccountStatus.CONFIRMED, 'confirmed'],
+  [AccountStatus.REQUESTED, 'requested'],
 ]);
 
 export const employmentTypeMapping: EnumMapping<EmploymentType, Employee['type']> = buildEnumMapping([
@@ -404,7 +413,35 @@ export function customersToProto(customers: readonly Customer[]): CustomerProto[
 }
 
 // ---------------------------------------------------------------------------
-// Project (+ nested Milestone)
+// Account
+// ---------------------------------------------------------------------------
+
+export function accountFromProto(account: AccountProto): Account {
+  return {
+    id: account.id,
+    projectId: account.projectId,
+    name: account.name,
+    status: requiredEnumFromProto(accountStatusMapping, account.status, 'Account', account.id, 'status'),
+    startDate: account.startDate,
+    endDate: account.endDate,
+    budget: account.budget,
+  };
+}
+
+export function accountToProto(account: Account): AccountProto {
+  return create(AccountSchema, {
+    id: account.id,
+    projectId: account.projectId,
+    name: account.name,
+    status: requiredEnumToProto(accountStatusMapping, account.status),
+    startDate: account.startDate,
+    endDate: account.endDate,
+    budget: account.budget,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Project (+ nested Milestone, Account)
 // ---------------------------------------------------------------------------
 
 export function milestoneFromProto(milestone: MilestoneProto): Milestone {
@@ -456,6 +493,7 @@ export function projectFromProto(project: ProjectProto): Project {
     isCritical: project.isCritical,
     hourlyRate: hourlyRateFromProto(project),
     milestones: project.milestones.length > 0 ? project.milestones.map(milestoneFromProto) : undefined,
+    accounts: project.accounts.map(accountFromProto),
     probability: project.probability,
     stage: optionalEnumFromProto(pipelineStageMapping, project.stage),
     health: optionalEnumFromProto(projectHealthMapping, project.health),
@@ -479,6 +517,10 @@ export function projectToProto(project: Project): ProjectProto {
     isCritical: project.isCritical,
     hourlyRate: project.hourlyRate === undefined ? undefined : String(project.hourlyRate),
     milestones: (project.milestones ?? []).map(milestoneToProto),
+    // The server stores accounts in their own table and strips them from
+    // the project blob before persisting; sending them on the wire is
+    // harmless and keeps the domain round-trip complete.
+    accounts: (project.accounts ?? []).map(accountToProto),
     probability: project.probability,
     stage: optionalEnumToProto(pipelineStageMapping, project.stage),
     health: optionalEnumToProto(projectHealthMapping, project.health),
@@ -506,6 +548,7 @@ export function assignmentFromProto(assignment: AssignmentProto): Assignment {
     projectId: assignment.projectId,
     date: assignment.date,
     allocation: assignment.allocation,
+    accountId: assignment.accountId,
   };
 }
 
@@ -517,6 +560,7 @@ export function assignmentToProto(assignment: Assignment, versionId: string): As
     projectId: assignment.projectId,
     date: assignment.date,
     allocation: assignment.allocation,
+    accountId: assignment.accountId,
   });
 }
 
@@ -718,6 +762,8 @@ export function planVersionFromProto(
       name: meta.name,
       description: meta.description,
       createdAt: Number(meta.createdAtMillis),
+      owner: meta.owner,
+      ownerName: meta.ownerName,
       assignments: assignmentsFromProto(planVersion.assignments),
       absences: absencesFromProto(planVersion.absences),
       forecastData,
@@ -734,6 +780,8 @@ export function planVersionToProto(planVersion: PlanVersion): PlanVersionProto {
       name: planVersion.name,
       description: planVersion.description,
       createdAtMillis: BigInt(planVersion.createdAt),
+      owner: planVersion.owner,
+      ownerName: planVersion.ownerName,
     }),
     assignments: assignmentsToProto(planVersion.assignments, planVersion.id),
     absences: absencesToProto(planVersion.absences, planVersion.id),

@@ -20,6 +20,8 @@ import {
   projectsFromProto,
   projectFromProto,
   projectToProto,
+  accountFromProto,
+  accountToProto,
   planVersionFromProto,
   assignmentFromProto,
   assignmentToProto,
@@ -42,6 +44,7 @@ import { EntityKind, ChangeOp, type ChangeEvent } from './gen/qfc/events/v1/even
 import type {
   Employee,
   Project,
+  Account,
   Customer,
   PlanVersion,
   PublicHoliday,
@@ -74,6 +77,8 @@ export interface LiveStore extends LiveStoreState {
   deleteEmployee(id: string): Promise<void>;
   saveProject(project: Project): Promise<Project>;
   deleteProject(id: string): Promise<void>;
+  saveAccount(account: Account): Promise<Account>;
+  deleteAccount(id: string): Promise<void>;
   saveCustomer(customer: Customer): Promise<Customer>;
   deleteCustomer(id: string): Promise<void>;
   createVersion(name: string, description?: string, copyFromVersionId?: string): Promise<PlanVersion>;
@@ -243,12 +248,37 @@ export function applyChangeEvent(prev: LiveStoreState, event: ChangeEvent): Live
         };
       }
       if (event.body.case !== 'project') return prev;
-      const project = projectFromProto(event.body.value);
+      // The server stores accounts in their own table and strips them from
+      // the project blob, so the event's `project` always carries an empty
+      // accounts list. Preserve whatever the previous entry had - otherwise
+      // every PROJECT event would wipe the accounts of the matching project.
+      const existing = prev.projects.find(pp => pp.id === event.entityId);
+      const merged = { ...projectFromProto(event.body.value), accounts: existing?.accounts ?? [] };
       return {
         ...prev,
-        projects: upsertById(prev.projects, project),
-        versions: updateEmbeddedProjects(prev.versions, event.entityId, project),
+        projects: upsertById(prev.projects, merged),
+        versions: updateEmbeddedProjects(prev.versions, event.entityId, merged),
       };
+    }
+
+    case EntityKind.ACCOUNT: {
+      const patchAccounts = (projects: Project[]): Project[] => {
+        if (event.op === ChangeOp.DELETE) {
+          return projects.map(pp =>
+            (pp.accounts ?? []).some(account => account.id === event.entityId)
+              ? { ...pp, accounts: (pp.accounts ?? []).filter(account => account.id !== event.entityId) }
+              : pp
+          );
+        }
+        if (event.body.case !== 'account') return projects;
+        const account = accountFromProto(event.body.value);
+        return projects.map(pp =>
+          pp.id === account.projectId
+            ? { ...pp, accounts: upsertById(pp.accounts ?? [], account) }
+            : pp
+        );
+      };
+      return { ...prev, projects: patchAccounts(prev.projects) };
     }
 
     case EntityKind.STRATEGIC_GOAL: {
@@ -283,12 +313,21 @@ export function applyChangeEvent(prev: LiveStoreState, event: ChangeEvent): Live
       const meta = event.body.value;
       const existing = prev.versions.find(version => version.id === meta.id);
       const merged: PlanVersion = existing
-        ? { ...existing, name: meta.name, description: meta.description, createdAt: Number(meta.createdAtMillis) }
+        ? {
+            ...existing,
+            name: meta.name,
+            description: meta.description,
+            createdAt: Number(meta.createdAtMillis),
+            owner: meta.owner,
+            ownerName: meta.ownerName,
+          }
         : {
             id: meta.id,
             name: meta.name,
             description: meta.description,
             createdAt: Number(meta.createdAtMillis),
+            owner: meta.owner,
+            ownerName: meta.ownerName,
             // Only the meta is carried on the wire; a follow-up GetVersion
             // (triggered by the watch loop) fills these in for a version
             // created elsewhere that we haven't seen before.
@@ -649,6 +688,33 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setData(prev => ({ ...prev, projects: removeById(prev.projects, id) }));
   }, []);
 
+  const saveAccount = useCallback(async (account: Account): Promise<Account> => {
+    const response = await projectClient.upsertAccount({ account: accountToProto(account) });
+    if (!response.account) throw new Error('UpsertAccount: server returned no account');
+    const saved = accountFromProto(response.account);
+    setData(prev => ({
+      ...prev,
+      projects: prev.projects.map(pp =>
+        pp.id === saved.projectId
+          ? { ...pp, accounts: upsertById(pp.accounts ?? [], saved) }
+          : pp
+      ),
+    }));
+    return saved;
+  }, []);
+
+  const deleteAccount = useCallback(async (id: string): Promise<void> => {
+    await projectClient.deleteAccount({ id });
+    setData(prev => ({
+      ...prev,
+      projects: prev.projects.map(pp =>
+        (pp.accounts ?? []).some(account => account.id === id)
+          ? { ...pp, accounts: (pp.accounts ?? []).filter(account => account.id !== id) }
+          : pp
+      ),
+    }));
+  }, []);
+
   const saveCustomer = useCallback(async (customer: Customer): Promise<Customer> => {
     const response = await customerClient.upsertCustomer({ customer: customerToProto(customer) });
     if (!response.customer) throw new Error('UpsertCustomer: server returned no customer');
@@ -687,6 +753,8 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         name: meta.name,
         description: meta.description,
         createdAt: Number(meta.createdAtMillis),
+        owner: meta.owner,
+        ownerName: meta.ownerName,
       };
       setData(prev => ({ ...prev, versions: upsertById(prev.versions, updated) }));
       return updated;
@@ -822,6 +890,8 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteEmployee,
       saveProject,
       deleteProject,
+      saveAccount,
+      deleteAccount,
       saveCustomer,
       deleteCustomer,
       createVersion,
@@ -843,6 +913,8 @@ export const LiveStoreProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       deleteEmployee,
       saveProject,
       deleteProject,
+      saveAccount,
+      deleteAccount,
       saveCustomer,
       deleteCustomer,
       createVersion,

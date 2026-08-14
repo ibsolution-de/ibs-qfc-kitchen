@@ -426,6 +426,8 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     id: 'v1',
     name: 'Initial Q1 2026 Plan',
     createdAt: 1765792800000, // 2025-12-15T10:00:00Z
+    owner: 'system',
+    ownerName: 'System',
     assignments: ASSIGNMENTS_Q1_2026_INITIAL,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q1_2026_INITIAL
@@ -434,6 +436,8 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     id: 'v2',
     name: 'Adjusted Q1 2026 Plan after QFC Call',
     createdAt: 1768919400000, // 2026-01-20T14:30:00Z
+    owner: 'system',
+    ownerName: 'System',
     assignments: ASSIGNMENTS_Q1_2026_ADJUSTED,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q1_2026_ADJUSTED
@@ -442,6 +446,8 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     id: 'v3',
     name: 'Draft Q2 2026 Plan',
     createdAt: 1772270100000, // 2026-02-28T09:15:00Z
+    owner: 'system',
+    ownerName: 'System',
     assignments: ASSIGNMENTS_Q2_2026,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q2_2026
@@ -450,6 +456,8 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     id: 'v4',
     name: 'Current Q2 2026 Plan (Reduced March Load)',
     createdAt: 1772528400000, // 2026-03-03T09:00:00Z
+    owner: 'system',
+    ownerName: 'System',
     assignments: ASSIGNMENTS_Q2_2026_CURRENT,
     absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q2_2026

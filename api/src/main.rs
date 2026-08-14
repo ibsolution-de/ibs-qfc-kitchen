@@ -100,11 +100,13 @@ async fn main() {
             state.pool.clone(),
             state.hub.clone(),
         )))
-        .add_service(Arc::new(services::planning::PlanningServiceImpl::new_with_retention(
-            state.pool.clone(),
-            state.hub.clone(),
-            state.config.plan_revision_retention,
-        )))
+        .add_service(Arc::new(
+            services::planning::PlanningServiceImpl::new_with_retention(
+                state.pool.clone(),
+                state.hub.clone(),
+                state.config.plan_revision_retention,
+            ),
+        ))
         .into_axum_router();
 
     let auth_state = auth::AuthState {

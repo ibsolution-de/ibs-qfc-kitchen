@@ -259,7 +259,11 @@ impl AdminService for AdminServiceImpl {
 /// Build the wire `AppSettings` from a resolved (or environment) value
 /// triple — one place so `effective` and `environment` can never drift in
 /// shape.
-fn app_settings(default_role: UserRole, admin_emails: Vec<String>, plan_revision_retention: i64) -> AppSettings {
+fn app_settings(
+    default_role: UserRole,
+    admin_emails: Vec<String>,
+    plan_revision_retention: i64,
+) -> AppSettings {
     AppSettings {
         default_role: default_role.into(),
         admin_emails,

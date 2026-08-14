@@ -55,4 +55,69 @@ describe('FinancialOverview charts mount smoke', () => {
       svg?.getAttribute('aria-label') ?? document.querySelector('[aria-label]')?.getAttribute('aria-label');
     expect(labeled).toBeTruthy();
   });
+
+  it('forecasts only confirmed account budgets over their dates; projects without accounts fall back to project dates/budget', () => {
+    const projectsWithAccounts: Project[] = [
+      {
+        id: 'pAcc',
+        name: 'Gamma',
+        client: 'Client C',
+        color: 'purple',
+        status: 'active',
+        budget: '200000', // ignored while accounts exist
+        startDate: '2026-04-01',
+        endDate: '2026-12-31',
+        accounts: [
+          { id: 'a1', projectId: 'pAcc', name: 'Core', status: 'confirmed', budget: '120000', startDate: '2026-04-01', endDate: '2026-12-31' },
+          { id: 'a2', projectId: 'pAcc', name: 'Optional', status: 'requested', budget: '80000', startDate: '2026-04-01', endDate: '2026-12-31' },
+        ],
+      },
+      {
+        id: 'pEst',
+        name: 'Delta',
+        client: 'Client D',
+        color: 'gray',
+        status: 'active',
+        budget: '100000',
+        startDate: '2026-04-01',
+        endDate: '2026-06-30',
+      },
+    ];
+
+    render(
+      <LanguageProvider>
+        <FinancialOverview projects={projectsWithAccounts} assignments={[]} currentDate={new Date('2026-04-01')} />
+      </LanguageProvider>
+    );
+
+    // Parse the sr-only chart-data table into quarter|client → revenue (rounded k).
+    const byQuarterClient: Record<string, number> = {};
+    document.querySelectorAll('table.sr-only tbody tr').forEach(row => {
+      const cells = Array.from(row.querySelectorAll('td')).map(td => td.textContent ?? '');
+      const [quarter, client, revenue] = cells;
+      if (!quarter || !client) return;
+      const k = Math.round(parseFloat(revenue?.replace(/[^\d.]/g, '') || '0'));
+      const key = `${quarter}|${client}`;
+      byQuarterClient[key] = (byQuarterClient[key] ?? 0) + k;
+    });
+
+    const totalFor = (client: string) =>
+      Object.entries(byQuarterClient)
+        .filter(([key]) => key.endsWith(`|${client}`))
+        .reduce((sum, [, v]) => sum + v, 0);
+
+    // Client C: only the confirmed 120k account is forecast — the requested
+    // 80k account and the 200k project estimate must stay out.
+    expect(totalFor('Client C')).toBeGreaterThanOrEqual(118);
+    expect(totalFor('Client C')).toBeLessThanOrEqual(122);
+
+    // Client D: no accounts → project-level fallback (100k over project dates).
+    expect(totalFor('Client D')).toBeGreaterThanOrEqual(98);
+    expect(totalFor('Client D')).toBeLessThanOrEqual(102);
+
+    // The confirmed budget is distributed over the account's own date window:
+    // nothing lands in Q1 2027 (account ends 2026-12-31), Q2 2026 is positive.
+    expect(byQuarterClient['Q1 2027|Client C'] ?? 0).toBe(0);
+    expect(byQuarterClient['Q2 2026|Client C'] ?? 0).toBeGreaterThan(0);
+  });
 });

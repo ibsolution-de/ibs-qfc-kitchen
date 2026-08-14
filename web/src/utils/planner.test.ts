@@ -119,6 +119,72 @@ describe('planner', () => {
       expect(second.assignments).toHaveLength(4);
       expect(second.absences).toHaveLength(0);
     });
+
+    it('carries a draft accountId onto created assignments', () => {
+      const result = mergeDayEntries({
+        assignments: [],
+        absences: [],
+        draftAssignments: [{ projectId, allocation: 0.5, accountId: 'acct-1' }],
+        draftAbsence: null,
+        employeeId,
+        dates: ['2024-06-10'],
+        mode: 'project',
+      });
+
+      expect(result.assignments).toHaveLength(1);
+      expect(result.assignments[0]!).toMatchObject({
+        employeeId,
+        projectId,
+        date: '2024-06-10',
+        allocation: 0.5,
+        accountId: 'acct-1',
+      });
+    });
+
+    it('keeps the accountId when hours are updated on an existing assignment', () => {
+      const existing = mergeDayEntries({
+        assignments: [],
+        absences: [],
+        draftAssignments: [{ projectId, allocation: 1, accountId: 'acct-1' }],
+        draftAbsence: null,
+        employeeId,
+        dates: ['2024-06-10'],
+        mode: 'project',
+      }).assignments;
+
+      // The modal re-saves with the same assignmentId + accountId after an
+      // hours slider change (drafts are initialized from the existing row).
+      const updated = mergeDayEntries({
+        assignments: existing,
+        absences: [],
+        draftAssignments: [{ projectId, allocation: 0.5, assignmentId: existing[0]!.id, accountId: 'acct-1' }],
+        draftAbsence: null,
+        employeeId,
+        dates: ['2024-06-10'],
+        mode: 'project',
+      });
+
+      expect(updated.assignments).toHaveLength(1);
+      expect(updated.assignments[0]!).toMatchObject({
+        id: existing[0]!.id,
+        allocation: 0.5,
+        accountId: 'acct-1',
+      });
+    });
+
+    it('leaves accountId unset for legacy (non-account) drafts', () => {
+      const result = mergeDayEntries({
+        assignments: [],
+        absences: [],
+        draftAssignments: [{ projectId, allocation: 0.5 }],
+        draftAbsence: null,
+        employeeId,
+        dates: ['2024-06-10'],
+        mode: 'project',
+      });
+
+      expect(result.assignments[0]!.accountId).toBeUndefined();
+    });
   });
 
   describe('computeTargetDates', () => {

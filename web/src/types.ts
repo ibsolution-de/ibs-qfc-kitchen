@@ -7,12 +7,32 @@ export interface Milestone {
   phase: 'planning' | 'development' | 'testing' | 'deployment';
 }
 
+export type AccountStatus = 'confirmed' | 'requested';
+
+export interface Account {
+  id: string;
+  projectId: string;
+  name: string;
+  status: AccountStatus;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+  budget?: string;    // display string, e.g. "80k" (parsed via utils/money parseBudget)
+}
+
 export interface Project {
   id: string;
   name: string;
   client: string;
   color: 'blue' | 'green' | 'purple' | 'orange' | 'pink' | 'gray';
   status: 'active' | 'opportunity' | 'completed' | 'on_hold';
+  /**
+   * The project's accounts (Beauftragungen). Marked optional only to keep
+   * callers that never deal with accounts (and out-of-slice fixtures)
+   * working; the API layer always materializes it: `projectFromProto`
+   * defaults it to `[]` and the live store preserves it across PROJECT
+   * events (the server strips accounts from project blobs).
+   */
+  accounts?: Account[];
   volume?: number; // Days
   startDate?: string;
   endDate?: string;
@@ -81,6 +101,8 @@ export interface Assignment {
   projectId: string;
   date: string; // ISO YYYY-MM-DD
   allocation: number; // fraction of an 8h day, range 0.1–1.0; overload is evaluated against employee availability.
+  /** The account (Beauftragung) the work is planned against; unset = legacy project-level planning. */
+  accountId?: string;
 }
 
 export interface Absence {
@@ -113,6 +135,10 @@ export interface PlanVersion {
   name: string;
   description?: string;
   createdAt: number; // epoch millis
+  /** Owning PM's email; 'system' for the deployment baseline and automatic quarterly snapshots. */
+  owner: string;
+  /** Display name for `owner`: the user's name, 'System', or the owner string itself. */
+  ownerName: string;
   assignments: Assignment[];
   absences: Absence[]; // Versioned absences
   forecastData: QuarterData[];

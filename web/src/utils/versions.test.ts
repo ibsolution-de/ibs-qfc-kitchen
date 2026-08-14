@@ -6,6 +6,8 @@ const baseVersion = (overrides: Partial<PlanVersion> = {}): PlanVersion => ({
   id: 'v1',
   name: 'Base',
   createdAt: 1704067200000, // 2024-01-01T00:00:00Z
+  owner: 'system',
+  ownerName: 'System',
   assignments: [],
   absences: [],
   forecastData: [],
