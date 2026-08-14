@@ -1009,21 +1009,6 @@ async fn delete_version_cascades_and_refuses_last_version() {
     .unwrap_or_default()
     .id;
 
-    let b_id = create_version(
-        &svc,
-        ACTOR,
-        CreateVersionRequest {
-            name: "B".to_string(),
-            ..Default::default()
-        },
-    )
-    .await
-    .expect("create B")
-    .meta
-    .into_option()
-    .unwrap_or_default()
-    .id;
-
     apply_assignments(
         &svc,
         ACTOR,
@@ -1077,6 +1062,21 @@ async fn delete_version_cascades_and_refuses_last_version() {
     assert_eq!(assignment_row_count(&pool, &a_id).await, 1);
     assert_eq!(absence_row_count(&pool, &a_id).await, 1);
     assert_eq!(quarter_data_row_count(&pool, &a_id).await, 1);
+
+    let b_id = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "B".to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create B")
+    .meta
+    .into_option()
+    .unwrap_or_default()
+    .id;
 
     delete_version(&svc, ACTOR, &a_id)
         .await
@@ -1321,7 +1321,8 @@ async fn quarterly_snapshot_deep_copies_latest_state_and_runs_only_once() {
 #[tokio::test]
 async fn list_versions_prunes_to_configured_retention_and_keeps_the_latest() {
     let (pool, db) = common::temp_pool("planning").await;
-    // Environment fallback: keep only 2 revisions.
+    // Environment fallback: keep only 2 user revisions. The baseline is
+    // protected and does not count toward retention.
     let svc = PlanningServiceImpl::new_with_retention(pool.clone(), events::Hub::new(), 2);
 
     // Seed four revisions directly (skipping the service) with staggered
@@ -1344,15 +1345,22 @@ async fn list_versions_prunes_to_configured_retention_and_keeps_the_latest() {
     assert_eq!(plan_version_row_count(&pool).await, 5);
 
     let versions = list_versions(&svc).await.expect("list versions");
-    // The quarterly snapshot is created (newest), then pruning cuts to the
-    // two newest. The migration baseline is created at migration time (=
-    // now, newer than the back-dated seeds), so the survivors are the
-    // baseline + the snapshot; the four back-dated seeds are pruned.
-    assert_eq!(versions.len(), 2, "only the newest 2 revisions remain");
-    assert_eq!(plan_version_row_count(&pool).await, 2);
-    assert_eq!(versions[0].id, BASELINE_VERSION_ID);
-    assert_eq!(versions[0].name, "2026");
-    assert!(versions[1].name.starts_with('Q'));
+    // The quarterly snapshot is created (newest), then pruning cuts user
+    // revisions to the two newest while keeping the baseline. The migration
+    // baseline is created at migration time (= now, newer than the back-dated
+    // seeds), so the survivors are the baseline + the two newest user
+    // revisions (seed-3 and the snapshot); the three oldest back-dated seeds
+    // are pruned.
+    assert_eq!(versions.len(), 3, "baseline + 2 newest user revisions remain");
+    assert_eq!(plan_version_row_count(&pool).await, 3);
+    let names: std::collections::HashSet<String> =
+        versions.iter().map(|v| v.name.clone()).collect();
+    assert!(names.contains("2026"), "baseline must survive");
+    assert!(names.contains("Newest-Before-Snapshot"), "seed-3 must survive");
+    assert!(
+        versions.iter().any(|v| v.name.starts_with('Q')),
+        "quarterly snapshot must survive"
+    );
 
     // Pruned revisions are announced as DELETE events, so connected clients
     // drop the frozen view as it disappears.
@@ -1364,7 +1372,7 @@ async fn list_versions_prunes_to_configured_retention_and_keeps_the_latest() {
     .fetch_one(&pool)
     .await
     .expect("count delete events");
-    assert_eq!(delete_events, 4, "all four back-dated seeds pruned");
+    assert_eq!(delete_events, 3, "three oldest seeds pruned");
 
     db.cleanup(pool).await;
 }
@@ -1373,7 +1381,8 @@ async fn list_versions_prunes_to_configured_retention_and_keeps_the_latest() {
 async fn meta_retention_override_wins_over_environment() {
     let (pool, db) = common::temp_pool("planning").await;
     // Environment says 10, but the meta override (what the admin UI
-    // writes) says 2 — the override must win.
+    // writes) says 2 — the override must win. The baseline is protected
+    // and does not count toward the 2 user revisions.
     let svc = PlanningServiceImpl::new_with_retention(pool.clone(), events::Hub::new(), 10);
     sqlx::query(
         "INSERT INTO meta (key, value) VALUES ('settings.plan_revision_retention', '2')",
@@ -1397,8 +1406,272 @@ async fn meta_retention_override_wins_over_environment() {
     }
 
     let versions = list_versions(&svc).await.expect("list versions");
-    assert_eq!(versions.len(), 2, "meta retention 2 overrides env 10");
-    assert_eq!(plan_version_row_count(&pool).await, 2);
+    assert_eq!(versions.len(), 3, "baseline + meta retention 2 user revisions");
+    assert_eq!(plan_version_row_count(&pool).await, 3);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn write_to_frozen_revision_fails() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+
+    // v1 is the baseline. Create v2 from it, making v2 the latest and v1 frozen.
+    let v2 = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "v2".to_string(),
+            copy_from_version_id: Some(BASELINE_VERSION_ID.to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create v2");
+    let v2_id = v2.meta.into_option().unwrap_or_default().id;
+
+    // Create v3 from v2, making v3 the latest and v2 frozen.
+    let v3 = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "v3".to_string(),
+            copy_from_version_id: Some(v2_id.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create v3");
+    let v3_id = v3.meta.into_option().unwrap_or_default().id;
+
+    // Mutating the frozen v2 must fail with FailedPrecondition.
+    let err = apply_assignments(
+        &svc,
+        ACTOR,
+        ApplyAssignmentsRequest {
+            version_id: v2_id.clone(),
+            upserts: vec![Assignment {
+                employee_id: "emp-1".to_string(),
+                project_id: "proj-1".to_string(),
+                date: "2026-01-05".to_string(),
+                allocation: 0.5,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("apply assignments on frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    let err = apply_absences(
+        &svc,
+        ACTOR,
+        ApplyAbsencesRequest {
+            version_id: v2_id.clone(),
+            upserts: vec![Absence {
+                employee_id: "emp-1".to_string(),
+                date: "2026-01-05".to_string(),
+                absence_type: AbsenceType::Vacation.into(),
+                approved: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("apply absences on frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    // Seed a quarter_data row on v3 so delete_quarter_data has a real target
+    // to attempt against the frozen v2.
+    let quarter = upsert_quarter_data(
+        &svc,
+        ACTOR,
+        UpsertQuarterDataRequest {
+            version_id: v3_id.clone(),
+            quarter: QuarterData {
+                name: "Q1".to_string(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("upsert quarter on v3");
+
+    let err = upsert_quarter_data(
+        &svc,
+        ACTOR,
+        UpsertQuarterDataRequest {
+            version_id: v2_id.clone(),
+            quarter: QuarterData {
+                name: "Q1".to_string(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("upsert quarter data on frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    let err = delete_quarter_data(&svc, ACTOR, &v2_id, &quarter.id)
+        .await
+        .expect_err("delete quarter data on frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    let err = update_version_meta(
+        &svc,
+        ACTOR,
+        UpdateVersionMetaRequest {
+            version_id: v2_id.clone(),
+            name: "Renamed".to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("update version meta on frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn create_version_copy_from_frozen_fails() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+
+    let v2 = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "v2".to_string(),
+            copy_from_version_id: Some(BASELINE_VERSION_ID.to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create v2");
+    let v2_id = v2.meta.into_option().unwrap_or_default().id;
+
+    let _v3 = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "v3".to_string(),
+            copy_from_version_id: Some(v2_id.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create v3");
+
+    // v3 is now latest; copying from v2 (frozen) must fail.
+    let err = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "v4".to_string(),
+            copy_from_version_id: Some(v2_id.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect_err("copy from frozen revision should fail");
+    assert_eq!(err.code, ErrorCode::FailedPrecondition);
+
+    db.cleanup(pool).await;
+}
+
+#[tokio::test]
+async fn write_to_latest_revision_still_works() {
+    let (pool, db) = common::temp_pool("planning").await;
+    let svc = PlanningServiceImpl::new(pool.clone(), events::Hub::new());
+
+    let latest = create_version(
+        &svc,
+        ACTOR,
+        CreateVersionRequest {
+            name: "Latest".to_string(),
+            copy_from_version_id: Some(BASELINE_VERSION_ID.to_string()),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("create latest");
+    let latest_id = latest.meta.into_option().unwrap_or_default().id;
+
+    apply_assignments(
+        &svc,
+        ACTOR,
+        ApplyAssignmentsRequest {
+            version_id: latest_id.clone(),
+            upserts: vec![Assignment {
+                employee_id: "emp-1".to_string(),
+                project_id: "proj-1".to_string(),
+                date: "2026-01-05".to_string(),
+                allocation: 0.5,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("apply assignments on latest");
+
+    apply_absences(
+        &svc,
+        ACTOR,
+        ApplyAbsencesRequest {
+            version_id: latest_id.clone(),
+            upserts: vec![Absence {
+                employee_id: "emp-1".to_string(),
+                date: "2026-01-05".to_string(),
+                absence_type: AbsenceType::Vacation.into(),
+                approved: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("apply absences on latest");
+
+    let quarter = upsert_quarter_data(
+        &svc,
+        ACTOR,
+        UpsertQuarterDataRequest {
+            version_id: latest_id.clone(),
+            quarter: QuarterData {
+                name: "Q1".to_string(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("upsert quarter data on latest");
+
+    update_version_meta(
+        &svc,
+        ACTOR,
+        UpdateVersionMetaRequest {
+            version_id: latest_id.clone(),
+            name: "Renamed Latest".to_string(),
+            ..Default::default()
+        },
+    )
+    .await
+    .expect("update version meta on latest");
+
+    delete_quarter_data(&svc, ACTOR, &latest_id, &quarter.id)
+        .await
+        .expect("delete quarter data on latest");
 
     db.cleanup(pool).await;
 }

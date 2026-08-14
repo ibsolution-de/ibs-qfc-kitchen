@@ -53,7 +53,7 @@ Environment variables (all read once at startup in `config.rs`):
 | `QFC_DEV_USER` | unset | Local-dev identity fallback used when no proxy headers are present, format `email\|Display Name`. **Must never be set in production** — it bypasses auth entirely. |
 | `QFC_DEFAULT_ROLE` | `pm` | Role assigned the first time a user is ever seen (`employee`\|`pm`\|`bl`\|`sales`, case-insensitive). Never overwrites a role already stored. |
 | `QFC_ADMIN_EMAILS` | unset (empty) | Comma-separated emails granted the `admin` role: the accounts are created at startup (`auth::ensure_admins`), before first login; additionally, any matching email is seeded `admin` instead of `QFC_DEFAULT_ROLE` on first sighting. Matched case-insensitively. |
-| `QFC_PLAN_REVISION_RETENTION` | `5` | How many plan revisions (frozen planning snapshots) the system keeps, one of `2`/`3`/`5`/`10`. Older revisions are pruned automatically. Only the startup fallback — admins can override it at runtime via `AdminService::UpdateAppSettings` (stored in the `meta` table). |
+| `QFC_PLAN_REVISION_RETENTION` | `5` | How many plan revisions (frozen planning snapshots) the system keeps, one of `2`/`3`/`5`/`10`. Older revisions are pruned automatically. Only the startup fallback — admins can override it at runtime via `AdminService::UpdateAppSettings` (stored in the `meta` table). The configured retention counts user revisions; the deployment baseline `v1` / `2026` is never pruned. |
 | `RUST_LOG` | `info` | Read directly by `tracing-subscriber`'s `EnvFilter`, not by `config.rs`. |
 
 ## Access control

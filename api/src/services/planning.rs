@@ -23,11 +23,7 @@
 //! sqlx::Error` impl, so `?` on a raw `sqlx` call converts automatically
 //! inside those, whereas `ConnectError` (the trait methods' own error type)
 //! does not implement `From<sqlx::Error>` and would need a `.map_err(...)`
-//! `?` at every call site instead. `do_delete_version` is the one exception,
-//! returning `Result<(), ConnectError>` directly, since refusing to delete
-//! the last remaining version needs `ErrorCode::FailedPrecondition` — the
-//! same code `AppError::FailedPrecondition` maps to in `error.rs`, kept as
-//! `ConnectError` here because only this function's guard needs it.
+//! `?` at every call site instead.
 //!
 //! Access control: every mutating RPC requires the caller to hold `pm` or
 //! `bl` (`auth::require_any_role`); reads (`ListVersions`, `GetVersion`,
@@ -35,9 +31,7 @@
 //! read-only planner employees see in the web app.
 
 use buffa::{EnumValue, Enumeration, Message};
-use connectrpc::{
-    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
-};
+use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
 use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::auth;
@@ -55,6 +49,16 @@ use crate::proto::planning::{
 };
 use crate::proto::session::UserRole;
 use crate::time::now_millis;
+
+/// Actor identity used for automatic housekeeping writes (quarterly snapshot,
+/// retention pruning) so they are not attributed to whichever user happened
+/// to call `ListVersions` first.
+const SYSTEM_ACTOR: &str = "system";
+
+/// The deployment baseline plan version inserted by migration 0005. It is
+/// protected from retention pruning so a fresh/reset database always has at
+/// least one revision.
+const BASELINE_VERSION_ID: &str = "v1";
 
 pub struct PlanningServiceImpl {
     pool: SqlitePool,
@@ -92,19 +96,22 @@ impl PlanningService for PlanningServiceImpl {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListVersionsRequest>,
     ) -> ServiceResult<ListVersionsResponse> {
-        let current = auth::require(&ctx)?;
+        let _current = auth::require(&ctx)?;
         // Best-effort housekeeping on a read path: a rollover into a new
         // quarter should auto-freeze a snapshot, and over-retention
         // revisions should be pruned, but neither must ever take the
         // whole app down with a load error — the same work is retried by
         // the next request (see `reconcile_plan_revisions`).
-        let _ = reconcile_plan_revisions(
+        if let Err(e) = reconcile_plan_revisions(
             &self.pool,
             &self.hub,
-            &current.email,
+            SYSTEM_ACTOR,
             self.env_plan_revision_retention,
         )
-        .await;
+        .await
+        {
+            tracing::warn!(error = %e, "reconcile_plan_revisions failed");
+        }
         let versions = list_version_metas(&self.pool).await?;
         Response::ok(ListVersionsResponse {
             versions,
@@ -369,12 +376,8 @@ async fn ensure_quarterly_revision(
         return Ok(());
     }
 
-    let latest: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM plan_version ORDER BY created_at DESC, rowid DESC LIMIT 1",
-    )
-    .fetch_optional(&mut *tx)
-    .await?;
-    let Some((latest_id,)) = latest else {
+    let latest_id = fetch_latest_version_id(&mut *tx).await?;
+    let Some(latest_id) = latest_id else {
         tx.commit().await?;
         return Ok(());
     };
@@ -441,19 +444,30 @@ async fn prune_plan_revisions(
         // (the SPA has no empty-version state).
         return Ok(());
     }
-    let ids: Vec<(String,)> = sqlx::query_as(
+    let ids: Vec<String> = sqlx::query_as::<_, (String,)>(
         "SELECT id FROM plan_version ORDER BY created_at ASC, rowid ASC",
     )
     .fetch_all(pool)
-    .await?;
-    if ids.len() <= retention as usize {
+    .await?
+    .into_iter()
+    .map(|(id,)| id)
+    .collect();
+
+    // The deployment baseline is protected from pruning; retention counts
+    // user revisions only, so the baseline is kept alongside up to
+    // `retention` newest user revisions.
+    let user_ids: Vec<String> = ids
+        .into_iter()
+        .filter(|id| id != BASELINE_VERSION_ID)
+        .collect();
+    if user_ids.len() <= retention as usize {
         return Ok(());
     }
-    let victims = &ids[..ids.len() - retention as usize];
+    let victims = &user_ids[..user_ids.len() - retention as usize];
 
     let mut tx = pool.begin().await?;
     let mut pending = PendingEvents::new();
-    for (id,) in victims {
+    for id in victims {
         sqlx::query("DELETE FROM plan_version WHERE id = ?1")
             .bind(id)
             .execute(&mut *tx)
@@ -555,10 +569,18 @@ async fn do_create_version(
 
     let mut tx = pool.begin().await?;
 
-    if let Some(source_id) = request.copy_from_version_id.as_deref()
-        && !version_exists(&mut tx, source_id).await?
-    {
-        return Err(AppError::NotFound("plan_version", source_id.to_string()));
+    if let Some(source_id) = request.copy_from_version_id.as_deref() {
+        if !version_exists(&mut tx, source_id).await? {
+            return Err(AppError::NotFound("plan_version", source_id.to_string()));
+        }
+        require_latest_version(&mut tx, source_id)
+            .await
+            .map_err(|e| match e {
+                AppError::FailedPrecondition(_) => AppError::FailedPrecondition(
+                    "can only create a new plan revision from the latest revision".to_string(),
+                ),
+                other => other,
+            })?;
     }
 
     sqlx::query(
@@ -629,6 +651,14 @@ async fn do_update_version_meta(
     }
 
     let mut tx = pool.begin().await?;
+    if !version_exists(&mut tx, &request.version_id).await? {
+        return Err(AppError::NotFound(
+            "plan_version",
+            request.version_id.clone(),
+        ));
+    }
+    require_latest_version(&mut tx, &request.version_id).await?;
+
     // `RETURNING created_at` both applies the update and confirms whether a
     // row existed in one round trip: `None` means `id` didn't match
     // anything, so nothing was written.
@@ -674,43 +704,31 @@ async fn do_update_version_meta(
 /// Delete a plan version, cascading (via `ON DELETE CASCADE`, which
 /// requires SQLite's `foreign_keys` pragma to be on — see `db::connect`) to
 /// its assignments/absences/quarter_data.
-///
-/// Returns `Result<(), ConnectError>` rather than `AppResult<()>` because
-/// refusing to delete the last remaining version needs
-/// `ErrorCode::FailedPrecondition`, a code `AppError` has no variant for
-/// (see this module's top-level doc comment). Raw `sqlx` calls below
-/// therefore need an explicit `.map_err(AppError::from)` before `?`, since
-/// `ConnectError` (unlike `AppError`) has no `From<sqlx::Error>` impl;
-/// calls already returning `AppResult` (`version_exists`, `events::record`)
-/// convert with a plain `?`.
 async fn do_delete_version(
     pool: &SqlitePool,
     hub: &Hub,
     actor_email: &str,
     version_id: &str,
-) -> Result<(), ConnectError> {
-    let mut tx = pool.begin().await.map_err(AppError::from)?;
+) -> AppResult<()> {
+    let mut tx = pool.begin().await?;
     if !version_exists(&mut tx, version_id).await? {
-        return Err(AppError::NotFound("plan_version", version_id.to_string()).into());
+        return Err(AppError::NotFound("plan_version", version_id.to_string()));
     }
     // The SPA has no empty state for "zero plan versions" — refuse to
     // delete the last one rather than let a client paint that state.
     let total_versions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM plan_version")
         .fetch_one(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
     if total_versions <= 1 {
-        return Err(ConnectError::new(
-            ErrorCode::FailedPrecondition,
-            "cannot delete the last remaining plan version",
+        return Err(AppError::FailedPrecondition(
+            "cannot delete the last remaining plan version".to_string(),
         ));
     }
 
     sqlx::query("DELETE FROM plan_version WHERE id = ?1")
         .bind(version_id)
         .execute(&mut *tx)
-        .await
-        .map_err(AppError::from)?;
+        .await?;
 
     let mut pending = PendingEvents::new();
     pending.push(
@@ -725,7 +743,7 @@ async fn do_delete_version(
         )
         .await?,
     );
-    tx.commit().await.map_err(AppError::from)?;
+    tx.commit().await?;
     hub.publish_all(pending);
     Ok(())
 }
@@ -753,6 +771,7 @@ async fn do_apply_assignments(
     if !version_exists(&mut tx, &version_id).await? {
         return Err(AppError::NotFound("plan_version", version_id));
     }
+    require_latest_version(&mut tx, &version_id).await?;
     // `change_log.seq` is `AUTOINCREMENT`, so every event this call writes
     // from here on is strictly greater than this starting point.
     let mut seq = current_max_seq(&mut tx).await?;
@@ -849,6 +868,7 @@ async fn do_apply_absences(
     if !version_exists(&mut tx, &version_id).await? {
         return Err(AppError::NotFound("plan_version", version_id));
     }
+    require_latest_version(&mut tx, &version_id).await?;
     let mut seq = current_max_seq(&mut tx).await?;
 
     let mut pending = PendingEvents::new();
@@ -948,6 +968,7 @@ async fn do_upsert_quarter_data(
     if !version_exists(&mut tx, &version_id).await? {
         return Err(AppError::NotFound("plan_version", version_id));
     }
+    require_latest_version(&mut tx, &version_id).await?;
 
     // Only the INSERT path consumes `position` (the ON CONFLICT branch
     // below updates `data` alone), so the MAX(position)+1 aggregate runs
@@ -1007,6 +1028,7 @@ async fn do_delete_quarter_data(
     id: &str,
 ) -> AppResult<()> {
     let mut tx = pool.begin().await?;
+    require_latest_version(&mut tx, version_id).await?;
     let result = sqlx::query("DELETE FROM quarter_data WHERE version_id = ?1 AND id = ?2")
         .bind(version_id)
         .bind(id)
@@ -1224,6 +1246,32 @@ async fn version_exists(conn: &mut SqliteConnection, id: &str) -> AppResult<bool
         .fetch_optional(&mut *conn)
         .await?;
     Ok(found.is_some())
+}
+
+/// Fetch the newest `plan_version.id` according to the canonical sort
+/// (`created_at DESC, rowid DESC`). Returns `None` when the table is empty.
+async fn fetch_latest_version_id(conn: &mut SqliteConnection) -> AppResult<Option<String>> {
+    let latest: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM plan_version ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    Ok(latest.map(|(id,)| id))
+}
+
+/// Refuse to touch any revision other than the latest. The latest revision
+/// is the only one that may be mutated; older revisions are frozen snapshots.
+/// When the table is empty the check succeeds (no revision is frozen).
+async fn require_latest_version(
+    conn: &mut SqliteConnection,
+    version_id: &str,
+) -> AppResult<()> {
+    match &fetch_latest_version_id(conn).await? {
+        Some(latest_id) if latest_id != version_id => Err(AppError::FailedPrecondition(
+            "plan revision is frozen".to_string(),
+        )),
+        _ => Ok(()),
+    }
 }
 
 /// `true` if a `quarter_data` row exists for `(version_id, id)` — the key
