@@ -192,7 +192,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
     <div className="w-64 bg-charcoal-50/50 backdrop-blur-xl border-r border-charcoal-200 flex flex-col h-full flex-shrink-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.03)]">
-      <div className="p-6 flex-1 flex flex-col min-h-0">
+      {/* `overflow-y-auto` is the escape hatch for short viewports: the nav
+          sections below are all flex-shrink-0, so once they plus the version
+          list's min-height exceed the available height, this column scrolls
+          instead of crushing the revisions list to a sliver. */}
+      <div className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
         <div className="flex items-center gap-3 mb-8 flex-shrink-0 animate-fade-in">
             <div className="w-8 h-8 bg-gradient-to-br from-charcoal-700 to-charcoal-900 rounded-lg flex items-center justify-center text-white shadow-md ring-1 ring-charcoal-400/20">
                 <CookingPot className="w-5 h-5" />
@@ -276,7 +280,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Version History: planning staff (pm/bl) only - employee is no longer mutually exclusive with pm/bl, so this derives from the same `canPlan` boolean as the planner's read-only state in App.tsx rather than re-deriving from `employee`. */}
         {canPlan && (
-        <div className="mt-8 flex-1 flex flex-col min-h-0 animate-slide-in-right" style={{ animationDelay: '0.3s' }}>
+        <div className="mt-8 flex-1 flex flex-col min-h-40 animate-slide-in-right" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-center justify-between px-3 mb-2 flex-shrink-0">
              <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest flex items-center gap-2 font-mono opacity-80">
                 <History className="w-3 h-3" /> {t('sidebar.versions')}

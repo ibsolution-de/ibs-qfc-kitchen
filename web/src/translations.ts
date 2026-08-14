@@ -205,7 +205,7 @@ export const translations = {
       strategy: 'Strategy & Vision',
       salesPipeline: 'Sales Pipeline',
       planning: 'PLANNING',
-      manage: 'MANAGE',
+      manage: 'Master Data',
       versions: 'Plan Revisions',
       settings: 'Settings',
       language: 'Language',
@@ -224,7 +224,7 @@ export const translations = {
       frozen: 'Frozen',
       changelogTitle: 'System Record',
       administration: 'Administration',
-      userAdministration: 'Users'
+      userAdministration: 'Users & System'
     },
     changelog: {
       title: 'CHANGELOG.SYS',
@@ -871,7 +871,7 @@ export const translations = {
       strategy: 'Strategie & Vision',
       salesPipeline: 'Sales Pipeline',
       planning: 'PLANUNG',
-      manage: 'VERWALTUNG',
+      manage: 'Stammdaten',
       versions: 'Plan-Revisionen',
       settings: 'Einstellungen',
       language: 'Sprache',
@@ -889,8 +889,8 @@ export const translations = {
       latest: 'Neueste',
       frozen: 'Eingefroren',
       changelogTitle: 'Systemprotokoll',
-      administration: 'Verwaltung',
-      userAdministration: 'Benutzer'
+      administration: 'Administration',
+      userAdministration: 'Benutzer & System'
     },
     changelog: {
       title: 'CHANGELOG.SYS',
